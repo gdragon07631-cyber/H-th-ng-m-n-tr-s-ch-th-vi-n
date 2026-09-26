@@ -1,0 +1,8 @@
+bin/
+obj/
+artifacts/
+.vs/
+.vscode/*.local.json
+Data/Keys/
+*.user
+*.suo
