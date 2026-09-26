@@ -11,6 +11,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<AdminAccount> AdminAccounts => Set<AdminAccount>();
     public DbSet<LoginLog> LoginLogs => Set<LoginLog>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<ReaderAccount> ReaderAccounts => Set<ReaderAccount>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -50,6 +51,18 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .WithMany()
                 .HasForeignKey(token => token.AdminAccountId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ReaderAccount>(entity =>
+        {
+            entity.HasIndex(reader => reader.Email);
+            entity.HasIndex(reader => reader.StudentOrStaffCode);
+            entity.Property(reader => reader.FullName).HasMaxLength(100).IsRequired();
+            entity.Property(reader => reader.Email).HasMaxLength(256).IsRequired();
+            entity.Property(reader => reader.PhoneNumber).HasMaxLength(20).IsRequired();
+            entity.Property(reader => reader.StudentOrStaffCode).HasMaxLength(50).IsRequired();
+            entity.Property(reader => reader.PasswordHash).HasMaxLength(512).IsRequired();
+            entity.Property(reader => reader.Status).HasMaxLength(50).HasDefaultValue("Chờ duyệt").IsRequired();
         });
     }
 }

@@ -1,0 +1,34 @@
+@{
+    ViewData["Title"] = "Đăng nhập Bạn đọc";
+}
+
+<div class="row justify-content-center py-5">
+    <div class="col-12 col-md-7 col-lg-5">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4 p-md-5">
+                <h1 class="h3 mb-4 text-center text-primary fw-bold">Đăng nhập Bạn đọc</h1>
+                <form asp-action="Login" method="post">
+                    <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+                    <div class="mb-3">
+                        <label for="email" class="form-label fw-semibold">Email</label>
+                        <input id="email" name="email" type="email" class="form-control" placeholder="bandoc@example.com" required autofocus />
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="password" class="form-label fw-semibold">Mật khẩu</label>
+                        <input id="password" name="password" type="password" class="form-control" placeholder="Mật khẩu của bạn" required />
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 py-2 fs-6">Đăng nhập</button>
+
+                    <div class="text-center mt-3">
+                        <span class="text-muted small">Chưa có tài khoản?</span>
+                        <a asp-action="Register" class="small fw-semibold">Đăng ký ngay</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

@@ -116,6 +116,61 @@ public sealed class ApplicationDbContextModelSnapshot : ModelSnapshot
                 .OnDelete(DeleteBehavior.SetNull);
             entity.Navigation("AdminAccount");
         });
+
+        modelBuilder.Entity("Project.Models.ReaderAccount", entity =>
+        {
+            entity.Property<int>("Id")
+                .ValueGeneratedOnAdd()
+                .HasColumnType("int");
+
+            SqlServerPropertyBuilderExtensions.UseIdentityColumn(entity.Property<int>("Id"));
+
+            entity.Property<string>("FullName")
+                .IsRequired()
+                .HasMaxLength(100)
+                .HasColumnType("nvarchar(100)");
+
+            entity.Property<DateOnly>("DateOfBirth")
+                .HasColumnType("date");
+
+            entity.Property<string>("Email")
+                .IsRequired()
+                .HasMaxLength(256)
+                .HasColumnType("nvarchar(256)");
+
+            entity.Property<string>("PhoneNumber")
+                .IsRequired()
+                .HasMaxLength(20)
+                .HasColumnType("nvarchar(20)");
+
+            entity.Property<string>("StudentOrStaffCode")
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasColumnType("nvarchar(50)");
+
+            entity.Property<string>("PasswordHash")
+                .IsRequired()
+                .HasMaxLength(512)
+                .HasColumnType("nvarchar(512)");
+
+            entity.Property<string>("Status")
+                .IsRequired()
+                .ValueGeneratedOnAdd()
+                .HasMaxLength(50)
+                .HasColumnType("nvarchar(50)")
+                .HasDefaultValue("Chờ duyệt");
+
+            entity.Property<DateTime>("CreatedAtUtc")
+                .HasColumnType("datetime2");
+
+            entity.HasKey("Id");
+
+            entity.HasIndex("Email");
+
+            entity.HasIndex("StudentOrStaffCode");
+
+            entity.ToTable("ReaderAccounts");
+        });
 #pragma warning restore 612, 618
     }
 }
