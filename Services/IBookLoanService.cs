@@ -1,0 +1,12 @@
+using Project.Models;
+
+namespace Project.Services;
+
+public sealed record BookLoanOutcome(bool IsSuccess, string? ErrorMessage = null, BookLoan? Loan = null);
+
+public interface IBookLoanService
+{
+    Task<IReadOnlyList<BookLoan>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, CancellationToken cancellationToken = default);
+    Task<DateOnly> AdjustDueDateAsync(DateOnly proposedDate, CancellationToken cancellationToken = default);
+}

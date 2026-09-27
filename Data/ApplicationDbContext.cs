@@ -18,6 +18,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<LibraryCardType> LibraryCardTypes => Set<LibraryCardType>();
     public DbSet<LibraryCard> LibraryCards => Set<LibraryCard>();
     public DbSet<BookHold> BookHolds => Set<BookHold>();
+    public DbSet<BookLoan> BookLoans => Set<BookLoan>();
+    public DbSet<BookCopy> BookCopies => Set<BookCopy>();
+    public DbSet<Warehouse> Warehouses => Set<Warehouse>();
+    public DbSet<Shelf> Shelves => Set<Shelf>();
+    public DbSet<WeeklyWorkingSchedule> WeeklyWorkingSchedules => Set<WeeklyWorkingSchedule>();
+    public DbSet<HolidayClosure> HolidayClosures => Set<HolidayClosure>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -138,6 +144,71 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .HasForeignKey(hold => hold.ReaderAccountId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(hold => hold.Book).WithMany()
                 .HasForeignKey(hold => hold.BookId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Warehouse>(entity =>
+        {
+            entity.HasIndex(w => w.Code).IsUnique();
+            entity.Property(w => w.Code).HasMaxLength(50).IsRequired();
+            entity.Property(w => w.Name).HasMaxLength(150).IsRequired();
+            entity.Property(w => w.Address).HasMaxLength(500);
+            entity.Property(w => w.Description).HasMaxLength(500);
+            entity.Property(w => w.Status).HasMaxLength(50).HasDefaultValue("Hoạt động").IsRequired();
+            entity.Property(w => w.CreatedAtUtc).HasColumnType("datetime2");
+        });
+
+        modelBuilder.Entity<Shelf>(entity =>
+        {
+            entity.HasIndex(s => new { s.WarehouseId, s.Code }).IsUnique();
+            entity.Property(s => s.Code).HasMaxLength(50).IsRequired();
+            entity.Property(s => s.Name).HasMaxLength(150).IsRequired();
+            entity.Property(s => s.Description).HasMaxLength(500);
+            entity.Property(s => s.Status).HasMaxLength(50).HasDefaultValue("Hoạt động").IsRequired();
+            entity.Property(s => s.CreatedAtUtc).HasColumnType("datetime2");
+            entity.HasOne(s => s.Warehouse)
+                .WithMany(w => w.Shelves)
+                .HasForeignKey(s => s.WarehouseId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BookLoan>(entity =>
+        {
+            entity.Property(loan => loan.LoanDate).HasColumnType("date");
+            entity.Property(loan => loan.OriginalDueDate).HasColumnType("date");
+            entity.Property(loan => loan.DueDate).HasColumnType("date");
+            entity.Property(loan => loan.CreatedAtUtc).HasColumnType("datetime2");
+            entity.HasOne(loan => loan.Book).WithMany()
+                .HasForeignKey(loan => loan.BookId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(loan => loan.ReaderAccount).WithMany()
+                .HasForeignKey(loan => loan.ReaderAccountId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BookCopy>(entity =>
+        {
+            entity.HasIndex(copy => copy.CopyCode).IsUnique();
+            entity.HasIndex(copy => copy.ShelfId);
+            entity.Property(copy => copy.CopyCode).HasMaxLength(50).IsRequired();
+            entity.Property(copy => copy.Status).HasMaxLength(50).HasDefaultValue("Sẵn sàng").IsRequired();
+            entity.HasOne(copy => copy.Book).WithMany()
+                .HasForeignKey(copy => copy.BookId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(copy => copy.Shelf).WithMany()
+                .HasForeignKey(copy => copy.ShelfId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<WeeklyWorkingSchedule>(entity =>
+        {
+            entity.HasIndex(schedule => schedule.DayOfWeek).IsUnique();
+            entity.Property(schedule => schedule.DayOfWeek).HasConversion<int>().IsRequired();
+            entity.Property(schedule => schedule.IsOpen).HasDefaultValue(true);
+            entity.Property(schedule => schedule.Note).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<HolidayClosure>(entity =>
+        {
+            entity.HasIndex(holiday => holiday.HolidayDate).IsUnique();
+            entity.Property(holiday => holiday.HolidayDate).HasColumnType("date").IsRequired();
+            entity.Property(holiday => holiday.Reason).HasMaxLength(150).IsRequired();
+            entity.Property(holiday => holiday.Note).HasMaxLength(500);
         });
     }
 }

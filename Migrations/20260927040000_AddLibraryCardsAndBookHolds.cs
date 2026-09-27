@@ -62,11 +62,15 @@ public partial class AddLibraryCardsAndBookHolds : Migration
                 table.ForeignKey("FK_LibraryCards_ReaderAccounts_ReaderAccountId", x => x.ReaderAccountId, "ReaderAccounts", "Id", onDelete: ReferentialAction.Restrict);
             });
 
-        migrationBuilder.InsertData("LibraryCardTypes", new[] { "Id", "IsActive", "Name" }, new object[,]
-        {
-            { 1, true, "Thẻ bạn đọc thường" }, { 2, true, "Thẻ sinh viên" },
-            { 3, true, "Thẻ giảng viên" }, { 4, true, "Thẻ cán bộ" }
-        });
+        migrationBuilder.InsertData(
+            table: "LibraryCardTypes",
+            columns: new[] { "Id", "IsActive", "Name" },
+            values: new object[,]
+            {
+                { 1, true, "Thẻ bạn đọc thường" }, { 2, true, "Thẻ sinh viên" },
+                { 3, true, "Thẻ giảng viên" }, { 4, true, "Thẻ cán bộ" }
+            },
+            columnTypes: new[] { "int", "bit", "nvarchar(100)" });
         migrationBuilder.CreateIndex("IX_BookHolds_BookId", "BookHolds", "BookId");
         migrationBuilder.CreateIndex("IX_BookHolds_ReaderAccountId_BookId", "BookHolds", new[] { "ReaderAccountId", "BookId" }, unique: true);
         migrationBuilder.CreateIndex("IX_LibraryCardTypes_Name", "LibraryCardTypes", "Name", unique: true);
