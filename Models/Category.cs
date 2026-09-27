@@ -1,28 +1,34 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace Project.Models;
 
-public static class AuthorStatus
+public static class CategoryStatus
 {
     public const string Active = "Hoạt động";
     public const string Inactive = "Ngừng sử dụng";
 }
 
-public sealed class Author
+public sealed class Category
 {
     public int Id { get; set; }
 
     [Required, MaxLength(150)]
     public string Name { get; set; } = string.Empty;
 
-    [MaxLength(500)]
-    public string? Note { get; set; }
-
     [Required, MaxLength(50)]
-    public string Status { get; set; } = AuthorStatus.Active;
+    public string Status { get; set; } = CategoryStatus.Active;
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
-    [System.Text.Json.Serialization.JsonIgnore]
+    public int? ParentId { get; set; }
+
+    [JsonIgnore]
+    public Category? Parent { get; set; }
+
+    [JsonIgnore]
+    public ICollection<Category> Children { get; set; } = [];
+
+    [JsonIgnore]
     public ICollection<Book> Books { get; set; } = [];
 }

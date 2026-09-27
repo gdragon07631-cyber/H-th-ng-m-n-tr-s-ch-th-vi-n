@@ -206,6 +206,82 @@ public sealed class ApplicationDbContextModelSnapshot : ModelSnapshot
 
             entity.ToTable("Authors");
         });
+
+        modelBuilder.Entity("Project.Models.Book", entity =>
+        {
+            entity.Property<int>("Id")
+                .ValueGeneratedOnAdd()
+                .HasColumnType("int");
+
+            SqlServerPropertyBuilderExtensions.UseIdentityColumn(entity.Property<int>("Id"));
+
+            entity.Property<string>("Title")
+                .IsRequired()
+                .HasMaxLength(250)
+                .HasColumnType("nvarchar(250)");
+
+            entity.Property<string>("Isbn")
+                .HasMaxLength(50)
+                .HasColumnType("nvarchar(50)");
+
+            entity.Property<int>("AuthorId")
+                .HasColumnType("int");
+
+            entity.Property<int?>("CategoryId")
+                .HasColumnType("int");
+
+            entity.Property<string>("Description")
+                .HasMaxLength(500)
+                .HasColumnType("nvarchar(500)");
+
+            entity.Property<DateTime>("CreatedAtUtc")
+                .HasColumnType("datetime2");
+
+            entity.HasKey("Id");
+
+            entity.HasIndex("AuthorId");
+
+            entity.HasIndex("CategoryId");
+
+            entity.ToTable("Books");
+
+            entity.HasOne("Project.Models.Author", "Author")
+                .WithMany("Books")
+                .HasForeignKey("AuthorId")
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired();
+
+            entity.Navigation("Author");
+            entity.HasOne("Project.Models.Category", "Category")
+                .WithMany("Books")
+                .HasForeignKey("CategoryId")
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.Navigation("Category");
+        });
+
+        modelBuilder.Entity("Project.Models.Category", entity =>
+        {
+            entity.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("int");
+            SqlServerPropertyBuilderExtensions.UseIdentityColumn(entity.Property<int>("Id"));
+            entity.Property<string>("Name").IsRequired().HasMaxLength(150).HasColumnType("nvarchar(150)");
+            entity.Property<string>("Status").IsRequired().ValueGeneratedOnAdd().HasMaxLength(50).HasColumnType("nvarchar(50)").HasDefaultValue("Hoạt động");
+            entity.Property<DateTime>("CreatedAtUtc").HasColumnType("datetime2");
+            entity.Property<int?>("ParentId").HasColumnType("int");
+            entity.HasKey("Id");
+            entity.HasIndex("Name").IsUnique();
+            entity.HasIndex("ParentId");
+            entity.ToTable("Categories");
+        });
+
+        modelBuilder.Entity("Project.Models.Category", entity =>
+        {
+            entity.HasMany("Project.Models.Book", "Books").WithOne("Category").HasForeignKey("CategoryId");
+            entity.HasMany("Project.Models.Category", "Children").WithOne("Parent").HasForeignKey("ParentId");
+            entity.HasOne("Project.Models.Category", "Parent").WithMany("Children").HasForeignKey("ParentId").OnDelete(DeleteBehavior.Restrict);
+            entity.Navigation("Books");
+            entity.Navigation("Children");
+            entity.Navigation("Parent");
+        });
 #pragma warning restore 612, 618
     }
 }

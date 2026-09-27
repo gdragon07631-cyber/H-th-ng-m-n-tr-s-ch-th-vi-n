@@ -13,6 +13,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<ReaderAccount> ReaderAccounts => Set<ReaderAccount>();
     public DbSet<Author> Authors => Set<Author>();
+    public DbSet<Book> Books => Set<Book>();
+    public DbSet<Category> Categories => Set<Category>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -25,6 +27,34 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(author => author.Note).HasMaxLength(500);
             entity.Property(author => author.Status).HasMaxLength(50).HasDefaultValue("Hoạt động").IsRequired();
             entity.Property(author => author.CreatedAtUtc).HasColumnType("datetime2");
+        });
+
+        modelBuilder.Entity<Book>(entity =>
+        {
+            entity.Property(b => b.Title).HasMaxLength(250).IsRequired();
+            entity.Property(b => b.Isbn).HasMaxLength(50);
+            entity.Property(b => b.Description).HasMaxLength(500);
+            entity.Property(b => b.CreatedAtUtc).HasColumnType("datetime2");
+            entity.HasOne(b => b.Author)
+                .WithMany(a => a.Books)
+                .HasForeignKey(b => b.AuthorId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(b => b.Category)
+                .WithMany(c => c.Books)
+                .HasForeignKey(b => b.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Category>(entity =>
+        {
+            entity.HasIndex(category => category.Name).IsUnique();
+            entity.Property(category => category.Name).HasMaxLength(150).IsRequired();
+            entity.Property(category => category.Status).HasMaxLength(50).HasDefaultValue("Hoạt động").IsRequired();
+            entity.Property(category => category.CreatedAtUtc).HasColumnType("datetime2");
+            entity.HasOne(category => category.Parent)
+                .WithMany(category => category.Children)
+                .HasForeignKey(category => category.ParentId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<AdminAccount>(entity =>

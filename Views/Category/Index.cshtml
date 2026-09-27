@@ -1,0 +1,91 @@
+@model Project.Models.CategoryManagementViewModel
+@{
+    ViewData["Title"] = "Quản lý thể loại";
+    var rows = Model.Categories.Where(c => c.ParentId == null).OrderBy(c => c.Name)
+        .SelectMany(root => new[] { root }.Concat(root.Children.OrderBy(child => child.Name))).ToList();
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div><h1 class="h3 mb-1 text-primary fw-bold">Danh mục Thể loại</h1><p class="text-muted mb-0">Quản lý danh sách thể loại sách</p></div>
+    </div>
+
+    @if (TempData["SuccessMessage"] is string success)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">@success<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    }
+    @if (TempData["ErrorMessage"] is string error)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">@error<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    }
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white"><h2 class="h5 mb-0">Thêm thể loại</h2></div>
+        <div class="card-body">
+            <form asp-action="Create" method="post" class="row g-2 align-items-end">
+                @Html.AntiForgeryToken()
+                <div class="col-sm-8 col-md-6"><label class="form-label" for="newCategoryName">Tên thể loại</label><input class="form-control" id="newCategoryName" name="Name" maxlength="150" required /></div>
+                <div class="col-sm-8 col-md-4">
+                    <label class="form-label" for="newParentId">Thể loại cha (không bắt buộc)</label>
+                    <select class="form-select" id="newParentId" name="ParentId"><option value="">-- Cấp 1 --</option>
+                        @foreach (var parent in Model.ParentOptions) { <option value="@parent.Id">@parent.Name</option> }
+                    </select>
+                </div>
+                <div class="col-auto"><button class="btn btn-primary" type="submit">Thêm thể loại</button></div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white d-flex justify-content-between"><h2 class="h5 mb-0">Danh sách thể loại</h2><span class="badge bg-primary rounded-pill">@Model.Categories.Count</span></div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light"><tr><th>ID</th><th>Tên thể loại</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                <tbody>
+                @if (rows.Count == 0)
+                {
+                    <tr><td colspan="4" class="text-center text-muted py-4">Chưa có thể loại nào.</td></tr>
+                }
+                @foreach (var category in rows)
+                {
+                    <tr>
+                        <td>@category.Id</td>
+                        <td>
+                            <form asp-action="Edit" method="post" class="d-flex gap-2">
+                                @Html.AntiForgeryToken()<input type="hidden" name="id" value="@category.Id" />
+                                <div class="flex-grow-1">
+                                    <input class="form-control form-control-sm @(category.ParentId.HasValue ? "ms-4" : "")" name="Name" value="@category.Name" maxlength="150" required aria-label="Tên thể loại" />
+                                    <small class="text-muted">Cấp @(category.ParentId.HasValue ? "2" : "1")@if (category.ParentId.HasValue) { <text> · @category.Parent?.Name</text> }</small>
+                                </div>
+                                <select class="form-select form-select-sm" name="ParentId" aria-label="Thể loại cha">
+                                    <option value="">-- Cấp 1 --</option>
+                                    @if (category.Children.Count == 0)
+                                    {
+                                        @foreach (var parent in Model.ParentOptions.Where(p => p.Id != category.Id))
+                                        {
+                                            <option value="@parent.Id" selected="@(category.ParentId == parent.Id)">@parent.Name</option>
+                                        }
+                                    }
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Lưu</button>
+                            </form>
+                        </td>
+                        <td><span class="badge @(category.Status == Project.Models.CategoryStatus.Active ? "bg-success" : "bg-secondary")">@category.Status</span></td>
+                        <td class="text-nowrap">
+                            @if (category.Status == Project.Models.CategoryStatus.Active)
+                            {
+                                <form asp-action="Deactivate" method="post" class="d-inline" onsubmit="return confirm('Ngừng sử dụng thể loại này?');">
+                                    @Html.AntiForgeryToken()<input type="hidden" name="id" value="@category.Id" /><button class="btn btn-sm btn-outline-warning" type="submit">Ngừng sử dụng</button>
+                                </form>
+                            }
+                            <form asp-action="Delete" method="post" class="d-inline" onsubmit="return confirm('Xóa thể loại này? Nếu đã có sách liên kết, thao tác sẽ bị từ chối.');">
+                                @Html.AntiForgeryToken()<input type="hidden" name="id" value="@category.Id" /><button class="btn btn-sm btn-outline-danger" type="submit">Xóa</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

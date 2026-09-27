@@ -1,0 +1,78 @@
+@model Project.Models.CatalogBookViewModel
+@{
+    ViewData["Title"] = "Biên mục sách mới";
+}
+
+<div class="row justify-content-center py-4">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4 p-md-5">
+                <h1 class="h3 mb-3 text-center text-primary font-weight-bold">Biên mục sách mới</h1>
+                <p class="text-muted text-center mb-4">Nhập thông tin biên mục sách vào hệ thống thư viện</p>
+
+                <form asp-action="Create" method="post" id="catalogBookForm" novalidate>
+                    @Html.AntiForgeryToken()
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+                    <div class="mb-3">
+                        <label asp-for="Title" class="form-label fw-semibold">Tên sách <span class="text-danger">*</span></label>
+                        <input asp-for="Title" class="form-control" placeholder="Nhập tên sách..." autofocus />
+                        <span asp-validation-for="Title" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="CategoryId" class="form-label fw-semibold">Thể loại <span class="text-danger">*</span></label>
+                        <select asp-for="CategoryId" class="form-select">
+                            <option value="">-- Chọn thể loại đang hoạt động --</option>
+                            @foreach (var category in Model.ActiveCategories)
+                            {
+                                <option value="@category.Id">@(category.Parent == null ? category.Name : $"{category.Parent.Name} > {category.Name}")</option>
+                            }
+                        </select>
+                        <span asp-validation-for="CategoryId" class="text-danger small"></span>
+                        @if (Model.ActiveCategories.Count == 0)
+                        {
+                            <div class="form-text text-danger">Hiện chưa có thể loại hoạt động. Hãy thêm thể loại trước khi biên mục.</div>
+                        }
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Isbn" class="form-label fw-semibold">Mã ISBN</label>
+                        <input asp-for="Isbn" class="form-control" placeholder="Ví dụ: 978-604-2-00000-0" />
+                        <span asp-validation-for="Isbn" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="AuthorId" class="form-label fw-semibold">Tác giả <span class="text-danger">*</span></label>
+                        <select asp-for="AuthorId" class="form-select" id="authorSelect">
+                            <option value="">-- Chọn tác giả (chỉ hiển thị tác giả đang hoạt động) --</option>
+                            @foreach (var author in Model.ActiveAuthors)
+                            {
+                                <option value="@author.Id">@author.Name</option>
+                            }
+                        </select>
+                        <span asp-validation-for="AuthorId" class="text-danger small"></span>
+                        <div class="form-text small text-muted">
+                            Lưu ý: Chỉ những tác giả đang ở trạng thái <strong>Hoạt động</strong> mới xuất hiện trong danh sách này.
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label asp-for="Description" class="form-label fw-semibold">Mô tả / Tóm tắt</label>
+                        <textarea asp-for="Description" class="form-control" rows="3" placeholder="Nhập thông tin tóm tắt nội dung sách..."></textarea>
+                        <span asp-validation-for="Description" class="text-danger small"></span>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary flex-grow-1 py-2" disabled="@(Model.ActiveCategories.Count == 0)">Lưu sách</button>
+                        <a asp-action="Index" class="btn btn-outline-secondary py-2">Quay lại danh sách</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

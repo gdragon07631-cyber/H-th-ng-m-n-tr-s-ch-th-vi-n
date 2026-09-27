@@ -19,6 +19,14 @@
         </div>
     }
 
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert" id="errorMessageAlert">
+            <strong>Thông báo:</strong> @TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
     <div class="row g-4">
         <!-- Form Thêm Tác giả -->
         <div class="col-12 col-lg-4">
@@ -67,17 +75,18 @@
                         <table class="table table-hover align-middle mb-0" id="authorsTable">
                             <thead class="table-light">
                                 <tr>
-                                    <th scope="col" style="width: 60px;" class="text-center">STT</th>
+                                    <th scope="col" style="width: 50px;" class="text-center">STT</th>
                                     <th scope="col">Tên Tác giả</th>
                                     <th scope="col">Ghi chú</th>
-                                    <th scope="col" style="width: 140px;" class="text-center">Trạng thái</th>
+                                    <th scope="col" style="width: 130px;" class="text-center">Trạng thái</th>
+                                    <th scope="col" style="width: 250px;" class="text-center">Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @if (Model.Authors.Count == 0)
                                 {
                                     <tr>
-                                        <td colspan="4" class="text-center py-4 text-muted">
+                                        <td colspan="5" class="text-center py-4 text-muted">
                                             Chưa có tác giả nào trong danh mục.
                                         </td>
                                     </tr>
@@ -103,6 +112,51 @@
                                                     <span class="badge bg-secondary">@author.Status</span>
                                                 }
                                             </td>
+                                            <td class="text-center">
+                                                <div class="d-inline-flex gap-1">
+                                                    <!-- Nút Sửa -->
+                                                    <button type="button" class="btn btn-sm btn-outline-primary btn-edit-author"
+                                                            data-bs-toggle="modal" data-bs-target="#editAuthorModal"
+                                                            data-id="@author.Id" data-name="@author.Name" data-note="@author.Note"
+                                                            title="Sửa thông tin tác giả">
+                                                        Sửa
+                                                    </button>
+
+                                                    @{
+                                                        var toggleMsg = author.Status == Project.Models.AuthorStatus.Active
+                                                            ? $"Bạn có chắc chắn muốn ngừng sử dụng tác giả \"{author.Name}\"?"
+                                                            : $"Bạn có chắc chắn muốn kích hoạt lại tác giả \"{author.Name}\"?";
+                                                        var deleteMsg = $"Bạn có chắc chắn muốn xóa tác giả \"{author.Name}\"?";
+                                                    }
+                                                    <!-- Nút Chuyển trạng thái / Ngừng sử dụng -->
+                                                    <form asp-action="ToggleStatus" asp-route-id="@author.Id" method="post" class="d-inline">
+                                                        @Html.AntiForgeryToken()
+                                                        @if (author.Status == Project.Models.AuthorStatus.Active)
+                                                        {
+                                                            <button type="submit" class="btn btn-sm btn-outline-warning text-dark"
+                                                                    onclick="return confirm('@toggleMsg');" title="Ngừng sử dụng tác giả">
+                                                                Ngừng sử dụng
+                                                            </button>
+                                                        }
+                                                        else
+                                                        {
+                                                            <button type="submit" class="btn btn-sm btn-outline-success"
+                                                                    onclick="return confirm('@toggleMsg');" title="Kích hoạt lại tác giả">
+                                                                Kích hoạt lại
+                                                            </button>
+                                                        }
+                                                    </form>
+
+                                                    <!-- Nút Xóa -->
+                                                    <form asp-action="Delete" asp-route-id="@author.Id" method="post" class="d-inline">
+                                                        @Html.AntiForgeryToken()
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                                onclick="return confirm('@deleteMsg');" title="Xóa tác giả">
+                                                            Xóa
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </td>
                                         </tr>
                                         index++;
                                     }
@@ -116,6 +170,59 @@
     </div>
 </div>
 
+<!-- Modal Sửa Tác Giả -->
+<div class="modal fade" id="editAuthorModal" tabindex="-1" aria-labelledby="editAuthorModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-action="Edit" method="post" id="editAuthorForm">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h5 class="modal-title text-primary fw-bold" id="editAuthorModalLabel">Chỉnh sửa thông tin Tác giả</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="Id" id="editAuthorId" />
+
+                    <div class="mb-3">
+                        <label for="editAuthorName" class="form-label fw-semibold">
+                            Họ tên Tác giả <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" name="Name" id="editAuthorName" class="form-control" required maxlength="150" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="editAuthorNote" class="form-label fw-semibold">
+                            Ghi chú
+                        </label>
+                        <textarea name="Note" id="editAuthorNote" class="form-control" rows="3" maxlength="500"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var editModal = document.getElementById('editAuthorModal');
+            if (editModal) {
+                editModal.addEventListener('show.bs.modal', function (event) {
+                    var button = event.relatedTarget;
+                    var id = button.getAttribute('data-id');
+                    var name = button.getAttribute('data-name');
+                    var note = button.getAttribute('data-note') || '';
+
+                    document.getElementById('editAuthorId').value = id;
+                    document.getElementById('editAuthorName').value = name;
+                    document.getElementById('editAuthorNote').value = note;
+                });
+            }
+        });
+    </script>
 }

@@ -1,0 +1,87 @@
+@model IReadOnlyList<Project.Models.Book>
+@{
+    ViewData["Title"] = "Danh mục sách";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1 text-primary font-weight-bold">Danh mục Sách</h1>
+            <p class="text-muted mb-0">Danh sách các đầu sách đã được biên mục trong hệ thống thư viện</p>
+        </div>
+        <div>
+            <a asp-action="Create" class="btn btn-primary">
+                + Biên mục sách mới
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <h2 class="h5 mb-0 fw-semibold text-secondary">Danh sách Sách đã biên mục</h2>
+            <span class="badge bg-primary rounded-pill">Tổng số: @Model.Count</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" id="booksTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col" style="width: 60px;" class="text-center">STT</th>
+                            <th scope="col">Tên sách</th>
+                            <th scope="col">Mã ISBN</th>
+                            <th scope="col">Tác giả</th>
+                            <th scope="col" style="width: 140px;" class="text-center">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">
+                                    Chưa có cuốn sách nào được biên mục. Hãy nhấn <strong>Biên mục sách mới</strong> để thêm.
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            var index = 1;
+                            foreach (var book in Model)
+                            {
+                                <tr>
+                                    <td class="text-center text-muted">@index</td>
+                                    <td class="fw-medium text-dark">
+                                        <a asp-action="Details" asp-route-id="@book.Id" class="text-decoration-none">
+                                            @book.Title
+                                        </a>
+                                    </td>
+                                    <td class="text-muted small">@(string.IsNullOrWhiteSpace(book.Isbn) ? "-" : book.Isbn)</td>
+                                    <td>
+                                        <span class="fw-semibold">@book.Author?.Name</span>
+                                        @if (book.Author?.Status == Project.Models.AuthorStatus.Inactive)
+                                        {
+                                            <span class="badge bg-secondary ms-1 small">Ngừng sử dụng</span>
+                                        }
+                                    </td>
+                                    <td class="text-center">
+                                        <a asp-action="Details" asp-route-id="@book.Id" class="btn btn-sm btn-outline-primary">
+                                            Chi tiết
+                                        </a>
+                                    </td>
+                                </tr>
+                                index++;
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

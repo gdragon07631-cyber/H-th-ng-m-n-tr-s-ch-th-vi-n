@@ -35,6 +35,16 @@
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="catalogDropdown">
                                 <li><a class="dropdown-item" asp-controller="Author" asp-action="Index">Tác giả</a></li>
+                                <li><a class="dropdown-item" asp-controller="Category" asp-action="Index">Thể loại</a></li>
+                            </ul>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark" href="#" id="bookDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                Quản lý sách
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="bookDropdown">
+                                <li><a class="dropdown-item" asp-controller="Book" asp-action="Index">Danh sách sách</a></li>
+                                <li><a class="dropdown-item" asp-controller="Book" asp-action="Create">Biên mục sách mới</a></li>
                             </ul>
                         </li>
                         <li class="nav-item ms-auto">

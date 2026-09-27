@@ -18,6 +18,8 @@ builder.Services.AddScoped<IReaderRegistrationService, ReaderRegistrationService
 builder.Services.AddSingleton<ReaderRegistrationIpRateLimiter>();
 builder.Services.AddScoped<IPasswordHasher<ReaderAccount>, PasswordHasher<ReaderAccount>>();
 builder.Services.AddScoped<IAuthorService, AuthorService>();
+builder.Services.AddScoped<IBookService, BookService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, "Data", "Keys")));
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
