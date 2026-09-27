@@ -28,4 +28,6 @@ public sealed class ReaderAccount
     public string Status { get; set; } = "Chờ duyệt";
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    public int SessionVersion { get; set; }
 }

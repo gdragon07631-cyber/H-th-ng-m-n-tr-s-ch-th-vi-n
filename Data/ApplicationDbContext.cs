@@ -12,6 +12,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<LoginLog> LoginLogs => Set<LoginLog>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<ReaderAccount> ReaderAccounts => Set<ReaderAccount>();
+    public DbSet<ReaderPasswordResetToken> ReaderPasswordResetTokens => Set<ReaderPasswordResetToken>();
+    public DbSet<ReaderPasswordResetRequest> ReaderPasswordResetRequests => Set<ReaderPasswordResetRequest>();
     public DbSet<Author> Authors => Set<Author>();
     public DbSet<Book> Books => Set<Book>();
     public DbSet<Category> Categories => Set<Category>();
@@ -102,7 +104,25 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(reader => reader.PhoneNumber).HasMaxLength(20).IsRequired();
             entity.Property(reader => reader.StudentOrStaffCode).HasMaxLength(50).IsRequired();
             entity.Property(reader => reader.PasswordHash).HasMaxLength(512).IsRequired();
+            entity.Property(reader => reader.SessionVersion).HasDefaultValue(0);
             entity.Property(reader => reader.Status).HasMaxLength(50).HasDefaultValue("Chờ duyệt").IsRequired();
+        });
+
+        modelBuilder.Entity<ReaderPasswordResetToken>(entity =>
+        {
+            entity.HasIndex(token => token.TokenHash).IsUnique();
+            entity.HasIndex(token => new { token.ReaderAccountId, token.ExpiresAtUtc });
+            entity.Property(token => token.TokenHash).HasMaxLength(64).IsRequired();
+            entity.HasOne(token => token.ReaderAccount)
+                .WithMany()
+                .HasForeignKey(token => token.ReaderAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ReaderPasswordResetRequest>(entity =>
+        {
+            entity.HasIndex(request => new { request.EmailHash, request.RequestedAtUtc });
+            entity.Property(request => request.EmailHash).HasMaxLength(64).IsRequired();
         });
     }
 }

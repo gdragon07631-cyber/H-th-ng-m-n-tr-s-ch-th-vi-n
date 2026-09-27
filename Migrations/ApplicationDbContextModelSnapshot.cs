@@ -108,6 +108,42 @@ public sealed class ApplicationDbContextModelSnapshot : ModelSnapshot
             entity.Navigation("AdminAccount");
         });
 
+        modelBuilder.Entity("Project.Models.ReaderPasswordResetToken", entity =>
+        {
+            entity.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+            SqlServerPropertyBuilderExtensions.UseIdentityColumn(entity.Property<long>("Id"));
+            entity.Property<int>("ReaderAccountId").HasColumnType("int");
+            entity.Property<DateTime>("CreatedAtUtc").HasColumnType("datetime2");
+            entity.Property<DateTime>("ExpiresAtUtc").HasColumnType("datetime2");
+            entity.Property<string>("TokenHash").IsRequired().HasMaxLength(64).HasColumnType("nvarchar(64)");
+            entity.Property<DateTime?>("UsedAtUtc").HasColumnType("datetime2");
+            entity.HasKey("Id");
+            entity.HasIndex("TokenHash").IsUnique();
+            entity.HasIndex("ReaderAccountId", "ExpiresAtUtc");
+            entity.ToTable("ReaderPasswordResetTokens");
+        });
+
+        modelBuilder.Entity("Project.Models.ReaderPasswordResetToken", entity =>
+        {
+            entity.HasOne("Project.Models.ReaderAccount", "ReaderAccount")
+                .WithMany()
+                .HasForeignKey("ReaderAccountId")
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
+            entity.Navigation("ReaderAccount");
+        });
+
+        modelBuilder.Entity("Project.Models.ReaderPasswordResetRequest", entity =>
+        {
+            entity.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+            SqlServerPropertyBuilderExtensions.UseIdentityColumn(entity.Property<long>("Id"));
+            entity.Property<string>("EmailHash").IsRequired().HasMaxLength(64).HasColumnType("nvarchar(64)");
+            entity.Property<DateTime>("RequestedAtUtc").HasColumnType("datetime2");
+            entity.HasKey("Id");
+            entity.HasIndex("EmailHash", "RequestedAtUtc");
+            entity.ToTable("ReaderPasswordResetRequests");
+        });
+
         modelBuilder.Entity("Project.Models.LoginLog", entity =>
         {
             entity.HasOne("Project.Models.AdminAccount", "AdminAccount")
@@ -152,6 +188,11 @@ public sealed class ApplicationDbContextModelSnapshot : ModelSnapshot
                 .IsRequired()
                 .HasMaxLength(512)
                 .HasColumnType("nvarchar(512)");
+
+            entity.Property<int>("SessionVersion")
+                .ValueGeneratedOnAdd()
+                .HasColumnType("int")
+                .HasDefaultValue(0);
 
             entity.Property<string>("Status")
                 .IsRequired()
