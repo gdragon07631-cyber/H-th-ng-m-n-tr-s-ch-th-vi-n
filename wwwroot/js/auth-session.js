@@ -68,6 +68,10 @@
 
             accessToken = result.accessToken;
             scheduleRefresh(result.accessTokenExpiresAtUtc);
+            if (result.redirectUrl) {
+                window.location.assign(result.redirectUrl);
+                return;
+            }
             showMessage("Đăng nhập thành công. Access token có hiệu lực 30 phút.");
             form.querySelector("input[name='Password']").value = "";
         } catch {

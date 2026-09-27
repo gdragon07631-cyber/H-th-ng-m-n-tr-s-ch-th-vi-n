@@ -15,6 +15,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Author> Authors => Set<Author>();
     public DbSet<Book> Books => Set<Book>();
     public DbSet<Category> Categories => Set<Category>();
+    public DbSet<LibraryCardType> LibraryCardTypes => Set<LibraryCardType>();
+    public DbSet<LibraryCard> LibraryCards => Set<LibraryCard>();
+    public DbSet<BookHold> BookHolds => Set<BookHold>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -103,6 +106,38 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(reader => reader.StudentOrStaffCode).HasMaxLength(50).IsRequired();
             entity.Property(reader => reader.PasswordHash).HasMaxLength(512).IsRequired();
             entity.Property(reader => reader.Status).HasMaxLength(50).HasDefaultValue("Chờ duyệt").IsRequired();
+            entity.Property(reader => reader.RejectionReason).HasMaxLength(1000);
+            entity.Property(reader => reader.CreatedAtUtc).HasColumnType("datetime2");
+            entity.Property(reader => reader.UpdatedAtUtc).HasColumnType("datetime2");
+        });
+
+        modelBuilder.Entity<LibraryCardType>(entity =>
+        {
+            entity.HasIndex(type => type.Name).IsUnique();
+            entity.Property(type => type.Name).HasMaxLength(100).IsRequired();
+            entity.Property(type => type.IsActive).HasDefaultValue(true);
+        });
+
+        modelBuilder.Entity<LibraryCard>(entity =>
+        {
+            entity.HasIndex(card => card.CardCode).IsUnique();
+            entity.HasIndex(card => card.ReaderAccountId).IsUnique();
+            entity.Property(card => card.CardCode).HasMaxLength(32).IsRequired();
+            entity.Property(card => card.Status).HasMaxLength(50).HasDefaultValue("Đang hoạt động").IsRequired();
+            entity.HasOne(card => card.ReaderAccount).WithOne(reader => reader.LibraryCard)
+                .HasForeignKey<LibraryCard>(card => card.ReaderAccountId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(card => card.LibraryCardType).WithMany(type => type.LibraryCards)
+                .HasForeignKey(card => card.LibraryCardTypeId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BookHold>(entity =>
+        {
+            entity.HasIndex(hold => new { hold.ReaderAccountId, hold.BookId }).IsUnique();
+            entity.Property(hold => hold.HeldAtUtc).HasColumnType("datetime2");
+            entity.HasOne(hold => hold.ReaderAccount).WithMany(reader => reader.BookHolds)
+                .HasForeignKey(hold => hold.ReaderAccountId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(hold => hold.Book).WithMany()
+                .HasForeignKey(hold => hold.BookId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

@@ -27,5 +27,13 @@ public sealed class ReaderAccount
     [Required, MaxLength(50)]
     public string Status { get; set; } = "Chờ duyệt";
 
+    [MaxLength(1000)]
+    public string? RejectionReason { get; set; }
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    public LibraryCard? LibraryCard { get; set; }
+    public ICollection<BookHold> BookHolds { get; set; } = [];
 }

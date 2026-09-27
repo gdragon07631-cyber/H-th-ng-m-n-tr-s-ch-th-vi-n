@@ -153,6 +153,10 @@ public sealed class ApplicationDbContextModelSnapshot : ModelSnapshot
                 .HasMaxLength(512)
                 .HasColumnType("nvarchar(512)");
 
+            entity.Property<string>("RejectionReason")
+                .HasMaxLength(1000)
+                .HasColumnType("nvarchar(1000)");
+
             entity.Property<string>("Status")
                 .IsRequired()
                 .ValueGeneratedOnAdd()
@@ -163,6 +167,9 @@ public sealed class ApplicationDbContextModelSnapshot : ModelSnapshot
             entity.Property<DateTime>("CreatedAtUtc")
                 .HasColumnType("datetime2");
 
+            entity.Property<DateTime>("UpdatedAtUtc")
+                .HasColumnType("datetime2");
+
             entity.HasKey("Id");
 
             entity.HasIndex("Email");
@@ -170,6 +177,47 @@ public sealed class ApplicationDbContextModelSnapshot : ModelSnapshot
             entity.HasIndex("StudentOrStaffCode");
 
             entity.ToTable("ReaderAccounts");
+        });
+
+        modelBuilder.Entity("Project.Models.LibraryCardType", entity =>
+        {
+            entity.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("int");
+            SqlServerPropertyBuilderExtensions.UseIdentityColumn(entity.Property<int>("Id"));
+            entity.Property<bool>("IsActive").ValueGeneratedOnAdd().HasColumnType("bit").HasDefaultValue(true);
+            entity.Property<string>("Name").IsRequired().HasMaxLength(100).HasColumnType("nvarchar(100)");
+            entity.HasKey("Id");
+            entity.HasIndex("Name").IsUnique();
+            entity.ToTable("LibraryCardTypes");
+        });
+
+        modelBuilder.Entity("Project.Models.LibraryCard", entity =>
+        {
+            entity.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("int");
+            SqlServerPropertyBuilderExtensions.UseIdentityColumn(entity.Property<int>("Id"));
+            entity.Property<string>("CardCode").IsRequired().HasMaxLength(32).HasColumnType("nvarchar(32)");
+            entity.Property<DateOnly>("ExpiresOn").HasColumnType("date");
+            entity.Property<DateOnly>("IssuedOn").HasColumnType("date");
+            entity.Property<int>("LibraryCardTypeId").HasColumnType("int");
+            entity.Property<int>("ReaderAccountId").HasColumnType("int");
+            entity.Property<string>("Status").IsRequired().ValueGeneratedOnAdd().HasMaxLength(50).HasColumnType("nvarchar(50)").HasDefaultValue("Đang hoạt động");
+            entity.HasKey("Id");
+            entity.HasIndex("CardCode").IsUnique();
+            entity.HasIndex("LibraryCardTypeId");
+            entity.HasIndex("ReaderAccountId").IsUnique();
+            entity.ToTable("LibraryCards");
+        });
+
+        modelBuilder.Entity("Project.Models.BookHold", entity =>
+        {
+            entity.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+            SqlServerPropertyBuilderExtensions.UseIdentityColumn(entity.Property<long>("Id"));
+            entity.Property<int>("BookId").HasColumnType("int");
+            entity.Property<DateTime>("HeldAtUtc").HasColumnType("datetime2");
+            entity.Property<int>("ReaderAccountId").HasColumnType("int");
+            entity.HasKey("Id");
+            entity.HasIndex("BookId");
+            entity.HasIndex("ReaderAccountId", "BookId").IsUnique();
+            entity.ToTable("BookHolds");
         });
 
         modelBuilder.Entity("Project.Models.Author", entity =>
@@ -281,6 +329,22 @@ public sealed class ApplicationDbContextModelSnapshot : ModelSnapshot
             entity.Navigation("Books");
             entity.Navigation("Children");
             entity.Navigation("Parent");
+        });
+
+        modelBuilder.Entity("Project.Models.LibraryCard", entity =>
+        {
+            entity.HasOne("Project.Models.LibraryCardType", "LibraryCardType").WithMany("LibraryCards").HasForeignKey("LibraryCardTypeId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            entity.HasOne("Project.Models.ReaderAccount", "ReaderAccount").WithOne("LibraryCard").HasForeignKey("Project.Models.LibraryCard", "ReaderAccountId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            entity.Navigation("LibraryCardType");
+            entity.Navigation("ReaderAccount");
+        });
+
+        modelBuilder.Entity("Project.Models.BookHold", entity =>
+        {
+            entity.HasOne("Project.Models.Book", "Book").WithMany().HasForeignKey("BookId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            entity.HasOne("Project.Models.ReaderAccount", "ReaderAccount").WithMany("BookHolds").HasForeignKey("ReaderAccountId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            entity.Navigation("Book");
+            entity.Navigation("ReaderAccount");
         });
 #pragma warning restore 612, 618
     }

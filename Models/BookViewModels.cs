@@ -41,4 +41,6 @@ public sealed class BookDetailsViewModel
     public string CategoryName { get; set; } = "Chưa phân loại";
     public string? Description { get; set; }
     public DateTime CreatedAtUtc { get; set; }
+    public bool IsReaderSignedIn { get; set; }
+    public bool CanHold { get; set; }
 }

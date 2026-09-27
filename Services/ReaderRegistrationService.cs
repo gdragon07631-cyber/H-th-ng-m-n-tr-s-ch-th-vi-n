@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 using Project.Data;
 using Project.Models;
 
@@ -65,7 +66,9 @@ public sealed class ReaderRegistrationService(
 
     public async Task<ReaderAccount?> GetReaderByIdAsync(int id, CancellationToken cancellationToken = default)
     {
-        return await dbContext.ReaderAccounts.FindAsync([id], cancellationToken);
+        return await dbContext.ReaderAccounts.Include(reader => reader.LibraryCard)
+            .ThenInclude(card => card!.LibraryCardType)
+            .SingleOrDefaultAsync(reader => reader.Id == id, cancellationToken);
     }
 
     public async Task<ReaderAccount?> AuthenticateReaderAsync(string email, string password, CancellationToken cancellationToken = default)
@@ -94,8 +97,7 @@ public sealed class ReaderRegistrationService(
             return DocumentHoldOutcome.Failed("Không tìm thấy thông tin tài khoản Bạn đọc.");
         }
 
-        // 4 & 5. Kiểm tra trạng thái hiện tại của tài khoản. Nếu đang "Chờ duyệt", từ chối thao tác đặt giữ tài liệu.
-        if (string.Equals(reader.Status, "Chờ duyệt", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(reader.Status, "Đang hoạt động", StringComparison.OrdinalIgnoreCase))
         {
             logger.LogWarning("Từ chối đặt giữ: Tài khoản Bạn đọc {Email} đang ở trạng thái Chờ duyệt.", reader.Email);
 
@@ -104,10 +106,165 @@ public sealed class ReaderRegistrationService(
                 "Tài khoản của bạn đang ở trạng thái Chờ duyệt. Vui lòng xuất trình giấy tờ tại quầy thư viện để được duyệt tài khoản trước khi thực hiện đặt giữ tài liệu.");
         }
 
-        // 7. Nếu tài khoản đã được duyệt, cho phép thực hiện chức năng đặt giữ
-        logger.LogInformation("Đặt giữ thành công tài liệu #{DocumentId} cho tài khoản {Email} (Trạng thái: {Status}).",
-            documentId, reader.Email, reader.Status);
+        var bookExists = await dbContext.Books.AnyAsync(book => book.Id == documentId, cancellationToken);
+        if (!bookExists)
+        {
+            return DocumentHoldOutcome.Failed("Không tìm thấy sách cần đặt giữ.");
+        }
 
-        return DocumentHoldOutcome.Success($"Đặt giữ thành công tài liệu #{documentId}.");
+        var alreadyHeld = await dbContext.BookHolds
+            .AnyAsync(hold => hold.ReaderAccountId == readerAccountId && hold.BookId == documentId, cancellationToken);
+        if (alreadyHeld)
+        {
+            return DocumentHoldOutcome.Rejected("Bạn đã đặt giữ cuốn sách này.");
+        }
+
+        dbContext.BookHolds.Add(new BookHold { ReaderAccountId = readerAccountId, BookId = documentId });
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            return DocumentHoldOutcome.Rejected("Bạn đã đặt giữ cuốn sách này.");
+        }
+
+        logger.LogInformation("Đặt giữ thành công sách #{BookId} cho tài khoản {Email}.", documentId, reader.Email);
+
+        return DocumentHoldOutcome.Success("Đặt giữ sách thành công.");
+    }
+
+    public Task<IReadOnlyList<ReaderAccount>> GetPendingReadersAsync(CancellationToken cancellationToken = default) =>
+        GetPendingReadersAsync(null, null, null, cancellationToken);
+
+    public async Task<IReadOnlyList<ReaderAccount>> GetPendingReadersAsync(
+        string? search,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        CancellationToken cancellationToken = default)
+    {
+        var query = dbContext.ReaderAccounts.Where(reader => reader.Status == "Chờ duyệt");
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            var normalizedTerm = term.ToUpper();
+            query = query.Where(reader =>
+                reader.FullName.ToUpper().Contains(normalizedTerm) ||
+                reader.StudentOrStaffCode.ToUpper().Contains(normalizedTerm));
+        }
+
+        if (fromDate.HasValue)
+        {
+            var fromUtc = DateTime.SpecifyKind(fromDate.Value.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+            query = query.Where(reader => reader.CreatedAtUtc >= fromUtc);
+        }
+
+        if (toDate.HasValue)
+        {
+            var untilUtc = DateTime.SpecifyKind(toDate.Value.AddDays(1).ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+            query = query.Where(reader => reader.CreatedAtUtc < untilUtc);
+        }
+
+        return await query.OrderBy(reader => reader.CreatedAtUtc).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<LibraryCardType>> GetActiveCardTypesAsync(CancellationToken cancellationToken = default) =>
+        await dbContext.LibraryCardTypes.Where(type => type.IsActive).OrderBy(type => type.Name)
+            .ToListAsync(cancellationToken);
+
+    public async Task<ReaderApprovalOutcome> ApproveReaderAsync(
+        ApproveReaderViewModel model, CancellationToken cancellationToken = default)
+    {
+        if (model.ReaderAccountId <= 0 || model.LibraryCardTypeId <= 0)
+            return ReaderApprovalOutcome.Failed("Thông tin duyệt hồ sơ không hợp lệ.");
+        if (model.ExpiresOn < model.IssuedOn)
+            return ReaderApprovalOutcome.Failed("Ngày hết hạn không được nhỏ hơn ngày cấp.");
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        try
+        {
+            var reader = await dbContext.ReaderAccounts.SingleOrDefaultAsync(
+                account => account.Id == model.ReaderAccountId, cancellationToken);
+            if (reader == null)
+                return ReaderApprovalOutcome.Failed("Không tìm thấy hồ sơ bạn đọc.");
+            if (!string.Equals(reader.Status, "Chờ duyệt", StringComparison.OrdinalIgnoreCase))
+                return ReaderApprovalOutcome.Failed("Hồ sơ này không còn ở trạng thái Chờ duyệt.");
+
+            var cardType = await dbContext.LibraryCardTypes.SingleOrDefaultAsync(
+                type => type.Id == model.LibraryCardTypeId && type.IsActive, cancellationToken);
+            if (cardType == null)
+                return ReaderApprovalOutcome.Failed("Loại thẻ không tồn tại hoặc đã ngừng hoạt động.");
+            if (await dbContext.LibraryCards.AnyAsync(card => card.ReaderAccountId == reader.Id, cancellationToken))
+                return ReaderApprovalOutcome.Failed("Hồ sơ này đã được cấp thẻ.");
+
+            LibraryCard? card = null;
+            for (var attempt = 0; attempt < 5; attempt++)
+            {
+                var code = $"LIB{reader.Id:D6}" + (attempt == 0 ? string.Empty : $"{attempt + 1:D2}");
+                if (await dbContext.LibraryCards.AnyAsync(item => item.CardCode == code, cancellationToken))
+                    continue;
+
+                card = new LibraryCard
+                {
+                    CardCode = code,
+                    ReaderAccountId = reader.Id,
+                    LibraryCardTypeId = cardType.Id,
+                    IssuedOn = model.IssuedOn,
+                    ExpiresOn = model.ExpiresOn,
+                    Status = "Đang hoạt động"
+                };
+                break;
+            }
+            if (card == null)
+                return ReaderApprovalOutcome.Failed("Không thể sinh mã thẻ duy nhất. Vui lòng thử lại.");
+
+            dbContext.LibraryCards.Add(card);
+            reader.Status = "Đang hoạt động";
+            reader.UpdatedAtUtc = DateTime.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return ReaderApprovalOutcome.Success(card);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    public async Task<ReaderRejectionOutcome> RejectReaderAsync(
+        int readerAccountId,
+        string? rejectionReason,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedReason = rejectionReason?.Trim();
+        if (readerAccountId <= 0 || string.IsNullOrWhiteSpace(normalizedReason))
+            return ReaderRejectionOutcome.Failed("Vui lòng nhập lý do từ chối.");
+        if (normalizedReason.Length > 1000)
+            return ReaderRejectionOutcome.Failed("Lý do từ chối không được vượt quá 1000 ký tự.");
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        try
+        {
+            var reader = await dbContext.ReaderAccounts.SingleOrDefaultAsync(
+                account => account.Id == readerAccountId, cancellationToken);
+            if (reader == null)
+                return ReaderRejectionOutcome.Failed("Không tìm thấy hồ sơ bạn đọc.");
+            if (!string.Equals(reader.Status, "Chờ duyệt", StringComparison.OrdinalIgnoreCase))
+                return ReaderRejectionOutcome.Failed("Chỉ có thể từ chối hồ sơ đang ở trạng thái Chờ duyệt.");
+
+            reader.Status = "Từ chối";
+            reader.RejectionReason = normalizedReason;
+            reader.UpdatedAtUtc = DateTime.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return ReaderRejectionOutcome.Success();
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 }

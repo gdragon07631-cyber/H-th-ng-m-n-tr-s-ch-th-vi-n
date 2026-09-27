@@ -7,7 +7,8 @@ namespace Project.Controllers;
 public sealed class BookController(
     IBookService bookService,
     IAuthorService authorService,
-    ICategoryService categoryService) : Controller
+    ICategoryService categoryService,
+    IReaderRegistrationService registrationService) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken = default)
@@ -64,7 +65,27 @@ public sealed class BookController(
             return NotFound("Không tìm thấy thông tin sách.");
         }
 
+        var readerId = GetCurrentLoggedInReaderId();
+        if (readerId > 0)
+        {
+            var reader = await registrationService.GetReaderByIdAsync(readerId, cancellationToken);
+            bookDetails.CanHold = string.Equals(reader?.Status, "Đang hoạt động", StringComparison.OrdinalIgnoreCase);
+            bookDetails.IsReaderSignedIn = reader != null;
+        }
         return View(bookDetails);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Hold(int id, CancellationToken cancellationToken = default)
+    {
+        var readerId = GetCurrentLoggedInReaderId();
+        if (readerId <= 0)
+            return RedirectToAction("Login", "ReaderRegistration", new { returnUrl = Url.Action(nameof(Details), new { id }) });
+
+        var outcome = await registrationService.HoldDocumentAsync(readerId, id, cancellationToken);
+        TempData[outcome.IsAllowed ? "HoldSuccessMessage" : "HoldErrorMessage"] = outcome.Message;
+        return RedirectToAction(nameof(Details), new { id });
     }
 
     // ==========================================
@@ -109,4 +130,7 @@ public sealed class BookController(
 
         return Ok(details);
     }
+
+    private int GetCurrentLoggedInReaderId() =>
+        Request.Cookies.TryGetValue("reader_id", out var idText) && int.TryParse(idText, out var id) ? id : 0;
 }

@@ -61,7 +61,8 @@ public sealed class AccountController(
             status = "LoginSuccess",
             tokenType = "Bearer",
             accessToken = tokenPair.AccessToken,
-            accessTokenExpiresAtUtc = tokenPair.AccessTokenExpiresAtUtc
+            accessTokenExpiresAtUtc = tokenPair.AccessTokenExpiresAtUtc,
+            redirectUrl = !string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : null
         });
     }
 

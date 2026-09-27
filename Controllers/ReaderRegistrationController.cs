@@ -86,10 +86,14 @@ public sealed class ReaderRegistrationController(
     [HttpGet]
     public async Task<IActionResult> Profile(int? id, CancellationToken cancellationToken = default)
     {
-        int targetId = id ?? GetCurrentLoggedInReaderId();
+        int targetId = GetCurrentLoggedInReaderId();
         if (targetId <= 0)
         {
             return RedirectToAction(nameof(Login));
+        }
+        if (id.HasValue && id.Value != targetId)
+        {
+            return Forbid();
         }
 
         var reader = await registrationService.GetReaderByIdAsync(targetId, cancellationToken);
@@ -99,6 +103,27 @@ public sealed class ReaderRegistrationController(
         }
 
         return View(reader);
+    }
+
+    [HttpGet("api/reader/profile")]
+    public async Task<IActionResult> GetProfileApi(CancellationToken cancellationToken = default)
+    {
+        var readerId = GetCurrentLoggedInReaderId();
+        if (readerId <= 0)
+            return Unauthorized(new { message = "Vui lòng đăng nhập trước khi xem thông tin cá nhân." });
+
+        var reader = await registrationService.GetReaderByIdAsync(readerId, cancellationToken);
+        if (reader == null)
+            return NotFound(new { message = "Không tìm thấy thông tin tài khoản Bạn đọc." });
+
+        return Ok(new
+        {
+            id = reader.Id,
+            fullName = reader.FullName,
+            studentOrStaffCode = reader.StudentOrStaffCode,
+            status = reader.Status,
+            rejectionReason = reader.RejectionReason
+        });
     }
 
     [HttpGet]
@@ -158,7 +183,7 @@ public sealed class ReaderRegistrationController(
         int? readerId = null,
         CancellationToken cancellationToken = default)
     {
-        int targetId = readerId ?? GetCurrentLoggedInReaderId();
+        int targetId = GetCurrentLoggedInReaderId();
         if (targetId <= 0)
         {
             return RedirectToAction(nameof(Login));
@@ -183,7 +208,7 @@ public sealed class ReaderRegistrationController(
         [FromQuery] int? readerId = null,
         CancellationToken cancellationToken = default)
     {
-        int targetId = readerId ?? GetCurrentLoggedInReaderId();
+        int targetId = GetCurrentLoggedInReaderId();
         if (targetId <= 0)
         {
             return Unauthorized(new { message = "Vui lòng đăng nhập trước khi thực hiện đặt giữ tài liệu." });
