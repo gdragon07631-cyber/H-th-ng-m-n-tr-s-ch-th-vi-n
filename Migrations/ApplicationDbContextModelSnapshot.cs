@@ -429,6 +429,10 @@ namespace Project.Migrations
                     b.Property<DateOnly>("DateOfBirth")
                         .HasColumnType("date");
 
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -477,6 +481,32 @@ namespace Project.Migrations
                     b.ToTable("ReaderAccounts");
                 });
 
+            modelBuilder.Entity("Project.Models.ReaderPasswordHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<int>("ReaderAccountId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReaderAccountId", "CreatedAtUtc");
+
+                    b.ToTable("ReaderPasswordHistories");
+                });
+
             modelBuilder.Entity("Project.Models.RefreshToken", b =>
                 {
                     b.Property<long>("Id")
@@ -514,6 +544,17 @@ namespace Project.Migrations
                     b.HasIndex("AdminAccountId", "ExpiresAtUtc");
 
                     b.ToTable("RefreshTokens");
+                });
+
+            modelBuilder.Entity("Project.Models.ReaderPasswordHistory", b =>
+                {
+                    b.HasOne("Project.Models.ReaderAccount", "ReaderAccount")
+                        .WithMany("PasswordHistories")
+                        .HasForeignKey("ReaderAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ReaderAccount");
                 });
 
             modelBuilder.Entity("Project.Models.HolidayClosure", b =>
@@ -779,6 +820,8 @@ namespace Project.Migrations
                     b.Navigation("BookHolds");
 
                     b.Navigation("LibraryCard");
+
+                    b.Navigation("PasswordHistories");
                 });
 
             modelBuilder.Entity("Project.Models.Warehouse", b =>

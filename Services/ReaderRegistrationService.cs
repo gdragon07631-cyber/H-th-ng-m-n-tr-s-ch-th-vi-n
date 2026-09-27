@@ -71,6 +71,98 @@ public sealed class ReaderRegistrationService(
             .SingleOrDefaultAsync(reader => reader.Id == id, cancellationToken);
     }
 
+    public async Task<ReaderContactUpdateResult> UpdateReaderContactAsync(
+        int id, string phoneNumber, string address, string email, string currentPassword,
+        CancellationToken cancellationToken = default)
+    {
+        var reader = await dbContext.ReaderAccounts.SingleOrDefaultAsync(account => account.Id == id, cancellationToken);
+        if (reader == null) return ReaderContactUpdateResult.NotFound;
+
+        var emailChanged = !string.Equals(reader.Email.Trim(), email.Trim(), StringComparison.OrdinalIgnoreCase);
+        if (emailChanged && (string.IsNullOrWhiteSpace(currentPassword) ||
+            passwordHasher.VerifyHashedPassword(reader, reader.PasswordHash, currentPassword) == PasswordVerificationResult.Failed))
+        {
+            return ReaderContactUpdateResult.InvalidCurrentPassword;
+        }
+
+        reader.PhoneNumber = phoneNumber.Trim();
+        reader.Address = address.Trim();
+        if (emailChanged)
+        {
+            reader.Email = email.Trim();
+        }
+        reader.UpdatedAtUtc = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return ReaderContactUpdateResult.Success;
+    }
+
+    public async Task<ReaderPasswordChangeResult> ChangeReaderPasswordAsync(
+        int id, string currentPassword, string newPassword, CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable, cancellationToken);
+        try
+        {
+            var reader = await dbContext.ReaderAccounts.SingleOrDefaultAsync(
+                account => account.Id == id, cancellationToken);
+            if (reader == null) return ReaderPasswordChangeResult.NotFound;
+
+            if (passwordHasher.VerifyHashedPassword(reader, reader.PasswordHash, currentPassword) ==
+                PasswordVerificationResult.Failed)
+            {
+                return ReaderPasswordChangeResult.IncorrectCurrentPassword;
+            }
+
+            var history = await dbContext.ReaderPasswordHistories
+                .Where(entry => entry.ReaderAccountId == id)
+                .OrderByDescending(entry => entry.CreatedAtUtc)
+                .ThenByDescending(entry => entry.Id)
+                .ToListAsync(cancellationToken);
+
+            var passwordWasUsed = passwordHasher.VerifyHashedPassword(reader, reader.PasswordHash, newPassword) !=
+                                  PasswordVerificationResult.Failed;
+            if (!passwordWasUsed)
+            {
+                foreach (var previousPassword in history.Take(3))
+                {
+                    if (passwordHasher.VerifyHashedPassword(reader, previousPassword.PasswordHash, newPassword) !=
+                        PasswordVerificationResult.Failed)
+                    {
+                        passwordWasUsed = true;
+                        break;
+                    }
+                }
+            }
+
+            if (passwordWasUsed) return ReaderPasswordChangeResult.PasswordRecentlyUsed;
+
+            var now = DateTime.UtcNow;
+            var oldPasswordHash = reader.PasswordHash;
+            reader.PasswordHash = passwordHasher.HashPassword(reader, newPassword);
+            reader.UpdatedAtUtc = now;
+            dbContext.ReaderPasswordHistories.Add(new ReaderPasswordHistory
+            {
+                ReaderAccountId = reader.Id,
+                PasswordHash = oldPasswordHash,
+                CreatedAtUtc = now
+            });
+
+            if (history.Count > 2)
+            {
+                dbContext.ReaderPasswordHistories.RemoveRange(history.Skip(2));
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return ReaderPasswordChangeResult.Success;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
     public async Task<ReaderAccount?> AuthenticateReaderAsync(string email, string password, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = email.Trim().ToUpperInvariant();

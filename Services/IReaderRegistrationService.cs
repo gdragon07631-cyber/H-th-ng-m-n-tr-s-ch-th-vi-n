@@ -24,6 +24,21 @@ public sealed class ReaderRegistrationOutcome
         new(false, emailDuplicate, codeDuplicate, null);
 }
 
+public enum ReaderContactUpdateResult
+{
+    Success,
+    NotFound,
+    InvalidCurrentPassword
+}
+
+public enum ReaderPasswordChangeResult
+{
+    Success,
+    NotFound,
+    IncorrectCurrentPassword,
+    PasswordRecentlyUsed
+}
+
 public sealed class DocumentHoldOutcome
 {
     public bool IsAllowed { get; }
@@ -68,6 +83,11 @@ public interface IReaderRegistrationService
 {
     Task<ReaderRegistrationOutcome> RegisterAsync(ReaderRegistrationViewModel model, CancellationToken cancellationToken = default);
     Task<ReaderAccount?> GetReaderByIdAsync(int id, CancellationToken cancellationToken = default);
+    Task<ReaderContactUpdateResult> UpdateReaderContactAsync(
+        int id, string phoneNumber, string address, string email, string currentPassword,
+        CancellationToken cancellationToken = default);
+    Task<ReaderPasswordChangeResult> ChangeReaderPasswordAsync(
+        int id, string currentPassword, string newPassword, CancellationToken cancellationToken = default);
     Task<ReaderAccount?> AuthenticateReaderAsync(string email, string password, CancellationToken cancellationToken = default);
     Task<DocumentHoldOutcome> HoldDocumentAsync(int readerAccountId, int documentId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ReaderAccount>> GetPendingReadersAsync(CancellationToken cancellationToken = default);

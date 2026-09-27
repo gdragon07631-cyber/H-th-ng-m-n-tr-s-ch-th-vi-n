@@ -102,7 +102,124 @@ public sealed class ReaderRegistrationController(
             return NotFound("Không tìm thấy thông tin tài khoản Bạn đọc.");
         }
 
-        return View(reader);
+        return View(ToProfileViewModel(reader));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Profile(
+        ReaderProfileViewModel model, CancellationToken cancellationToken = default)
+    {
+        int readerId = GetCurrentLoggedInReaderId();
+        if (readerId <= 0) return RedirectToAction(nameof(Login));
+
+        var current = await registrationService.GetReaderByIdAsync(readerId, cancellationToken);
+        if (current == null) return NotFound("Không tìm thấy thông tin tài khoản Bạn đọc.");
+
+        if (!ModelState.IsValid)
+        {
+            CopyFixedProfileFields(model, current);
+            model.CurrentPassword = string.Empty;
+            ModelState.Remove(nameof(model.CurrentPassword));
+            return View(model);
+        }
+
+        var emailChanged = !string.Equals(current.Email.Trim(), model.Email.Trim(), StringComparison.OrdinalIgnoreCase);
+        if (emailChanged && string.IsNullOrWhiteSpace(model.CurrentPassword))
+        {
+            ModelState.AddModelError(nameof(model.CurrentPassword), "Vui lòng nhập mật khẩu hiện tại.");
+            CopyFixedProfileFields(model, current);
+            model.CurrentPassword = string.Empty;
+            ModelState.SetModelValue(nameof(model.CurrentPassword), string.Empty, string.Empty);
+            return View(model);
+        }
+
+        var updateResult = await registrationService.UpdateReaderContactAsync(
+            readerId, model.PhoneNumber, model.Address, model.Email, model.CurrentPassword, cancellationToken);
+        if (updateResult == ReaderContactUpdateResult.NotFound)
+            return NotFound("Không tìm thấy thông tin tài khoản Bạn đọc.");
+        if (updateResult == ReaderContactUpdateResult.InvalidCurrentPassword)
+        {
+            ModelState.AddModelError(nameof(model.CurrentPassword), "Mật khẩu hiện tại không chính xác.");
+            CopyFixedProfileFields(model, current);
+            model.CurrentPassword = string.Empty;
+            ModelState.SetModelValue(nameof(model.CurrentPassword), string.Empty, string.Empty);
+            return View(model);
+        }
+
+        TempData["ProfileSuccessMessage"] = emailChanged
+            ? "Đổi email thành công."
+            : "Lưu thông tin thành công.";
+        return RedirectToAction(nameof(Profile));
+    }
+
+    private static ReaderProfileViewModel ToProfileViewModel(ReaderAccount reader) => new()
+    {
+        FullName = reader.FullName,
+        DateOfBirth = reader.DateOfBirth,
+        StudentOrStaffCode = reader.StudentOrStaffCode,
+        Status = reader.Status,
+        RejectionReason = reader.RejectionReason,
+        PhoneNumber = reader.PhoneNumber,
+        Address = reader.Address ?? string.Empty,
+        Email = reader.Email,
+        CardCode = reader.LibraryCard?.CardCode,
+        CardType = reader.LibraryCard?.LibraryCardType?.Name,
+        CardExpiresOn = reader.LibraryCard?.ExpiresOn,
+        CardStatus = reader.LibraryCard?.Status,
+        LibraryCard = reader.LibraryCard
+    };
+
+    private static void CopyFixedProfileFields(ReaderProfileViewModel model, ReaderAccount reader)
+    {
+        model.FullName = reader.FullName;
+        model.DateOfBirth = reader.DateOfBirth;
+        model.StudentOrStaffCode = reader.StudentOrStaffCode;
+        model.Status = reader.Status;
+        model.RejectionReason = reader.RejectionReason;
+        model.CardCode = reader.LibraryCard?.CardCode;
+        model.CardType = reader.LibraryCard?.LibraryCardType?.Name;
+        model.CardExpiresOn = reader.LibraryCard?.ExpiresOn;
+        model.CardStatus = reader.LibraryCard?.Status;
+        model.LibraryCard = reader.LibraryCard;
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ChangePassword(
+        ReaderChangePasswordViewModel model, CancellationToken cancellationToken = default)
+    {
+        int readerId = GetCurrentLoggedInReaderId();
+        if (readerId <= 0) return RedirectToAction(nameof(Login));
+
+        if (!ModelState.IsValid)
+        {
+            TempData["PasswordErrorMessage"] = ModelState.Values
+                .SelectMany(entry => entry.Errors)
+                .Select(error => error.ErrorMessage)
+                .FirstOrDefault(message => !string.IsNullOrWhiteSpace(message))
+                ?? "Vui lòng kiểm tra lại thông tin mật khẩu.";
+            return RedirectToAction(nameof(Profile));
+        }
+
+        var result = await registrationService.ChangeReaderPasswordAsync(
+            readerId, model.CurrentPassword, model.NewPassword, cancellationToken);
+        switch (result)
+        {
+            case ReaderPasswordChangeResult.NotFound:
+                return NotFound("Không tìm thấy thông tin tài khoản Bạn đọc.");
+            case ReaderPasswordChangeResult.IncorrectCurrentPassword:
+                TempData["PasswordErrorMessage"] = "Mật khẩu cũ không chính xác.";
+                break;
+            case ReaderPasswordChangeResult.PasswordRecentlyUsed:
+                TempData["PasswordErrorMessage"] = "Mật khẩu mới không được trùng với 3 mật khẩu gần nhất.";
+                break;
+            case ReaderPasswordChangeResult.Success:
+                TempData["PasswordSuccessMessage"] = "Đổi mật khẩu thành công.";
+                break;
+        }
+
+        return RedirectToAction(nameof(Profile));
     }
 
     [HttpGet("api/reader/profile")]

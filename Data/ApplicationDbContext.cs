@@ -12,6 +12,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<LoginLog> LoginLogs => Set<LoginLog>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<ReaderAccount> ReaderAccounts => Set<ReaderAccount>();
+    public DbSet<ReaderPasswordHistory> ReaderPasswordHistories => Set<ReaderPasswordHistory>();
     public DbSet<Author> Authors => Set<Author>();
     public DbSet<Book> Books => Set<Book>();
     public DbSet<Category> Categories => Set<Category>();
@@ -109,6 +110,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(reader => reader.FullName).HasMaxLength(100).IsRequired();
             entity.Property(reader => reader.Email).HasMaxLength(256).IsRequired();
             entity.Property(reader => reader.PhoneNumber).HasMaxLength(20).IsRequired();
+            entity.Property(reader => reader.Address).HasMaxLength(500);
             entity.Property(reader => reader.StudentOrStaffCode).HasMaxLength(50).IsRequired();
             entity.Property(reader => reader.PasswordHash).HasMaxLength(512).IsRequired();
             entity.Property(reader => reader.Status).HasMaxLength(50).HasDefaultValue("Chờ duyệt").IsRequired();
@@ -122,6 +124,15 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasIndex(type => type.Name).IsUnique();
             entity.Property(type => type.Name).HasMaxLength(100).IsRequired();
             entity.Property(type => type.IsActive).HasDefaultValue(true);
+        });
+
+        modelBuilder.Entity<ReaderPasswordHistory>(entity =>
+        {
+            entity.HasIndex(history => new { history.ReaderAccountId, history.CreatedAtUtc });
+            entity.Property(history => history.PasswordHash).HasMaxLength(512).IsRequired();
+            entity.Property(history => history.CreatedAtUtc).HasColumnType("datetime2");
+            entity.HasOne(history => history.ReaderAccount).WithMany(reader => reader.PasswordHistories)
+                .HasForeignKey(history => history.ReaderAccountId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<LibraryCard>(entity =>
