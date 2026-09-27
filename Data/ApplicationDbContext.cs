@@ -12,10 +12,20 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<LoginLog> LoginLogs => Set<LoginLog>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<ReaderAccount> ReaderAccounts => Set<ReaderAccount>();
+    public DbSet<Author> Authors => Set<Author>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<Author>(entity =>
+        {
+            entity.HasIndex(author => author.Name).IsUnique();
+            entity.Property(author => author.Name).HasMaxLength(150).IsRequired();
+            entity.Property(author => author.Note).HasMaxLength(500);
+            entity.Property(author => author.Status).HasMaxLength(50).HasDefaultValue("Hoạt động").IsRequired();
+            entity.Property(author => author.CreatedAtUtc).HasColumnType("datetime2");
+        });
 
         modelBuilder.Entity<AdminAccount>(entity =>
         {

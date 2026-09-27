@@ -29,6 +29,14 @@
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-controller="ReaderRegistration" asp-action="Login">Đăng nhập bạn đọc</a>
                         </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark" href="#" id="catalogDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                Danh mục
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="catalogDropdown">
+                                <li><a class="dropdown-item" asp-controller="Author" asp-action="Index">Tác giả</a></li>
+                            </ul>
+                        </li>
                         <li class="nav-item ms-auto">
                             <a class="nav-link text-dark" asp-controller="Account" asp-action="Login">Đăng nhập quản trị</a>
                         </li>

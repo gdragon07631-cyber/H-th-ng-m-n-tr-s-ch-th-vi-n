@@ -171,6 +171,41 @@ public sealed class ApplicationDbContextModelSnapshot : ModelSnapshot
 
             entity.ToTable("ReaderAccounts");
         });
+
+        modelBuilder.Entity("Project.Models.Author", entity =>
+        {
+            entity.Property<int>("Id")
+                .ValueGeneratedOnAdd()
+                .HasColumnType("int");
+
+            SqlServerPropertyBuilderExtensions.UseIdentityColumn(entity.Property<int>("Id"));
+
+            entity.Property<string>("Name")
+                .IsRequired()
+                .HasMaxLength(150)
+                .HasColumnType("nvarchar(150)");
+
+            entity.Property<string>("Note")
+                .HasMaxLength(500)
+                .HasColumnType("nvarchar(500)");
+
+            entity.Property<string>("Status")
+                .IsRequired()
+                .ValueGeneratedOnAdd()
+                .HasMaxLength(50)
+                .HasColumnType("nvarchar(50)")
+                .HasDefaultValue("Hoạt động");
+
+            entity.Property<DateTime>("CreatedAtUtc")
+                .HasColumnType("datetime2");
+
+            entity.HasKey("Id");
+
+            entity.HasIndex("Name")
+                .IsUnique();
+
+            entity.ToTable("Authors");
+        });
 #pragma warning restore 612, 618
     }
 }

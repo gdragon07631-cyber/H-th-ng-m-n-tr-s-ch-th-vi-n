@@ -1,0 +1,121 @@
+@model Project.Models.AuthorIndexViewModel
+@{
+    ViewData["Title"] = "Quản lý danh mục Tác giả";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1 text-primary font-weight-bold">Quản lý danh mục Tác giả</h1>
+            <p class="text-muted mb-0">Quản lý thông tin tác giả phục vụ công tác biên mục tài liệu</p>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="row g-4">
+        <!-- Form Thêm Tác giả -->
+        <div class="col-12 col-lg-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white py-3">
+                    <h2 class="h5 mb-0 fw-semibold text-secondary">Thêm Tác giả mới</h2>
+                </div>
+                <div class="card-body p-3 p-md-4">
+                    <form asp-action="Create" method="post" id="createAuthorForm" novalidate>
+                        @Html.AntiForgeryToken()
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+                        <div class="mb-3">
+                            <label asp-for="NewAuthor.Name" class="form-label fw-semibold">
+                                Họ tên Tác giả <span class="text-danger">*</span>
+                            </label>
+                            <input asp-for="NewAuthor.Name" class="form-control" placeholder="Ví dụ: Nguyễn Nhật Ánh" autofocus />
+                            <span asp-validation-for="NewAuthor.Name" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <div class="mb-4">
+                            <label asp-for="NewAuthor.Note" class="form-label fw-semibold">
+                                Ghi chú
+                            </label>
+                            <textarea asp-for="NewAuthor.Note" class="form-control" rows="3" placeholder="Nhập ghi chú về tác giả (nếu có)"></textarea>
+                            <span asp-validation-for="NewAuthor.Note" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <button type="submit" id="btnSubmitAuthor" class="btn btn-primary w-100 py-2">
+                            Thêm Tác giả
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Danh sách Tác giả -->
+        <div class="col-12 col-lg-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h2 class="h5 mb-0 fw-semibold text-secondary">Danh sách Tác giả</h2>
+                    <span class="badge bg-primary rounded-pill">Tổng số: @Model.Authors.Count</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="authorsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col" style="width: 60px;" class="text-center">STT</th>
+                                    <th scope="col">Tên Tác giả</th>
+                                    <th scope="col">Ghi chú</th>
+                                    <th scope="col" style="width: 140px;" class="text-center">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.Authors.Count == 0)
+                                {
+                                    <tr>
+                                        <td colspan="4" class="text-center py-4 text-muted">
+                                            Chưa có tác giả nào trong danh mục.
+                                        </td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    var index = 1;
+                                    foreach (var author in Model.Authors)
+                                    {
+                                        <tr>
+                                            <td class="text-center text-muted">@index</td>
+                                            <td class="fw-medium text-dark author-name">@author.Name</td>
+                                            <td class="text-muted small">
+                                                @(string.IsNullOrWhiteSpace(author.Note) ? "-" : author.Note)
+                                            </td>
+                                            <td class="text-center">
+                                                @if (author.Status == Project.Models.AuthorStatus.Active)
+                                                {
+                                                    <span class="badge bg-success">@author.Status</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary">@author.Status</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                        index++;
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
