@@ -56,6 +56,13 @@ namespace Project.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");
 
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("SystemAdmin");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Email")

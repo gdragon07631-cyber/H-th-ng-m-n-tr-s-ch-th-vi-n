@@ -1,34 +1,49 @@
 @{
-    ViewData["Title"] = "Đăng nhập Bạn đọc";
+    Layout = null;
+    ViewData["Title"] = "Đăng nhập bạn đọc";
 }
-
-<div class="row justify-content-center py-5">
-    <div class="col-12 col-md-7 col-lg-5">
-        <div class="card shadow-sm border-0">
-            <div class="card-body p-4 p-md-5">
-                <h1 class="h3 mb-4 text-center text-primary fw-bold">Đăng nhập Bạn đọc</h1>
-                <form asp-action="Login" method="post">
-                    <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
-                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
-
-                    <div class="mb-3">
-                        <label for="email" class="form-label fw-semibold">Email</label>
-                        <input id="email" name="email" type="email" class="form-control" placeholder="bandoc@example.com" required autofocus />
-                    </div>
-
-                    <div class="mb-4">
-                        <label for="password" class="form-label fw-semibold">Mật khẩu</label>
-                        <input id="password" name="password" type="password" class="form-control" placeholder="Mật khẩu của bạn" required />
-                    </div>
-
-                    <button type="submit" class="btn btn-primary w-100 py-2 fs-6">Đăng nhập</button>
-
-                    <div class="text-center mt-3">
-                        <span class="text-muted small">Chưa có tài khoản?</span>
-                        <a asp-action="Register" class="small fw-semibold">Đăng ký ngay</a>
-                    </div>
-                </form>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Thư viện</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body class="login-page">
+    <main class="login-wrap reader-login-wrap">
+        <header class="login-brand">
+            <span class="login-brand-pill"><span class="login-brand-icon">▤</span> HỆ THỐNG THƯ VIỆN ĐIỆN TỬ</span>
+            <div class="login-brand-sub">KẾT NỐI TRI THỨC · PHỤC VỤ CỘNG ĐỒNG</div>
+        </header>
+        <section class="login-card reader-login-card">
+            <div class="login-card-heading">
+                <div><h1>Đăng nhập bạn đọc</h1><p>Đăng nhập để xem hồ sơ và sử dụng dịch vụ thư viện.</p></div>
+                <span class="login-version"><i></i> BẠN ĐỌC</span>
             </div>
-        </div>
-    </div>
-</div>
+            <nav class="login-role-switch" aria-label="Chọn loại đăng nhập">
+                <a asp-controller="Librarian" asp-action="Login"><span>✓</span><span><strong>Thủ thư</strong><small>Duyệt hồ sơ bạn đọc</small></span></a>
+                <a class="selected" aria-current="page" asp-controller="ReaderRegistration" asp-action="Login"><span>♙</span><span><strong>Bạn đọc</strong><small>Tài khoản thư viện</small></span></a>
+                <a asp-controller="Account" asp-action="Login"><span>⚙</span><span><strong>Quản trị viên</strong><small>Quản trị hệ thống</small></span></a>
+            </nav>
+            <div asp-validation-summary="ModelOnly" class="login-validation" role="alert"></div>
+            <form asp-action="Login" method="post">
+                <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
+                <div class="login-field">
+                    <div class="login-label-row"><label for="email">Email</label><span>TÀI KHOẢN BẠN ĐỌC</span></div>
+                    <div class="login-input-wrap"><span aria-hidden="true">✉</span><input id="email" name="email" type="email" class="form-control" placeholder="bandoc@example.com" autocomplete="username" required autofocus /></div>
+                </div>
+                <div class="login-field">
+                    <div class="login-label-row"><label for="password">Mật khẩu</label><span>BẢO MẬT</span></div>
+                    <div class="login-input-wrap"><span aria-hidden="true">⚿</span><input id="password" name="password" type="password" class="form-control" placeholder="Mật khẩu của bạn" autocomplete="current-password" required /></div>
+                </div>
+                <button type="submit" class="login-submit reader-login-submit">Đăng nhập bạn đọc <span aria-hidden="true">→</span></button>
+                <div class="reader-login-register"><span>Chưa có tài khoản?</span><a asp-action="Register">Đăng ký bạn đọc</a></div>
+            </form>
+            <div class="login-help"><span class="login-help-icon">i</span><span>Tài khoản mới cần được thư viện duyệt trước khi sử dụng dịch vụ mượn giữ sách.</span></div>
+        </section>
+        <footer class="login-footer reader-login-footer"><span>© 2026 Thư viện · Cổng bạn đọc</span><a asp-controller="Librarian" asp-action="Login">Đăng nhập dành cho thủ thư</a></footer>
+    </main>
+</body>
+</html>

@@ -48,7 +48,8 @@ public sealed class AccountController(
             model.Email,
             model.Password,
             HttpContext.Connection.RemoteIpAddress?.ToString(),
-            cancellationToken);
+            cancellationToken,
+            AccountRoles.SystemAdmin);
         if (outcome.Result == LoginResult.AccountLocked)
         {
             if (!IsAjaxRequest())
@@ -144,7 +145,7 @@ public sealed class AccountController(
             HttpOnly = true,
             Secure = Request.IsHttps,
             SameSite = SameSiteMode.Strict,
-            Path = "/Account",
+            Path = "/",
             Expires = tokenPair.RefreshTokenExpiresAtUtc,
             IsEssential = true
         });
@@ -157,7 +158,7 @@ public sealed class AccountController(
             HttpOnly = true,
             Secure = Request.IsHttps,
             SameSite = SameSiteMode.Strict,
-            Path = "/Account"
+            Path = "/"
         });
     }
 

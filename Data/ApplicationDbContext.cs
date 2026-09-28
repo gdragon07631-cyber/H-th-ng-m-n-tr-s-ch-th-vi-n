@@ -72,6 +72,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasIndex(account => account.Email).IsUnique();
             entity.Property(account => account.Email).HasMaxLength(256).IsRequired();
             entity.Property(account => account.PasswordHash).HasMaxLength(512).IsRequired();
+            entity.Property(account => account.Role).HasMaxLength(30).HasDefaultValue(AccountRoles.SystemAdmin).IsRequired();
             entity.Property(account => account.IsActive).HasDefaultValue(true);
             entity.Property(account => account.FailedLoginAttempts).HasDefaultValue(0);
             entity.ToTable(table => table.HasCheckConstraint(

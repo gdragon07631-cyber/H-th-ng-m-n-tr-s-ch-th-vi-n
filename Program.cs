@@ -31,15 +31,16 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 var app = builder.Build();
 
-if (args.Contains("--create-admin", StringComparer.OrdinalIgnoreCase))
+var createLibrarian = args.Contains("--create-librarian", StringComparer.OrdinalIgnoreCase);
+if (createLibrarian || args.Contains("--create-admin", StringComparer.OrdinalIgnoreCase))
 {
     await using var scope = app.Services.CreateAsyncScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<AdminAccount>>();
 
-    Console.Write("Email quản trị: ");
+    Console.Write(createLibrarian ? "Email thủ thư: " : "Email quản trị: ");
     var email = Console.ReadLine()?.Trim();
-    Console.Write("Mật khẩu quản trị: ");
+    Console.Write(createLibrarian ? "Mật khẩu thủ thư: " : "Mật khẩu quản trị: ");
     var password = ReadPassword();
     Console.WriteLine();
 
@@ -58,11 +59,16 @@ if (args.Contains("--create-admin", StringComparer.OrdinalIgnoreCase))
         return;
     }
 
-    var account = new AdminAccount { Email = email, IsActive = true };
+    var account = new AdminAccount
+    {
+        Email = email,
+        IsActive = true,
+        Role = createLibrarian ? AccountRoles.Librarian : AccountRoles.SystemAdmin
+    };
     account.PasswordHash = passwordHasher.HashPassword(account, password);
     dbContext.AdminAccounts.Add(account);
     await dbContext.SaveChangesAsync();
-    Console.WriteLine("Đã tạo tài khoản quản trị. Mật khẩu không được lưu dạng plaintext.");
+    Console.WriteLine($"Đã tạo tài khoản {(createLibrarian ? "thủ thư" : "quản trị")}. Mật khẩu không được lưu dạng plaintext.");
     return;
 }
 

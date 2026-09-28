@@ -15,7 +15,7 @@ public sealed class ReaderApprovalController(
     public async Task<IActionResult> Index(CancellationToken cancellationToken = default)
     {
         if (!await IsLibrarianSignedInAsync(cancellationToken))
-            return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Index)) });
+            return RedirectToAction("Login", "Librarian", new { returnUrl = Url.Action(nameof(Index)) });
 
         return View(new ReaderApprovalIndexViewModel
         {
@@ -126,7 +126,8 @@ public sealed class ReaderApprovalController(
 
         var hash = TokenService.HashRefreshToken(token);
         return await dbContext.RefreshTokens.AnyAsync(item => item.TokenHash == hash &&
-            item.RevokedAtUtc == null && item.ExpiresAtUtc > DateTime.UtcNow && item.AdminAccount.IsActive,
+            item.RevokedAtUtc == null && item.ExpiresAtUtc > DateTime.UtcNow && item.AdminAccount.IsActive &&
+            item.AdminAccount.Role == AccountRoles.Librarian,
             cancellationToken);
     }
 }

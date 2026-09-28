@@ -15,7 +15,8 @@ public sealed class AuthenticationService(
         string email,
         string password,
         string? ipAddress,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? requiredRole = null)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
@@ -42,7 +43,9 @@ public sealed class AuthenticationService(
                     account.LockoutEndUtc = null;
                 }
 
-                var verified = account is not null && account.IsActive &&
+                var roleMatches = account is not null &&
+                                  (requiredRole is null || string.Equals(account.Role, requiredRole, StringComparison.Ordinal));
+                var verified = account is not null && account.IsActive && roleMatches &&
                                passwordHasher.VerifyHashedPassword(account, account.PasswordHash, password) !=
                                PasswordVerificationResult.Failed;
 
@@ -90,7 +93,10 @@ public sealed class AuthenticationService(
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             logger.LogInformation("{LoginStatus}", status);
-            return new LoginOutcome(result, result == LoginResult.LoginSuccess ? account?.Id : null);
+            return new LoginOutcome(
+                result,
+                result == LoginResult.LoginSuccess ? account?.Id : null,
+                result == LoginResult.LoginSuccess ? account?.Role : null);
         }
         catch
         {
