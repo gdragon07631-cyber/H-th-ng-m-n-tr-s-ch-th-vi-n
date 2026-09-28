@@ -20,6 +20,14 @@ public sealed class ReaderRegistrationController(
         ReaderRegistrationViewModel model,
         CancellationToken cancellationToken = default)
     {
+        // Keep date binding errors next to the field, in the form's language.
+        if (ModelState.TryGetValue(nameof(model.DateOfBirth), out var dateState) &&
+            dateState.Errors.Count > 0 && !string.IsNullOrWhiteSpace(dateState.AttemptedValue))
+        {
+            dateState.Errors.Clear();
+            ModelState.AddModelError(nameof(model.DateOfBirth), "Ngày sinh không hợp lệ.");
+        }
+
         if (!ModelState.IsValid)
         {
             return View(model);
@@ -44,7 +52,7 @@ public sealed class ReaderRegistrationController(
             {
                 ModelState.AddModelError(
                     nameof(model.Email),
-                    "Email này đã được đăng ký. Bạn có thể sử dụng chức năng \"Quên mật khẩu\" để khôi phục mật khẩu.");
+                    "Email này đã được đăng ký. Nếu đây là tài khoản của bạn, hãy sử dụng chức năng Quên mật khẩu.");
                 ViewBag.ShowForgotPasswordSuggestion = true;
             }
 
@@ -53,7 +61,8 @@ public sealed class ReaderRegistrationController(
             {
                 ModelState.AddModelError(
                     nameof(model.StudentOrStaffCode),
-                    "Mã sinh viên hoặc mã cán bộ này đã được đăng ký trong hệ thống.");
+                    "Mã sinh viên/mã cán bộ này đã được đăng ký. Nếu đây là tài khoản của bạn, hãy sử dụng chức năng Quên mật khẩu.");
+                ViewBag.ShowCodeForgotPasswordSuggestion = true;
             }
 
             // 8. Tài khoản bị từ chối do trùng email hoặc trùng mã KHÔNG được tạo thêm bản ghi mới
@@ -63,10 +72,16 @@ public sealed class ReaderRegistrationController(
         registrationLease.Commit();
 
         // 7 & 8. Đăng ký thành công, thông báo hiển thị rõ trạng thái "Chờ duyệt"
-        TempData["SuccessMessage"] = "Đăng ký tài khoản thành công. Tài khoản của bạn đang ở trạng thái Chờ duyệt.";
+        TempData["SuccessMessage"] = "Đăng ký tài khoản thành công!";
         TempData["AccountStatus"] = "Chờ duyệt";
         return RedirectToAction(nameof(RegisterSuccess));
         }
+    }
+
+    [HttpGet]
+    public IActionResult ForgotPassword()
+    {
+        return View();
     }
 
     [HttpGet]
@@ -79,7 +94,7 @@ public sealed class ReaderRegistrationController(
 
         ViewBag.SuccessMessage = TempData["SuccessMessage"];
         ViewBag.AccountStatus = TempData["AccountStatus"];
-        ViewBag.Instruction = "Vui lòng đến quầy thư viện và xuất trình giấy tờ tùy thân (thẻ sinh viên / thẻ cán bộ / CCCD) để được duyệt tài khoản.";
+        ViewBag.Instruction = "Tài khoản của bạn đang chờ được thư viện phê duyệt. Vui lòng đến quầy thư viện và xuất trình thẻ sinh viên, thẻ cán bộ hoặc giấy tờ phù hợp để hoàn tất quá trình duyệt tài khoản.";
         return View();
     }
 

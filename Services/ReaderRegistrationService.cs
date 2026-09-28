@@ -20,11 +20,11 @@ public sealed class ReaderRegistrationService(
 
         // 1. Kiểm tra email đã tồn tại trước khi tạo tài khoản
         var emailExists = await dbContext.ReaderAccounts
-            .AnyAsync(r => r.Email.ToUpper() == normalizedEmail, cancellationToken);
+            .AnyAsync(r => r.Email.Trim().ToUpper() == normalizedEmail, cancellationToken);
 
         // 2. Kiểm tra mã sinh viên hoặc mã cán bộ đã tồn tại trước khi tạo tài khoản
         var codeExists = await dbContext.ReaderAccounts
-            .AnyAsync(r => r.StudentOrStaffCode.ToUpper() == normalizedCode, cancellationToken);
+            .AnyAsync(r => r.StudentOrStaffCode.Trim().ToUpper() == normalizedCode, cancellationToken);
 
         // 8. Tài khoản bị từ chối do trùng email hoặc trùng mã KHÔNG được tạo thêm bản ghi mới
         if (emailExists || codeExists)
