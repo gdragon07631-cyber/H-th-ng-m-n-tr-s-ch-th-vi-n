@@ -90,6 +90,13 @@
                                 <button type="submit" class="btn btn-success">Đặt giữ</button>
                             </form>
                         }
+                        else if (Model.IsReaderPending)
+                        {
+                            <div>
+                                <button type="button" class="btn btn-success" disabled aria-describedby="pendingHoldHelp">Đặt tài liệu – Chưa khả dụng</button>
+                                <p id="pendingHoldHelp" class="small text-muted mt-2 mb-0">Tài khoản cần được duyệt trước khi sử dụng chức năng này. Vui lòng đến quầy thư viện và xuất trình giấy tờ để hoàn tất xác minh.</p>
+                            </div>
+                        }
                         else if (!Model.IsReaderSignedIn)
                         {
                             <a asp-controller="ReaderRegistration" asp-action="Login" asp-route-returnUrl="@Url.Action("Details", new { id = Model.Id })" class="btn btn-outline-success">Đăng nhập để đặt giữ</a>

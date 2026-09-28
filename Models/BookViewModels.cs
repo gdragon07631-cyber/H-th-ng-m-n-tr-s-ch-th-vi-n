@@ -43,4 +43,5 @@ public sealed class BookDetailsViewModel
     public DateTime CreatedAtUtc { get; set; }
     public bool IsReaderSignedIn { get; set; }
     public bool CanHold { get; set; }
+    public bool IsReaderPending { get; set; }
 }

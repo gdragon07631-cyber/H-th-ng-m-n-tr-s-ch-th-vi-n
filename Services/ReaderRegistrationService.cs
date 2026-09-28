@@ -189,6 +189,12 @@ public sealed class ReaderRegistrationService(
             return DocumentHoldOutcome.Failed("Không tìm thấy thông tin tài khoản Bạn đọc.");
         }
 
+        if (string.Equals(reader.Status, "Chờ duyệt", StringComparison.OrdinalIgnoreCase))
+        {
+            return DocumentHoldOutcome.Rejected(
+                "Tài khoản của bạn đang chờ duyệt nên chưa thể đặt tài liệu. Vui lòng đến quầy thư viện và xuất trình giấy tờ để hoàn tất xác minh.");
+        }
+
         if (!string.Equals(reader.Status, "Đang hoạt động", StringComparison.OrdinalIgnoreCase))
         {
             logger.LogWarning("Từ chối đặt giữ: Tài khoản Bạn đọc {Email} đang ở trạng thái Chờ duyệt.", reader.Email);

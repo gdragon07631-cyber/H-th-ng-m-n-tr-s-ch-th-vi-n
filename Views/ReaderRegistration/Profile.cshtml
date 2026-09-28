@@ -71,7 +71,7 @@
                     <div class="alert alert-warning py-3 px-4 border-start border-4 border-warning mb-4" role="alert">
                         <h6 class="alert-heading fw-bold text-dark mb-2">Hướng dẫn kích hoạt tài khoản</h6>
                         <p class="mb-0 text-dark small">
-                            Tài khoản của bạn hiện đang ở trạng thái <strong>Chờ duyệt</strong>. Vui lòng mang theo thẻ sinh viên / thẻ cán bộ hoặc giấy tờ tùy thân (CCCD) đến quầy thư viện để được nhân viên xác minh và duyệt kích hoạt tài khoản trước khi thực hiện đặt giữ tài liệu.
+                            Hồ sơ của bạn đang chờ duyệt. Vui lòng đến quầy thư viện và xuất trình giấy tờ để nhân viên xác minh và kích hoạt tài khoản.
                         </p>
                     </div>
                 }
@@ -186,7 +186,15 @@
                 }
                 else
                 {
-                    <p class="text-muted mb-0">Chỉ tài khoản đang hoạt động mới có thể đặt giữ tài liệu.</p>
+                    @if (string.Equals(Model.Status, "Chờ duyệt", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <button type="button" class="btn btn-primary mb-2" disabled aria-describedby="pendingHoldHelp">Đặt tài liệu – Chưa khả dụng</button>
+                        <p id="pendingHoldHelp" class="text-muted mb-0">Tài khoản cần được duyệt trước khi sử dụng chức năng này.</p>
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">Chỉ tài khoản đang hoạt động mới có thể đặt giữ tài liệu.</p>
+                    }
                 }
 
                 <div class="mt-4 pt-3 border-top text-end">

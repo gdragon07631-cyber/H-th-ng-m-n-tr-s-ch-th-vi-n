@@ -71,6 +71,7 @@ public sealed class BookController(
             var reader = await registrationService.GetReaderByIdAsync(readerId, cancellationToken);
             bookDetails.CanHold = string.Equals(reader?.Status, "Đang hoạt động", StringComparison.OrdinalIgnoreCase);
             bookDetails.IsReaderSignedIn = reader != null;
+            bookDetails.IsReaderPending = string.Equals(reader?.Status, "Chờ duyệt", StringComparison.OrdinalIgnoreCase);
         }
         return View(bookDetails);
     }

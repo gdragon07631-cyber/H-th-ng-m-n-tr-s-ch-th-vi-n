@@ -20,6 +20,18 @@ public sealed class ReaderRegistrationController(
         ReaderRegistrationViewModel model,
         CancellationToken cancellationToken = default)
     {
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        if (!ipRateLimiter.TryAcquire(ipAddress, out var registrationLease))
+        {
+            ModelState.AddModelError(string.Empty,
+                "Bạn đã gửi quá nhiều yêu cầu đăng ký. Vui lòng thử lại sau.");
+            return View(model);
+        }
+
+        // Count the submitted POST, including validation failures and duplicates.
+        // Antiforgery validation runs before this action; GET requests never acquire a slot.
+        registrationLease.Commit();
+
         // Keep date binding errors next to the field, in the form's language.
         if (ModelState.TryGetValue(nameof(model.DateOfBirth), out var dateState) &&
             dateState.Errors.Count > 0 && !string.IsNullOrWhiteSpace(dateState.AttemptedValue))
@@ -33,16 +45,6 @@ public sealed class ReaderRegistrationController(
             return View(model);
         }
 
-        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        if (!ipRateLimiter.TryAcquire(ipAddress, out var registrationLease))
-        {
-            ModelState.AddModelError(string.Empty,
-                "Địa chỉ IP này đã đạt giới hạn 3 lượt đăng ký trong một giờ. Vui lòng thử lại sau.");
-            return View(model);
-        }
-
-        using (registrationLease)
-        {
         var outcome = await registrationService.RegisterAsync(model, cancellationToken);
 
         if (!outcome.IsSuccess)
@@ -69,13 +71,10 @@ public sealed class ReaderRegistrationController(
             return View(model);
         }
 
-        registrationLease.Commit();
-
         // 7 & 8. Đăng ký thành công, thông báo hiển thị rõ trạng thái "Chờ duyệt"
         TempData["SuccessMessage"] = "Đăng ký tài khoản thành công!";
         TempData["AccountStatus"] = "Chờ duyệt";
         return RedirectToAction(nameof(RegisterSuccess));
-        }
     }
 
     [HttpGet]
