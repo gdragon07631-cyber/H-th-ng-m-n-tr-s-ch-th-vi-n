@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Project.Data;
 using Project.Models;
 using Project.Services;
 
@@ -8,11 +10,15 @@ public sealed class BookController(
     IBookService bookService,
     IAuthorService authorService,
     ICategoryService categoryService,
-    IReaderRegistrationService registrationService) : Controller
+    IReaderRegistrationService registrationService,
+    ApplicationDbContext dbContext) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken = default)
     {
+        if (!await IsLibrarianSignedInAsync(cancellationToken))
+            return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Index)) });
+
         var books = await bookService.GetAllBooksAsync(cancellationToken);
         return View(books);
     }
@@ -20,6 +26,9 @@ public sealed class BookController(
     [HttpGet]
     public async Task<IActionResult> Create(CancellationToken cancellationToken = default)
     {
+        if (!await IsLibrarianSignedInAsync(cancellationToken))
+            return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Create)) });
+
         var activeAuthors = await authorService.GetActiveAuthorsAsync(cancellationToken);
         var activeCategories = await categoryService.GetActiveAsync(cancellationToken);
         var viewModel = new CatalogBookViewModel
@@ -28,6 +37,13 @@ public sealed class BookController(
             ActiveCategories = activeCategories
         };
         return View(viewModel);
+    }
+
+    private async Task<bool> IsLibrarianSignedInAsync(CancellationToken ct)
+    {
+        if (!Request.Cookies.TryGetValue("admin_refresh", out var token) || string.IsNullOrWhiteSpace(token)) return false;
+        var hash = TokenService.HashRefreshToken(token);
+        return await dbContext.RefreshTokens.AnyAsync(item => item.TokenHash == hash && item.RevokedAtUtc == null && item.ExpiresAtUtc > DateTime.UtcNow && item.AdminAccount.IsActive, ct);
     }
 
     [HttpPost]

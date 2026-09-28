@@ -8,7 +8,7 @@
         <div class="card shadow-sm">
             <div class="card-body p-4 p-md-5">
                 <h1 class="h3 mb-4 text-center">Đăng nhập quản trị</h1>
-                <form asp-action="Login" method="post" id="loginForm" data-has-refresh="@ViewData["HasRefreshToken"]">
+                <form asp-action="Login" method="post" id="loginForm" data-has-refresh="false" data-dashboard-url="@ViewData["DashboardUrl"]">
                     <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
                     <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
                     <div id="authMessage" class="d-none" role="status" aria-live="polite"></div>

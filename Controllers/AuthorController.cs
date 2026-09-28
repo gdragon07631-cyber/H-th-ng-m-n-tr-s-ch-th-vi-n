@@ -1,11 +1,14 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Project.Data;
 using Project.Models;
 using Project.Services;
 
 namespace Project.Controllers;
 
 public sealed class AuthorController(
-    IAuthorService authorService) : Controller
+    IAuthorService authorService,
+    ApplicationDbContext dbContext) : Controller
 {
     // ==========================================
     // MVC VIEW ACTIONS
@@ -14,6 +17,9 @@ public sealed class AuthorController(
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken = default)
     {
+        if (!await IsLibrarianSignedInAsync(cancellationToken))
+            return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Index)) });
+
         var authors = await authorService.GetAllAuthorsAsync(cancellationToken);
         var viewModel = new AuthorIndexViewModel
         {
@@ -21,6 +27,13 @@ public sealed class AuthorController(
             NewAuthor = new CreateAuthorViewModel()
         };
         return View(viewModel);
+    }
+
+    private async Task<bool> IsLibrarianSignedInAsync(CancellationToken ct)
+    {
+        if (!Request.Cookies.TryGetValue("admin_refresh", out var token) || string.IsNullOrWhiteSpace(token)) return false;
+        var hash = TokenService.HashRefreshToken(token);
+        return await dbContext.RefreshTokens.AnyAsync(item => item.TokenHash == hash && item.RevokedAtUtc == null && item.ExpiresAtUtc > DateTime.UtcNow && item.AdminAccount.IsActive, ct);
     }
 
     [HttpPost]

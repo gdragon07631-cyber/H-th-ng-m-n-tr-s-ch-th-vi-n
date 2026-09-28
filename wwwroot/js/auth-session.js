@@ -39,7 +39,7 @@
 
             accessToken = result.accessToken;
             scheduleRefresh(result.accessTokenExpiresAtUtc);
-            showMessage(silent ? "Phiên đăng nhập đã được khôi phục." : "Phiên đăng nhập đã được gia hạn.");
+            if (!silent) showMessage("Phiên đăng nhập đã được gia hạn.");
             return true;
         } catch {
             if (!silent) showMessage("Không thể làm mới phiên đăng nhập. Vui lòng thử lại.", true);
@@ -72,17 +72,11 @@
                 window.location.assign(result.redirectUrl);
                 return;
             }
-            showMessage("Đăng nhập thành công. Access token có hiệu lực 30 phút.");
-            form.querySelector("input[name='Password']").value = "";
+            window.location.assign(form.dataset.dashboardUrl || "/Home/Index");
         } catch {
             showMessage("Không thể kết nối máy chủ. Vui lòng thử lại.", true);
         } finally {
             submitButton.disabled = false;
         }
     });
-
-    // Recover an existing browser session after a reload. The refresh token is HttpOnly.
-    if (form.dataset.hasRefresh === "True" || form.dataset.hasRefresh === "true") {
-        refreshAccessToken(false);
-    }
 })();

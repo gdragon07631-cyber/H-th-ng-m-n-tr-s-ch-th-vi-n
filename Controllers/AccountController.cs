@@ -12,7 +12,8 @@ public sealed class AccountController(
     public IActionResult Login(string? returnUrl = null)
     {
         ViewData["ReturnUrl"] = returnUrl;
-        ViewData["HasRefreshToken"] = Request.Cookies.ContainsKey("admin_refresh");
+        ViewData["HasRefreshToken"] = false;
+        ViewData["DashboardUrl"] = Url.Action("Index", "Home");
         return View(new LoginViewModel());
     }
 
@@ -27,6 +28,14 @@ public sealed class AccountController(
 
         if (!ModelState.IsValid)
         {
+            if (!IsAjaxRequest())
+            {
+                ViewData["HasRefreshToken"] = false;
+                ViewData["DashboardUrl"] = Url.Action("Index", "Home");
+                ModelState.AddModelError(string.Empty, "Vui lòng kiểm tra email và mật khẩu.");
+                return View(model);
+            }
+
             return BadRequest(new
             {
                 message = "Vui lòng kiểm tra email và mật khẩu.",
@@ -42,6 +51,14 @@ public sealed class AccountController(
             cancellationToken);
         if (outcome.Result == LoginResult.AccountLocked)
         {
+            if (!IsAjaxRequest())
+            {
+                ViewData["HasRefreshToken"] = false;
+                ViewData["DashboardUrl"] = Url.Action("Index", "Home");
+                ModelState.AddModelError(string.Empty, "Tài khoản đang bị khóa. Vui lòng thử lại sau 15 phút.");
+                return View(model);
+            }
+
             return StatusCode(StatusCodes.Status423Locked, new
             {
                 message = "Tài khoản đang bị khóa. Vui lòng thử lại sau 15 phút."
@@ -50,19 +67,32 @@ public sealed class AccountController(
 
         if (outcome.Result == LoginResult.LoginFailed || outcome.AdminAccountId is null)
         {
+            if (!IsAjaxRequest())
+            {
+                ViewData["HasRefreshToken"] = false;
+                ViewData["DashboardUrl"] = Url.Action("Index", "Home");
+                ModelState.AddModelError(string.Empty, "Email hoặc mật khẩu không chính xác.");
+                return View(model);
+            }
+
             return Unauthorized(new { message = "Email hoặc mật khẩu không chính xác." });
         }
 
         var tokenPair = await tokenService.CreateTokenPairAsync(outcome.AdminAccountId.Value, cancellationToken);
         SetRefreshTokenCookie(tokenPair);
         Response.Headers.CacheControl = "no-store";
+        var destination = !string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)
+            ? returnUrl
+            : Url.Action("Index", "Home")!;
+        if (!IsAjaxRequest()) return LocalRedirect(destination);
+
         return Ok(new
         {
             status = "LoginSuccess",
             tokenType = "Bearer",
             accessToken = tokenPair.AccessToken,
             accessTokenExpiresAtUtc = tokenPair.AccessTokenExpiresAtUtc,
-            redirectUrl = !string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : null
+            redirectUrl = destination
         });
     }
 
@@ -130,4 +160,7 @@ public sealed class AccountController(
             Path = "/Account"
         });
     }
+
+    private bool IsAjaxRequest() =>
+        string.Equals(Request.Headers.XRequestedWith, "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
 }

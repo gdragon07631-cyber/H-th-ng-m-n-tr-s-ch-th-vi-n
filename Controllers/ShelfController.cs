@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Project.Data;
 using Project.Models;
 using Project.Services;
 
@@ -7,7 +9,8 @@ namespace Project.Controllers;
 
 public sealed class ShelfController(
     IShelfService shelfService,
-    IWarehouseService warehouseService) : Controller
+    IWarehouseService warehouseService,
+    ApplicationDbContext dbContext) : Controller
 {
     // ==========================================
     // MVC VIEW ACTIONS
@@ -16,6 +19,9 @@ public sealed class ShelfController(
     [HttpGet]
     public async Task<IActionResult> Index(int? warehouseId, CancellationToken ct = default)
     {
+        if (!await IsLibrarianSignedInAsync(ct))
+            return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Index), new { warehouseId }) });
+
         var shelves = await shelfService.GetAllAsync(warehouseId, ct);
         var warehouses = await warehouseService.GetAllAsync(ct);
 
@@ -29,6 +35,13 @@ public sealed class ShelfController(
                 WarehouseId = warehouseId ?? (warehouses.Count > 0 ? warehouses[0].Id : 0)
             }
         });
+    }
+
+    private async Task<bool> IsLibrarianSignedInAsync(CancellationToken ct)
+    {
+        if (!Request.Cookies.TryGetValue("admin_refresh", out var token) || string.IsNullOrWhiteSpace(token)) return false;
+        var hash = TokenService.HashRefreshToken(token);
+        return await dbContext.RefreshTokens.AnyAsync(item => item.TokenHash == hash && item.RevokedAtUtc == null && item.ExpiresAtUtc > DateTime.UtcNow && item.AdminAccount.IsActive, ct);
     }
 
     [HttpGet]
