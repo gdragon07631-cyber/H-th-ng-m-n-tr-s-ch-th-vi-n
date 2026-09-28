@@ -9,7 +9,8 @@ namespace Project.Controllers;
 /// <summary>Trang nghiệp vụ dành cho thủ thư duyệt hồ sơ bạn đọc.</summary>
 public sealed class ReaderApprovalController(
     IReaderRegistrationService registrationService,
-    ApplicationDbContext dbContext) : Controller
+    ApplicationDbContext dbContext,
+    IAuditLogService auditLogService) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken = default)
@@ -44,6 +45,7 @@ public sealed class ReaderApprovalController(
             return RedirectToAction(nameof(Index));
         }
 
+        await WriteIssueCardLogAsync(outcome.LibraryCard!, cancellationToken);
         TempData["SuccessMessage"] = $"Đã duyệt hồ sơ và cấp thẻ {outcome.LibraryCard!.CardCode}.";
         return RedirectToAction(nameof(Index));
     }
@@ -91,6 +93,7 @@ public sealed class ReaderApprovalController(
             return BadRequest(new { message = outcome.ErrorMessage });
 
         var card = outcome.LibraryCard!;
+        await WriteIssueCardLogAsync(card, cancellationToken);
         return Ok(new
         {
             readerAccountId = card.ReaderAccountId,
@@ -117,6 +120,17 @@ public sealed class ReaderApprovalController(
             return BadRequest(new { message = outcome.ErrorMessage });
 
         return Ok(new { message = "Từ chối hồ sơ thành công.", id, status = "Từ chối" });
+    }
+
+    private async Task WriteIssueCardLogAsync(LibraryCard card, CancellationToken cancellationToken)
+    {
+        var staff = await auditLogService.GetSignedInStaffAsync(Request, cancellationToken);
+        await auditLogService.WriteAsync(
+            staff?.Email ?? "Không xác định",
+            AuditActions.IssueCard,
+            $"Thẻ {card.CardCode} – bạn đọc #{card.ReaderAccountId}",
+            AuditLogService.ClientIp(HttpContext),
+            cancellationToken);
     }
 
     private async Task<bool> IsLibrarianSignedInAsync(CancellationToken cancellationToken)

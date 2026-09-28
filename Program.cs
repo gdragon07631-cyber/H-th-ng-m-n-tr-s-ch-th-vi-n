@@ -26,6 +26,7 @@ builder.Services.AddScoped<IWarehouseService, WarehouseService>();
 builder.Services.AddScoped<IShelfService, ShelfService>();
 builder.Services.AddScoped<IWorkingScheduleService, WorkingScheduleService>();
 builder.Services.AddScoped<IBookLoanService, BookLoanService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, "Data", "Keys")));
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -69,6 +70,11 @@ if (createLibrarian || args.Contains("--create-admin", StringComparer.OrdinalIgn
     };
     account.PasswordHash = passwordHasher.HashPassword(account, password);
     dbContext.AdminAccounts.Add(account);
+    dbContext.AuditLogs.Add(AuditLogService.Create(
+        $"Hệ thống (dòng lệnh, {Environment.UserName})",
+        AuditActions.CreateAccount,
+        $"Tài khoản {AuditLogService.DescribeRole(account.Role)} ({account.Email})",
+        "127.0.0.1"));
     await dbContext.SaveChangesAsync();
     Console.WriteLine($"Đã tạo tài khoản {(createLibrarian ? "thủ thư" : "quản trị")}. Mật khẩu không được lưu dạng plaintext.");
     return;

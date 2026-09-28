@@ -1,0 +1,40 @@
+@{
+    var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
+    string NavClass(string action) => string.Equals(currentAction, action, StringComparison.OrdinalIgnoreCase) ? "is-active" : "";
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <title>@ViewData["Title"] - Thư viện</title>
+    <partial name="_HeadAssets" />
+</head>
+<body class="reader-body">
+    <header class="reader-header">
+        <div class="reader-header-inner">
+            <a class="reader-brand" asp-controller="ReaderRegistration" asp-action="Login">
+                <span class="brand-mark">T</span>
+                <span><strong>Thư Viện</strong><small>Cổng thông tin Bạn đọc</small></span>
+            </a>
+            <nav class="reader-nav" aria-label="Điều hướng bạn đọc">
+                <a class="@NavClass("Profile")" asp-controller="ReaderRegistration" asp-action="Profile">Tài khoản</a>
+                <a class="@NavClass("Login")" asp-controller="ReaderRegistration" asp-action="Login">Đăng nhập</a>
+                <a class="reader-nav-cta" asp-controller="ReaderRegistration" asp-action="Register">Đăng ký</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="reader-main" role="main">@RenderBody()</main>
+
+    <footer class="reader-footer">
+        <div class="reader-footer-inner">
+            <span>© 2026 Thư viện · Tri thức cho mọi người</span>
+            <a class="reader-nav-staff" asp-controller="Librarian" asp-action="Login">Cổng dành cho nhân viên thư viện</a>
+        </div>
+    </footer>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

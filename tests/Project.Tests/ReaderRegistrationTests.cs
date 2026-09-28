@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -118,10 +119,27 @@ public sealed class ReaderRegistrationTests
 
     private static ReaderRegistrationController CreateController(IReaderRegistrationService service)
     {
-        var controller = new ReaderRegistrationController(service, new ReaderRegistrationIpRateLimiter());
+        var controller = new ReaderRegistrationController(service, new ReaderRegistrationIpRateLimiter(),
+            new UnusedPasswordResetService(), new EphemeralDataProtectionProvider(), new NullAuditLogService());
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
         controller.TempData = new TempDataDictionary(controller.HttpContext, new TestTempDataProvider());
         return controller;
+    }
+
+    private sealed class UnusedPasswordResetService : IReaderPasswordResetService
+    {
+        public Task<bool> RequestAsync(string email, string resetUrl, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<bool> IsTokenValidAsync(string token, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<bool> ResetAsync(string token, string newPassword, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class NullAuditLogService : IAuditLogService
+    {
+        public Task WriteAsync(string actor, string action, string target, string? ipAddress, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<IReadOnlyList<AuditLog>> GetRecentAsync(int limit, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<AuditLog>>([]);
+        public Task<IReadOnlyList<AuditLog>> SearchAsync(AuditLogFilter filter, int limit, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<AuditLog>>([]);
+        public Task<IReadOnlyList<string>> GetActorsAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<string>>([]);
+        public Task<AdminAccount?> GetSignedInStaffAsync(HttpRequest request, CancellationToken cancellationToken = default) => Task.FromResult<AdminAccount?>(null);
     }
 
     private sealed class TestTempDataProvider : ITempDataProvider

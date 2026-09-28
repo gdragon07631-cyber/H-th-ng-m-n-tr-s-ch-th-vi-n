@@ -12,6 +12,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<LoginLog> LoginLogs => Set<LoginLog>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<ReaderAccount> ReaderAccounts => Set<ReaderAccount>();
+    public DbSet<ReaderPasswordHistory> ReaderPasswordHistories => Set<ReaderPasswordHistory>();
+    public DbSet<ReaderPasswordResetToken> ReaderPasswordResetTokens => Set<ReaderPasswordResetToken>();
+    public DbSet<ReaderPasswordResetRequest> ReaderPasswordResetRequests => Set<ReaderPasswordResetRequest>();
     public DbSet<Author> Authors => Set<Author>();
     public DbSet<Book> Books => Set<Book>();
     public DbSet<Category> Categories => Set<Category>();
@@ -24,6 +27,29 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Shelf> Shelves => Set<Shelf>();
     public DbSet<WeeklyWorkingSchedule> WeeklyWorkingSchedules => Set<WeeklyWorkingSchedule>();
     public DbSet<HolidayClosure> HolidayClosures => Set<HolidayClosure>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<LoanPolicy> LoanPolicies => Set<LoanPolicy>();
+
+    public const string AuditLogReadOnlyTrigger = "TR_AuditLogs_ReadOnly";
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        EnsureAuditLogsAreAppendOnly();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        EnsureAuditLogsAreAppendOnly();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    /// <summary>Nhật ký hoạt động chỉ được thêm mới; mọi thao tác sửa/xóa qua hệ thống đều bị từ chối.</summary>
+    private void EnsureAuditLogsAreAppendOnly()
+    {
+        if (ChangeTracker.Entries<AuditLog>().Any(entry => entry.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Nhật ký hoạt động là dữ liệu chỉ đọc, không được sửa hoặc xóa.");
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -238,6 +264,30 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         {
             entity.HasIndex(request => new { request.EmailHash, request.RequestedAtUtc });
             entity.Property(request => request.EmailHash).HasMaxLength(64).IsRequired();
+        });
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            // The database trigger rejects UPDATE/DELETE; declaring it stops EF from using OUTPUT on INSERT.
+            entity.ToTable(table => table.HasTrigger(AuditLogReadOnlyTrigger));
+            entity.HasIndex(log => log.OccurredAtUtc);
+            entity.Property(log => log.OccurredAtUtc).HasColumnType("datetime2");
+            entity.Property(log => log.Actor).HasMaxLength(256).IsRequired();
+            entity.Property(log => log.Action).HasMaxLength(100).IsRequired();
+            entity.Property(log => log.Target).HasMaxLength(500).IsRequired();
+            entity.Property(log => log.IpAddress).HasMaxLength(45).IsRequired();
+        });
+
+        modelBuilder.Entity<LoanPolicy>(entity =>
+        {
+            entity.Property(policy => policy.Id).ValueGeneratedNever();
+            entity.Property(policy => policy.UpdatedAtUtc).HasColumnType("datetime2");
+            entity.HasData(new LoanPolicy
+            {
+                Id = LoanPolicy.SingletonId,
+                LoanDays = LoanPolicy.DefaultLoanDays,
+                UpdatedAtUtc = new DateTime(2026, 9, 29, 0, 0, 0, DateTimeKind.Utc)
+            });
         });
     }
 }

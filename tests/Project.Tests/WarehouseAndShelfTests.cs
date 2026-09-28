@@ -215,7 +215,7 @@ public class WarehouseAndShelfTests
         using var db = CreateInMemoryDbContext();
         var warehouseService = new WarehouseService(db);
         var shelfService = new ShelfService(db);
-        var controller = new WarehouseController(warehouseService, shelfService);
+        var controller = new WarehouseController(warehouseService, shelfService, db);
 
         // 1. Tạo kho qua API
         var createResult = await controller.CreateApi(new CreateWarehouseDto
@@ -251,7 +251,7 @@ public class WarehouseAndShelfTests
         using var db = CreateInMemoryDbContext();
         var warehouseService = new WarehouseService(db);
         var shelfService = new ShelfService(db);
-        var shelfController = new ShelfController(shelfService, warehouseService);
+        var shelfController = new ShelfController(shelfService, warehouseService, db);
 
         var wh1 = (await warehouseService.CreateAsync("WH-A", "Kho A", null, null)).Warehouse!;
         var wh2 = (await warehouseService.CreateAsync("WH-B", "Kho B", null, null)).Warehouse!;
@@ -299,7 +299,7 @@ public class WarehouseAndShelfTests
         using var db = CreateInMemoryDbContext();
         var warehouseService = new WarehouseService(db);
         var shelfService = new ShelfService(db);
-        var controller = new ShelfController(shelfService, warehouseService);
+        var controller = new ShelfController(shelfService, warehouseService, db);
 
         var warehouse = (await warehouseService.CreateAsync("KHO-DETAIL", "Kho chi tiết", null, null)).Warehouse!;
         var shelf = (await shelfService.CreateAsync(warehouse.Id, "KE-DETAIL", "Kệ chi tiết", "Mô tả")).Shelf!;

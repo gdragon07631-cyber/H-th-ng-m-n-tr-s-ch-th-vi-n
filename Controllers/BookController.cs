@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Project.Data;
@@ -11,7 +12,8 @@ public sealed class BookController(
     IAuthorService authorService,
     ICategoryService categoryService,
     IReaderRegistrationService registrationService,
-    ApplicationDbContext dbContext) : Controller
+    ApplicationDbContext dbContext,
+    IDataProtectionProvider dataProtectionProvider) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken = default)
@@ -81,7 +83,7 @@ public sealed class BookController(
             return NotFound("Không tìm thấy thông tin sách.");
         }
 
-        var readerId = GetCurrentLoggedInReaderId();
+        var readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (readerId > 0)
         {
             var reader = await registrationService.GetReaderByIdAsync(readerId, cancellationToken);
@@ -95,7 +97,7 @@ public sealed class BookController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Hold(int id, CancellationToken cancellationToken = default)
     {
-        var readerId = GetCurrentLoggedInReaderId();
+        var readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (readerId <= 0)
             return RedirectToAction("Login", "ReaderRegistration", new { returnUrl = Url.Action(nameof(Details), new { id }) });
 
@@ -147,6 +149,6 @@ public sealed class BookController(
         return Ok(details);
     }
 
-    private int GetCurrentLoggedInReaderId() =>
-        Request.Cookies.TryGetValue("reader_id", out var idText) && int.TryParse(idText, out var id) ? id : 0;
+    private Task<int> GetCurrentLoggedInReaderIdAsync(CancellationToken cancellationToken) =>
+        ReaderSessionCookies.GetReaderIdAsync(HttpContext, dataProtectionProvider, registrationService.GetReaderByIdAsync, cancellationToken);
 }

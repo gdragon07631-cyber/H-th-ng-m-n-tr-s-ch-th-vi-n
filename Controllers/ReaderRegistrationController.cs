@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.DataProtection;
-using System.Security.Cryptography;
 using Project.Models;
 using Project.Services;
 
@@ -10,7 +9,8 @@ public sealed class ReaderRegistrationController(
     IReaderRegistrationService registrationService,
     ReaderRegistrationIpRateLimiter ipRateLimiter,
     IReaderPasswordResetService passwordResetService,
-    IDataProtectionProvider dataProtectionProvider) : Controller
+    IDataProtectionProvider dataProtectionProvider,
+    IAuditLogService auditLogService) : Controller
 {
     [HttpGet]
     public IActionResult Register()
@@ -75,17 +75,20 @@ public sealed class ReaderRegistrationController(
 
         registrationLease.Commit();
 
+        var account = outcome.Account!;
+        var staff = await auditLogService.GetSignedInStaffAsync(Request, cancellationToken);
+        await auditLogService.WriteAsync(
+            staff?.Email ?? account.Email,
+            AuditActions.CreateAccount,
+            $"Tài khoản bạn đọc #{account.Id} ({account.Email})",
+            AuditLogService.ClientIp(HttpContext),
+            cancellationToken);
+
         // 7 & 8. Đăng ký thành công, thông báo hiển thị rõ trạng thái "Chờ duyệt"
         TempData["SuccessMessage"] = "Đăng ký tài khoản thành công!";
         TempData["AccountStatus"] = "Chờ duyệt";
         return RedirectToAction(nameof(RegisterSuccess));
         }
-    }
-
-    [HttpGet]
-    public IActionResult ForgotPassword()
-    {
-        return View();
     }
 
     [HttpGet]
@@ -105,7 +108,7 @@ public sealed class ReaderRegistrationController(
     [HttpGet]
     public async Task<IActionResult> Profile(int? id, CancellationToken cancellationToken = default)
     {
-        int targetId = id ?? GetCurrentLoggedInReaderId();
+        int targetId = id ?? await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (targetId <= 0)
         {
             return RedirectToAction(nameof(Login));
@@ -129,7 +132,7 @@ public sealed class ReaderRegistrationController(
     public async Task<IActionResult> Profile(
         ReaderProfileViewModel model, CancellationToken cancellationToken = default)
     {
-        int readerId = GetCurrentLoggedInReaderId();
+        int readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (readerId <= 0) return RedirectToAction(nameof(Login));
 
         var current = await registrationService.GetReaderByIdAsync(readerId, cancellationToken);
@@ -165,6 +168,15 @@ public sealed class ReaderRegistrationController(
             ModelState.SetModelValue(nameof(model.CurrentPassword), string.Empty, string.Empty);
             return View(model);
         }
+
+        await auditLogService.WriteAsync(
+            current.Email,
+            AuditActions.UpdateAccount,
+            emailChanged
+                ? $"Tài khoản bạn đọc #{readerId} (đổi email {current.Email} → {model.Email.Trim()})"
+                : $"Tài khoản bạn đọc #{readerId} ({current.Email})",
+            AuditLogService.ClientIp(HttpContext),
+            cancellationToken);
 
         TempData["ProfileSuccessMessage"] = emailChanged
             ? "Đổi email thành công."
@@ -208,7 +220,7 @@ public sealed class ReaderRegistrationController(
     public async Task<IActionResult> ChangePassword(
         ReaderChangePasswordViewModel model, CancellationToken cancellationToken = default)
     {
-        int readerId = GetCurrentLoggedInReaderId();
+        int readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (readerId <= 0) return RedirectToAction(nameof(Login));
 
         if (!ModelState.IsValid)
@@ -244,7 +256,7 @@ public sealed class ReaderRegistrationController(
     [HttpGet("api/reader/profile")]
     public async Task<IActionResult> GetProfileApi(CancellationToken cancellationToken = default)
     {
-        var readerId = GetCurrentLoggedInReaderId();
+        var readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (readerId <= 0)
             return Unauthorized(new { message = "Vui lòng đăng nhập trước khi xem thông tin cá nhân." });
 
@@ -330,6 +342,12 @@ public sealed class ReaderRegistrationController(
         }
 
         SetReaderSessionCookies(reader);
+        await auditLogService.WriteAsync(
+            reader.Email,
+            AuditActions.Login,
+            $"Tài khoản bạn đọc #{reader.Id} ({reader.Email})",
+            AuditLogService.ClientIp(HttpContext),
+            cancellationToken);
 
         if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
         {
@@ -343,8 +361,7 @@ public sealed class ReaderRegistrationController(
     [ValidateAntiForgeryToken]
     public IActionResult Logout()
     {
-        Response.Cookies.Delete("reader_id");
-        Response.Cookies.Delete("reader_session_version");
+        ReaderSessionCookies.Clear(Response);
         return RedirectToAction(nameof(Login));
     }
 
@@ -355,7 +372,7 @@ public sealed class ReaderRegistrationController(
         int? readerId = null,
         CancellationToken cancellationToken = default)
     {
-        int targetId = readerId ?? GetCurrentLoggedInReaderId();
+        int targetId = readerId ?? await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (targetId <= 0)
         {
             return RedirectToAction(nameof(Login));
@@ -380,7 +397,7 @@ public sealed class ReaderRegistrationController(
         [FromQuery] int? readerId = null,
         CancellationToken cancellationToken = default)
     {
-        int targetId = readerId ?? GetCurrentLoggedInReaderId();
+        int targetId = readerId ?? await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (targetId <= 0)
         {
             return Unauthorized(new { message = "Vui lòng đăng nhập trước khi thực hiện đặt giữ tài liệu." });
@@ -405,63 +422,9 @@ public sealed class ReaderRegistrationController(
         });
     }
 
-    private void SetReaderSessionCookies(ReaderAccount reader)
-    {
-        var options = new CookieOptions
-        {
-            HttpOnly = true,
-            SameSite = SameSiteMode.Strict,
-            Secure = Request.IsHttps,
-            Expires = DateTimeOffset.UtcNow.AddDays(7)
-        };
-        Response.Cookies.Append("reader_id", reader.Id.ToString(), options);
-        var sessionStamp = dataProtectionProvider.CreateProtector("Project.ReaderSession")
-            .Protect($"{reader.Id}:{reader.SessionVersion}");
-        Response.Cookies.Append("reader_session_version", sessionStamp, options);
-    }
+    private void SetReaderSessionCookies(ReaderAccount reader) =>
+        ReaderSessionCookies.Append(HttpContext, dataProtectionProvider, reader);
 
-    private async Task<int> GetCurrentLoggedInReaderIdAsync(CancellationToken cancellationToken)
-    {
-        if (!Request.Cookies.TryGetValue("reader_id", out var idValue)) return 0;
-        if (!int.TryParse(idValue, out var id))
-        {
-            ClearReaderSessionCookies();
-            return -1;
-        }
-
-        var sessionVersion = 0;
-        if (Request.Cookies.TryGetValue("reader_session_version", out var stamp))
-        {
-            try
-            {
-                var unprotected = dataProtectionProvider.CreateProtector("Project.ReaderSession").Unprotect(stamp);
-                var values = unprotected.Split(':', 2);
-                if (values.Length != 2 || !int.TryParse(values[0], out var stampedReaderId) || stampedReaderId != id ||
-                    !int.TryParse(values[1], out sessionVersion))
-                {
-                    ClearReaderSessionCookies();
-                    return -1;
-                }
-            }
-            catch (CryptographicException)
-            {
-                ClearReaderSessionCookies();
-                return -1;
-            }
-        }
-
-        var reader = await registrationService.GetReaderByIdAsync(id, cancellationToken);
-        if (reader is null || reader.SessionVersion != sessionVersion)
-        {
-            ClearReaderSessionCookies();
-            return -1;
-        }
-        return id;
-    }
-
-    private void ClearReaderSessionCookies()
-    {
-        Response.Cookies.Delete("reader_id");
-        Response.Cookies.Delete("reader_session_version");
-    }
+    private Task<int> GetCurrentLoggedInReaderIdAsync(CancellationToken cancellationToken) =>
+        ReaderSessionCookies.GetReaderIdAsync(HttpContext, dataProtectionProvider, registrationService.GetReaderByIdAsync, cancellationToken);
 }

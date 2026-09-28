@@ -1,35 +1,56 @@
 @{
-    Layout = null;
+    Layout = "_ReaderLayout";
     ViewData["Title"] = "Đăng nhập bạn đọc";
 }
 
-<div class="row justify-content-center py-5">
-    <div class="col-12 col-md-7 col-lg-5">
-        <div class="card shadow-sm border-0">
-            <div class="card-body p-4 p-md-5">
-                <h1 class="h3 mb-4 text-center text-primary fw-bold">Đăng nhập Bạn đọc</h1>
-                <form asp-action="Login" method="post">
-                    <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
-                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
-
-                    <div class="mb-3">
-                        <label for="email" class="form-label fw-semibold">Email</label>
-                        <input id="email" name="email" type="email" class="form-control" placeholder="bandoc@example.com" required autofocus />
-                    </div>
-
-                    <div class="mb-4">
-                        <label for="password" class="form-label fw-semibold">Mật khẩu</label>
-                        <input id="password" name="password" type="password" class="form-control" placeholder="Mật khẩu của bạn" required />
-                    </div>
-
-                    <button type="submit" class="btn btn-primary w-100 py-2 fs-6">Đăng nhập</button>
-
-                    <div class="text-center mt-3">
-                        <span class="text-muted small">Chưa có tài khoản?</span>
-                        <a asp-action="Register" class="small fw-semibold">Đăng ký ngay</a>
-                    </div>
-                </form>
-            </div>
+<div class="reader-auth">
+    <section class="reader-auth-hero" aria-hidden="true">
+        <div>
+            <div class="eyebrow">THƯ VIỆN · CỔNG BẠN ĐỌC</div>
+            <h1>Mỗi trang sách,<br /><em>một chân trời mới</em></h1>
+            <p>Đăng nhập để theo dõi hồ sơ, đặt giữ tài liệu và quản lý thẻ thư viện của bạn mọi lúc, mọi nơi.</p>
+            <ul class="reader-auth-perks">
+                <li><span>✦</span> Tra cứu và đặt giữ sách trực tuyến</li>
+                <li><span>✦</span> Xem trạng thái thẻ và hạn sử dụng</li>
+                <li><span>✦</span> Cập nhật thông tin liên hệ nhanh chóng</li>
+            </ul>
         </div>
-    </div>
+        <blockquote class="reader-auth-quote">
+            “Đọc sách là cách nhanh nhất để đi thật xa mà vẫn ở nguyên một chỗ.”
+            <small>Thư viện — tri thức cho mọi người</small>
+        </blockquote>
+    </section>
+
+    <section class="reader-auth-form">
+        <h2>Đăng nhập</h2>
+        <p class="reader-auth-lead">Chào mừng bạn quay lại thư viện.</p>
+
+        <form asp-action="Login" method="post">
+            <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2" role="alert"></div>
+
+            <div class="mb-3">
+                <label for="email" class="form-label">Email</label>
+                <input id="email" name="email" type="email" class="form-control" placeholder="bandoc@example.com" autocomplete="username" required autofocus />
+            </div>
+
+            <div class="mb-4">
+                <div class="reader-auth-label-row">
+                    <label for="password" class="form-label">Mật khẩu</label>
+                    <a asp-action="ForgotPassword">Quên mật khẩu?</a>
+                </div>
+                <div class="password-field">
+                    <input id="password" name="password" type="password" class="form-control" placeholder="Nhập mật khẩu" autocomplete="current-password" required />
+                    <button type="button" class="password-toggle" data-password-toggle="password" aria-label="Hiện mật khẩu" aria-pressed="false">Hiện</button>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Đăng nhập</button>
+        </form>
+
+        <div class="reader-auth-divider">Chưa có tài khoản?</div>
+        <a asp-action="Register" class="btn btn-outline-primary w-100">Đăng ký tài khoản bạn đọc</a>
+
+        <p class="reader-auth-staff">Bạn là nhân viên thư viện? <a asp-controller="Librarian" asp-action="Login">Đăng nhập tại đây</a></p>
+    </section>
 </div>

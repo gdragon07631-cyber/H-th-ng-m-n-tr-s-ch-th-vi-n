@@ -1,35 +1,45 @@
+@inject Project.Services.IAuditLogService AuditLogAccess
+@{
+    var canViewAuditLogs = Project.Services.AuditLogService.CanViewLogs(await AuditLogAccess.GetSignedInStaffAsync(Context.Request));
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
+    string Active(string controller) => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+    string? Current(string controller) => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase) ? "page" : null;
+}
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - Thư viện</title>
     <script type="importmap"></script>
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <partial name="_HeadAssets" />
     <link rel="stylesheet" href="~/Project.styles.css" asp-append-version="true" />
 </head>
 <body>
     <div class="app-shell">
-        <aside class="sidebar">
+        <aside class="sidebar" aria-label="Điều hướng quản trị">
             <a class="brand" asp-controller="Home" asp-action="Index">
                 <span class="brand-mark">T</span>
-                <span><strong>THƯ VIỆN</strong><small>QUẢN LÝ THƯ VIỆN</small></span>
+                <span><strong>Thư Viện</strong><small>Hệ thống quản lý</small></span>
             </a>
             <div class="side-label">TỔNG QUAN</div>
-            <a class="side-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" ? "active" : "")" asp-controller="Home" asp-action="Index"><span>⌂</span> Dashboard</a>
+            <a class="side-link @Active("Home")" aria-current="@Current("Home")" asp-controller="Home" asp-action="Index"><span>⌂</span> Bảng điều khiển</a>
             <div class="side-label">QUẢN LÝ</div>
-            <a class="side-link" asp-controller="Book" asp-action="Index"><span>▤</span> Sách</a>
-            <a class="side-link" asp-controller="Author" asp-action="Index"><span>♙</span> Tác giả</a>
-            <a class="side-link" asp-controller="Category" asp-action="Index"><span>▦</span> Thể loại</a>
-            <a class="side-link" asp-controller="Warehouse" asp-action="Index"><span>▣</span> Kho sách</a>
-            <a class="side-link" asp-controller="Shelf" asp-action="Index"><span>▥</span> Kệ sách</a>
-            <a class="side-link" asp-controller="Loan" asp-action="Index"><span>⇄</span> Mượn trả</a>
-            <a class="side-link" asp-controller="WorkingSchedule" asp-action="Index"><span>◷</span> Lịch làm việc</a>
+            <a class="side-link @Active("Book")" aria-current="@Current("Book")" asp-controller="Book" asp-action="Index"><span>▤</span> Sách</a>
+            <a class="side-link @Active("Author")" aria-current="@Current("Author")" asp-controller="Author" asp-action="Index"><span>♙</span> Tác giả</a>
+            <a class="side-link @Active("Category")" aria-current="@Current("Category")" asp-controller="Category" asp-action="Index"><span>▦</span> Thể loại</a>
+            <a class="side-link @Active("Warehouse")" aria-current="@Current("Warehouse")" asp-controller="Warehouse" asp-action="Index"><span>▣</span> Kho sách</a>
+            <a class="side-link @Active("Shelf")" aria-current="@Current("Shelf")" asp-controller="Shelf" asp-action="Index"><span>▥</span> Kệ sách</a>
+            <a class="side-link @Active("Loan")" aria-current="@Current("Loan")" asp-controller="Loan" asp-action="Index"><span>⇄</span> Mượn trả</a>
+            <a class="side-link @Active("WorkingSchedule")" aria-current="@Current("WorkingSchedule")" asp-controller="WorkingSchedule" asp-action="Index"><span>◷</span> Lịch làm việc</a>
             <div class="side-label">BẠN ĐỌC</div>
-            <a class="side-link" asp-controller="ReaderApproval" asp-action="Index"><span>✓</span> Hồ sơ chờ duyệt</a>
+            <a class="side-link @Active("ReaderApproval")" aria-current="@Current("ReaderApproval")" asp-controller="ReaderApproval" asp-action="Index"><span>✓</span> Hồ sơ chờ duyệt</a>
             <a class="side-link" asp-controller="ReaderRegistration" asp-action="Register"><span>＋</span> Đăng ký bạn đọc</a>
-            <div class="sidebar-bottom"><span class="status-dot"></span> Hệ thống thư viện</div>
+            <div class="side-label">HỆ THỐNG</div>
+            <a class="side-link @Active("LoanPolicy")" aria-current="@Current("LoanPolicy")" asp-controller="LoanPolicy" asp-action="Index"><span>⚙</span> Chính sách mượn</a>
+            @if (canViewAuditLogs)
+            {
+                <a class="side-link @Active("AuditLog")" aria-current="@Current("AuditLog")" asp-controller="AuditLog" asp-action="Index"><span>☰</span> Nhật ký hoạt động</a>
+            }
+            <div class="sidebar-bottom"><span class="status-dot"></span> Hệ thống đang hoạt động</div>
         </aside>
 
         <div class="main-shell">

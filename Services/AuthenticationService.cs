@@ -56,6 +56,11 @@ public sealed class AuthenticationService(
                     account.LockoutEndUtc = null;
                     status = "LoginSuccess";
                     result = LoginResult.LoginSuccess;
+                    dbContext.AuditLogs.Add(AuditLogService.Create(
+                        account.Email,
+                        AuditActions.Login,
+                        $"Tài khoản {AuditLogService.DescribeRole(account.Role)} #{account.Id} ({account.Email})",
+                        ipAddress));
                 }
                 else
                 {
