@@ -213,23 +213,15 @@ namespace Project.Migrations
                     b.ToTable("BookLoans");
                 });
 
-            modelBuilder.Entity("Project.Models.BookCopy", b =>
-                {
-                    b.HasOne("Project.Models.Book", "Book")
-                        .WithMany()
-                        .HasForeignKey("BookId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Project.Models.Shelf", "Shelf")
-                        .WithMany()
-                        .HasForeignKey("ShelfId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Book");
-                    b.Navigation("Shelf");
-                });
+        modelBuilder.Entity("Project.Models.RefreshToken", entity =>
+        {
+            entity.HasOne("Project.Models.AdminAccount", "AdminAccount")
+                .WithMany()
+                .HasForeignKey("AdminAccountId")
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
+            entity.Navigation("AdminAccount");
+        });
 
             modelBuilder.Entity("Project.Models.BookLoan", b =>
                 {
@@ -455,21 +447,12 @@ namespace Project.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");
 
-                    b.Property<string>("PhoneNumber")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("RejectionReason")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
-                        .HasDefaultValue("Chờ duyệt");
+            entity.Property<string>("Status")
+                .IsRequired()
+                .ValueGeneratedOnAdd()
+                .HasMaxLength(50)
+                .HasColumnType("nvarchar(50)")
+                .HasDefaultValue("Chờ duyệt");
 
                     b.Property<string>("StudentOrStaffCode")
                         .IsRequired()

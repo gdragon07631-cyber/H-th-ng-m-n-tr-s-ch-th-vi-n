@@ -15,6 +15,8 @@ builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IPasswordHasher<AdminAccount>, PasswordHasher<AdminAccount>>();
 builder.Services.AddScoped<IReaderRegistrationService, ReaderRegistrationService>();
+builder.Services.AddScoped<IReaderPasswordResetService, ReaderPasswordResetService>();
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddSingleton<ReaderRegistrationIpRateLimiter>();
 builder.Services.AddScoped<IPasswordHasher<ReaderAccount>, PasswordHasher<ReaderAccount>>();
 builder.Services.AddScoped<IAuthorService, AuthorService>();

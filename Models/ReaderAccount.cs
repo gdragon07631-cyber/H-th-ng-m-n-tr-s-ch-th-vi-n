@@ -34,10 +34,4 @@ public sealed class ReaderAccount
     public string? RejectionReason { get; set; }
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
-
-    public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
-
-    public LibraryCard? LibraryCard { get; set; }
-    public ICollection<BookHold> BookHolds { get; set; } = [];
-    public ICollection<ReaderPasswordHistory> PasswordHistories { get; set; } = [];
 }
