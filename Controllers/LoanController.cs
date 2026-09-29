@@ -27,6 +27,16 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
         return RedirectToAction(nameof(Index));
     }
 
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Renew(long id, CancellationToken ct = default)
+    {
+        var result = await loans.RenewAsync(id, DateOnly.FromDateTime(DateTime.Today), ct);
+        TempData[result.IsSuccess ? "SuccessMessage" : "ErrorMessage"] = result.IsSuccess
+            ? $"Đã gia hạn phiếu mượn. Hạn trả mới: {result.Loan!.DueDate:dd/MM/yyyy}. Số lần gia hạn: {result.Loan.RenewalCount} / {result.Loan.ReaderAccount!.LibraryCard!.LibraryCardType!.MaxRenewals}."
+            : result.ErrorMessage;
+        return RedirectToAction(nameof(Index));
+    }
+
     [HttpGet("api/loans")]
     public async Task<IActionResult> GetAllApi(CancellationToken ct = default) =>
         Ok((await loans.GetAllAsync(ct)).Select(ToApiModel));
@@ -39,6 +49,26 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
         var result = await loans.CreateAsync(model.BookId, model.ReaderAccountId, model.LoanDate.Value, ct);
         if (!result.IsSuccess) return BadRequest(new { message = result.ErrorMessage });
         return Created($"/api/loans/{result.Loan!.Id}", ToApiModel(result.Loan));
+    }
+
+    [HttpPost("api/loans/{id:long}/renew")]
+    public async Task<IActionResult> RenewApi(long id, CancellationToken ct = default)
+    {
+        var result = await loans.RenewAsync(id, DateOnly.FromDateTime(DateTime.Today), ct);
+        if (!result.IsSuccess) return BadRequest(new { success = false, message = result.ErrorMessage, reason = result.ReasonCode });
+        return Ok(new
+        {
+            success = true,
+            message = "Gia hạn phiếu mượn thành công.",
+            data = new
+            {
+                id = result.Loan!.Id,
+                oldDueDate = result.OldDueDate,
+                newDueDate = result.Loan.DueDate,
+                renewalCount = result.Loan.RenewalCount,
+                renewalLimit = result.Loan.ReaderAccount!.LibraryCard!.LibraryCardType!.MaxRenewals
+            }
+        });
     }
 
     [HttpGet("api/loans/adjust-due-date/{proposedDate}")]
@@ -68,6 +98,9 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
     {
         loan.Id, loan.BookId, bookTitle = loan.Book?.Title, loan.ReaderAccountId,
         readerName = loan.ReaderAccount?.FullName, loan.LoanDate, loan.OriginalDueDate, loan.DueDate,
-        wasDueDateAdjusted = loan.OriginalDueDate != loan.DueDate
+        renewalCount = loan.RenewalCount,
+        renewalLimit = loan.ReaderAccount?.LibraryCard?.LibraryCardType?.MaxRenewals ?? 0,
+        wasDueDateAdjusted = loan.OriginalDueDate != loan.DueDate,
+        canRenew = loan.DueDate >= DateOnly.FromDateTime(DateTime.Today)
     };
 }

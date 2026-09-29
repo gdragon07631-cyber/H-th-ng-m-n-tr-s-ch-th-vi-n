@@ -34,6 +34,8 @@ public sealed class ReaderAccount
 
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 
+    public decimal OutstandingBalance { get; set; }
+
     public LibraryCard? LibraryCard { get; set; }
     public ICollection<BookHold> BookHolds { get; set; } = [];
 }

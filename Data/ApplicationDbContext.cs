@@ -115,6 +115,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(reader => reader.RejectionReason).HasMaxLength(1000);
             entity.Property(reader => reader.CreatedAtUtc).HasColumnType("datetime2");
             entity.Property(reader => reader.UpdatedAtUtc).HasColumnType("datetime2");
+            entity.Property(reader => reader.OutstandingBalance).HasColumnType("decimal(18,2)").HasDefaultValue(0m);
         });
 
         modelBuilder.Entity<LibraryCardType>(entity =>
@@ -122,6 +123,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasIndex(type => type.Name).IsUnique();
             entity.Property(type => type.Name).HasMaxLength(100).IsRequired();
             entity.Property(type => type.IsActive).HasDefaultValue(true);
+            entity.Property(type => type.MaxRenewals).HasDefaultValue(LibraryCardType.DefaultMaxRenewals);
         });
 
         modelBuilder.Entity<LibraryCard>(entity =>
@@ -176,6 +178,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(loan => loan.LoanDate).HasColumnType("date");
             entity.Property(loan => loan.OriginalDueDate).HasColumnType("date");
             entity.Property(loan => loan.DueDate).HasColumnType("date");
+            entity.Property(loan => loan.RenewalCount).HasDefaultValue(0);
             entity.Property(loan => loan.CreatedAtUtc).HasColumnType("datetime2");
             entity.HasOne(loan => loan.Book).WithMany()
                 .HasForeignKey(loan => loan.BookId).OnDelete(DeleteBehavior.Restrict);
