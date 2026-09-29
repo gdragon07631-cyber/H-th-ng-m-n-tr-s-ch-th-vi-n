@@ -1,0 +1,40 @@
+@{
+    Layout = "_ReaderLayout";
+    ViewData["Title"] = "Đăng ký thành công";
+}
+
+<div class="row justify-content-center py-5">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="card shadow-sm border-0 text-center p-4 p-md-5">
+            <div class="mb-4">
+                <div class="display-3 text-success mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-check-circle-fill text-success" viewBox="0 0 16 16">
+                        <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+                    </svg>
+                </div>
+                <h1 class="h3 text-success fw-bold">Đăng ký thành công</h1>
+            </div>
+
+            <div class="alert alert-success py-3 px-4 mb-3 text-start" role="alert">
+                <p class="mb-2 fs-5">@ViewBag.SuccessMessage</p>
+                <div class="d-flex align-items-center mt-3 pt-2 border-top border-success-subtle">
+                    <span class="me-2 fw-semibold">Trạng thái tài khoản:</span>
+                    <span class="badge bg-warning text-dark px-3 py-2 fs-6">@ViewBag.AccountStatus</span>
+                </div>
+            </div>
+
+            <div class="alert alert-warning py-3 px-4 mb-4 text-start border-start border-4 border-warning" role="alert">
+                <h5 class="alert-heading fw-bold text-dark mb-2">Bước tiếp theo: Hướng dẫn duyệt tài khoản</h5>
+                <p class="mb-0 text-dark">
+                    @ViewBag.Instruction
+                </p>
+            </div>
+
+            <div class="mt-3">
+                <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary me-2">Về trang chủ</a>
+                <a asp-action="Login" class="btn btn-outline-primary me-2">Đăng nhập bạn đọc</a>
+                <a asp-action="Register" class="btn btn-primary">Đăng ký tài khoản khác</a>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,119 @@
+@model Project.Models.WorkingScheduleIndexViewModel
+@{
+    ViewData["Title"] = "Lịch làm việc";
+}
+
+<div class="container py-4">
+    <div class="mb-4">
+        <h1 class="h3 mb-1 text-primary fw-bold">Lịch làm việc</h1>
+        <p class="text-muted mb-0">Khai báo giờ mở cửa theo tuần và các ngày thư viện đóng cửa.</p>
+    </div>
+
+    @if (TempData["SuccessMessage"] is string success)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">@success<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    }
+    @if (TempData["ErrorMessage"] is string error)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">@error<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    }
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white py-3">
+            <h2 class="h5 mb-0 fw-semibold">Lịch mở cửa theo tuần</h2>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light"><tr><th>Thứ</th><th>Trạng thái</th><th>Ghi chú</th><th class="text-end pe-3">Thao tác</th></tr></thead>
+                <tbody>
+                @foreach (var schedule in Model.WeeklySchedules)
+                {
+                    <tr>
+                        <td class="fw-semibold">@Project.Controllers.WorkingScheduleController.GetDayName(schedule.DayOfWeek)</td>
+                        <td><span class="badge @(schedule.IsOpen ? "bg-success" : "bg-secondary")">@(schedule.IsOpen ? "Mở cửa" : "Đóng cửa")</span></td>
+                        <td>@(schedule.Note ?? "—")</td>
+                        <td class="text-end pe-3">
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editWeekly-@((int)schedule.DayOfWeek)">Chỉnh sửa</button>
+                        </td>
+                    </tr>
+                    <div class="modal fade" id="editWeekly-@((int)schedule.DayOfWeek)" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog"><div class="modal-content">
+                            <form asp-action="UpdateWeekly" method="post">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="DayOfWeek" value="@((int)schedule.DayOfWeek)" />
+                                <div class="modal-header"><h5 class="modal-title">Lịch @Project.Controllers.WorkingScheduleController.GetDayName(schedule.DayOfWeek)</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                                <div class="modal-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Trạng thái</label>
+                                        <select class="form-select" name="IsOpen">
+                                            <option value="true" selected="@schedule.IsOpen">Mở cửa</option>
+                                            <option value="false" selected="@(!schedule.IsOpen)">Đóng cửa</option>
+                                        </select>
+                                    </div>
+                                    <div><label class="form-label">Ghi chú</label><textarea class="form-control" name="Note" rows="2" maxlength="500">@schedule.Note</textarea></div>
+                                </div>
+                                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-primary">Lưu thay đổi</button></div>
+                            </form>
+                        </div></div>
+                    </div>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white py-3"><h2 class="h5 mb-0 fw-semibold">Thêm ngày nghỉ cụ thể</h2></div>
+        <div class="card-body">
+            <form asp-action="CreateHoliday" method="post" class="row g-3 align-items-end">
+                @Html.AntiForgeryToken()
+                <div class="col-md-3"><label class="form-label">Ngày nghỉ <span class="text-danger">*</span></label><input class="form-control" type="date" name="HolidayDate" required /></div>
+                <div class="col-md-4"><label class="form-label">Tên / lý do nghỉ <span class="text-danger">*</span></label><input class="form-control" name="Reason" maxlength="150" required /></div>
+                <div class="col-md-3"><label class="form-label">Ghi chú</label><input class="form-control" name="Note" maxlength="500" /></div>
+                <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Thêm ngày nghỉ</button></div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3 d-flex justify-content-between"><h2 class="h5 mb-0 fw-semibold">Ngày nghỉ cụ thể</h2><span class="badge bg-primary rounded-pill">@Model.HolidayClosures.Count ngày</span></div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light"><tr><th>Ngày</th><th>Tên / lý do</th><th>Trạng thái</th><th>Ghi chú</th><th class="text-end pe-3">Thao tác</th></tr></thead>
+                <tbody>
+                @if (Model.HolidayClosures.Count == 0)
+                {
+                    <tr><td colspan="5" class="text-center text-muted py-4">Chưa có ngày nghỉ cụ thể.</td></tr>
+                }
+                @foreach (var holiday in Model.HolidayClosures)
+                {
+                    <tr>
+                        <td class="fw-semibold">@holiday.HolidayDate.ToString("dd/MM/yyyy")</td><td>@holiday.Reason</td><td><span class="badge bg-secondary">Đóng cửa</span></td><td>@(holiday.Note ?? "—")</td>
+                        <td class="text-end pe-3 text-nowrap">
+                            <a asp-action="HolidayDetails" asp-route-id="@holiday.Id" class="btn btn-sm btn-outline-secondary">Xem</a>
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editHoliday-@holiday.Id">Sửa</button>
+                            <form asp-action="DeleteHoliday" method="post" class="d-inline" onsubmit="return confirm('Xóa ngày nghỉ này?');">
+                                @Html.AntiForgeryToken()<input type="hidden" name="id" value="@holiday.Id" /><button class="btn btn-sm btn-outline-danger" type="submit">Xóa</button>
+                            </form>
+                        </td>
+                    </tr>
+                    <div class="modal fade" id="editHoliday-@holiday.Id" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog"><div class="modal-content">
+                            <form asp-action="EditHoliday" method="post">
+                                @Html.AntiForgeryToken()<input type="hidden" name="Id" value="@holiday.Id" />
+                                <div class="modal-header"><h5 class="modal-title">Sửa ngày nghỉ</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                                <div class="modal-body">
+                                    <div class="mb-3"><label class="form-label">Ngày nghỉ</label><input class="form-control" type="date" name="HolidayDate" value="@holiday.HolidayDate.ToString("yyyy-MM-dd")" required /></div>
+                                    <div class="mb-3"><label class="form-label">Tên / lý do nghỉ</label><input class="form-control" name="Reason" value="@holiday.Reason" maxlength="150" required /></div>
+                                    <div><label class="form-label">Ghi chú</label><textarea class="form-control" name="Note" rows="2" maxlength="500">@holiday.Note</textarea></div>
+                                </div>
+                                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-primary">Lưu thay đổi</button></div>
+                            </form>
+                        </div></div>
+                    </div>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

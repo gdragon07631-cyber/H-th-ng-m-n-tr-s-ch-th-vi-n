@@ -1,47 +1,88 @@
-﻿<!DOCTYPE html>
+@inject Project.Services.IAuditLogService AuditLogAccess
+@using Project.Models
+@{
+    var staff = await AuditLogAccess.GetSignedInStaffAsync(Context.Request);
+    var role = staff?.Role;
+    var canViewAuditLogs = Project.Services.AuditLogService.CanViewLogs(staff);
+    var isAdmin = role == AccountRoles.SystemAdmin;
+    var canManageLibrary = role is AccountRoles.SystemAdmin or AccountRoles.LibraryManager;
+    var isLibrarian = role == AccountRoles.Librarian;
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
+    string Active(string controller) => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+    string? Current(string controller) => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase) ? "page" : null;
+    var displayName = staff is null ? null : string.IsNullOrWhiteSpace(staff.FullName) ? staff.Email : staff.FullName;
+}
+<!DOCTYPE html>
 <html lang="vi">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Project</title>
+    <title>@ViewData["Title"] - Thư viện</title>
     <script type="importmap"></script>
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <partial name="_HeadAssets" />
     <link rel="stylesheet" href="~/Project.styles.css" asp-append-version="true" />
 </head>
 <body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container-fluid">
-                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">Project</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
-                        </li>
-                        <li class="nav-item ms-auto">
-                            <a class="nav-link text-dark" asp-controller="Account" asp-action="Login">Đăng nhập quản trị</a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </nav>
-    </header>
-    <div class="container">
-        <main role="main" class="pb-3">
-            @RenderBody()
-        </main>
-    </div>
+    <div class="app-shell">
+        <aside class="sidebar" aria-label="Điều hướng quản trị">
+            <a class="brand" asp-controller="Home" asp-action="Index">
+                <span class="brand-mark">T</span>
+                <span><strong>Thư Viện</strong><small>Hệ thống quản lý</small></span>
+            </a>
+            @if (canManageLibrary)
+            {
+                <div class="side-label">TỔNG QUAN</div>
+                <a class="side-link @Active("Home")" aria-current="@Current("Home")" asp-controller="Home" asp-action="Index"><span>⌂</span> Bảng điều khiển</a>
+                <div class="side-label">QUẢN LÝ</div>
+                <a class="side-link @Active("Book")" aria-current="@Current("Book")" asp-controller="Book" asp-action="Index"><span>▤</span> Sách</a>
+                <a class="side-link @Active("Author")" aria-current="@Current("Author")" asp-controller="Author" asp-action="Index"><span>♙</span> Tác giả</a>
+                <a class="side-link @Active("Category")" aria-current="@Current("Category")" asp-controller="Category" asp-action="Index"><span>▦</span> Thể loại</a>
+                <a class="side-link @Active("Warehouse")" aria-current="@Current("Warehouse")" asp-controller="Warehouse" asp-action="Index"><span>▣</span> Kho sách</a>
+                <a class="side-link @Active("Shelf")" aria-current="@Current("Shelf")" asp-controller="Shelf" asp-action="Index"><span>▥</span> Kệ sách</a>
+                <a class="side-link @Active("Loan")" aria-current="@Current("Loan")" asp-controller="Loan" asp-action="Index"><span>⇄</span> Mượn trả</a>
+                <a class="side-link @Active("WorkingSchedule")" aria-current="@Current("WorkingSchedule")" asp-controller="WorkingSchedule" asp-action="Index"><span>◷</span> Lịch làm việc</a>
+            }
+            <div class="side-label">BẠN ĐỌC</div>
+            @if (isLibrarian)
+            {
+                <a class="side-link @Active("ReaderApproval")" aria-current="@Current("ReaderApproval")" asp-controller="ReaderApproval" asp-action="Index"><span>✓</span> Hồ sơ chờ duyệt</a>
+            }
+            <a class="side-link" asp-controller="ReaderRegistration" asp-action="Register"><span>＋</span> Đăng ký bạn đọc</a>
+            @if (canManageLibrary)
+            {
+                <div class="side-label">HỆ THỐNG</div>
+                <a class="side-link @Active("LoanPolicy")" aria-current="@Current("LoanPolicy")" asp-controller="LoanPolicy" asp-action="Index"><span>⚙</span> Chính sách mượn</a>
+            }
+            @if (isAdmin)
+            {
+                <a class="side-link @Active("StaffAccount")" aria-current="@Current("StaffAccount")" asp-controller="StaffAccount" asp-action="Index"><span>☺</span> Tài khoản nhân sự</a>
+            }
+            @if (canViewAuditLogs)
+            {
+                <a class="side-link @Active("AuditLog")" aria-current="@Current("AuditLog")" asp-controller="AuditLog" asp-action="Index"><span>☰</span> Nhật ký hoạt động</a>
+            }
+            <div class="sidebar-bottom"><span class="status-dot"></span> Hệ thống đang hoạt động</div>
+        </aside>
 
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2026 - Project - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+        <div class="main-shell">
+            <header class="topbar">
+                <div class="breadcrumb">Thư viện <span>/</span> @ViewData["Title"]</div>
+                @if (staff is not null)
+                {
+                    <div class="topbar-user">
+                        <span class="admin-link" title="@staff.Email"><span class="admin-avatar">@(displayName![..1].ToUpperInvariant())</span> <span><strong class="d-block lh-sm">@displayName</strong><small class="text-muted">@AccountRoles.DisplayName(staff.Role)</small></span></span>
+                        <form asp-controller="Account" asp-action="Logout" method="post">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary topbar-logout" title="Đăng xuất khỏi hệ thống"><span aria-hidden="true">⎋</span> Đăng xuất</button>
+                        </form>
+                    </div>
+                }
+                else
+                {
+                    <a class="admin-link" asp-controller="Account" asp-action="Login"><span class="admin-avatar">Q</span> Đăng nhập nhân sự <span class="caret">⌄</span></a>
+                }
+            </header>
+            <main class="page-content" role="main">@RenderBody()</main>
+            <footer class="page-footer">© 2026 Thư viện · Hệ thống quản lý nội bộ</footer>
         </div>
-    </footer>
+    </div>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>

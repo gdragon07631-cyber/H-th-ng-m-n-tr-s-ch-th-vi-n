@@ -1,0 +1,242 @@
+@model Project.Models.ReaderApprovalIndexViewModel
+@{
+    ViewData["Title"] = "Hồ sơ chờ duyệt";
+    var defaultIssueDate = DateTime.Today.ToString("yyyy-MM-dd");
+    var defaultExpiryDate = DateTime.Today.AddYears(1).ToString("yyyy-MM-dd");
+}
+
+<div class="py-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0">Hồ sơ chờ duyệt</h1>
+        <span id="pendingReaderCount" class="badge bg-warning text-dark">@Model.PendingReaders.Count hồ sơ</span>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+    }
+    <div id="rejectionFeedback" role="status"></div>
+
+    <div class="card card-body bg-light border-0 mb-4">
+        <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-4">
+                <label for="pendingSearch" class="form-label">Tìm kiếm</label>
+                <input id="pendingSearch" type="search" class="form-control" placeholder="Tìm kiếm theo tên hoặc mã sinh viên..." autocomplete="off" />
+            </div>
+            <div class="col-6 col-md-3">
+                <label for="fromDate" class="form-label">Từ ngày</label>
+                <input id="fromDate" type="date" class="form-control" />
+            </div>
+            <div class="col-6 col-md-3">
+                <label for="toDate" class="form-label">Đến ngày</label>
+                <input id="toDate" type="date" class="form-control" />
+            </div>
+            <div class="col-12 col-md-2 d-grid">
+                <button id="clearFilters" type="button" class="btn btn-outline-secondary">Xóa bộ lọc</button>
+            </div>
+        </div>
+        <div id="filterError" class="text-danger small mt-2" role="alert"></div>
+    </div>
+
+    <div id="pendingResults">
+    @if (Model.PendingReaders.Count == 0)
+    {
+        <div class="alert alert-info">Hiện không có hồ sơ nào chờ duyệt.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead><tr><th>Bạn đọc</th><th>Liên hệ</th><th>Ngày đăng ký</th><th>Trạng thái</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var reader in Model.PendingReaders)
+                {
+                    <tr>
+                        <td><div class="fw-semibold">@reader.FullName</div><small class="text-muted">@reader.StudentOrStaffCode</small></td>
+                        <td>@reader.Email<br /><small class="text-muted">@reader.PhoneNumber</small></td>
+                        <td>@reader.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                        <td><span class="badge bg-warning text-dark">@reader.Status</span></td>
+                        <td>
+                            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#approveModal"
+                                data-reader-id="@reader.Id" data-reader-name="@reader.FullName" data-reader-email="@reader.Email">Duyệt</button>
+                            <button type="button" class="btn btn-outline-danger btn-sm ms-1" data-bs-toggle="modal" data-bs-target="#rejectModal"
+                                data-reader-id="@reader.Id" data-reader-name="@reader.FullName" data-reader-email="@reader.Email">Từ chối</button>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+    </div>
+</div>
+
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog"><div class="modal-content">
+    <form id="rejectForm">
+      @Html.AntiForgeryToken()
+      <div class="modal-header"><h2 class="h5 modal-title">Từ chối hồ sơ</h2><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <p class="mb-3">Bạn đang từ chối hồ sơ của: <strong id="rejectionReaderName"></strong><br /><span class="text-muted" id="rejectionReaderEmail"></span></p>
+        <label for="rejectionReason" class="form-label">Lý do từ chối <span class="text-danger">*</span></label>
+        <textarea id="rejectionReason" class="form-control" rows="4" maxlength="1000" required></textarea>
+        <div id="rejectionError" class="text-danger small mt-2" role="alert"></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button><button type="submit" class="btn btn-danger">Xác nhận từ chối</button></div>
+    </form>
+  </div></div>
+</div>
+
+<div class="modal fade" id="approveModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog"><div class="modal-content">
+    <form asp-action="Approve" method="post">
+      <div class="modal-header"><h2 class="h5 modal-title">Xác nhận duyệt hồ sơ</h2><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" name="ReaderAccountId" id="approvalReaderId" />
+        <p class="mb-3">Bạn đọc: <strong id="approvalReaderName"></strong><br /><span class="text-muted" id="approvalReaderEmail"></span></p>
+        <div class="mb-3"><label class="form-label">Loại thẻ</label><select class="form-select" name="LibraryCardTypeId" required><option value="">-- Chọn loại thẻ --</option>@foreach (var cardType in Model.CardTypes) { <option value="@cardType.Id">@cardType.Name</option> }</select></div>
+        <div class="mb-3"><label class="form-label">Ngày cấp</label><input class="form-control" name="IssuedOn" id="issuedOn" type="date" value="@defaultIssueDate" required /></div>
+        <div><label class="form-label">Ngày hết hạn</label><input class="form-control" name="ExpiresOn" id="expiresOn" type="date" value="@defaultExpiryDate" required /><div class="form-text">Mặc định là 12 tháng sau ngày cấp và có thể điều chỉnh.</div></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button><button type="submit" class="btn btn-primary">Xác nhận duyệt</button></div>
+    </form>
+  </div></div>
+</div>
+
+@section Scripts {
+<script>
+const modal = document.getElementById('approveModal');
+modal.addEventListener('show.bs.modal', event => {
+  const button = event.relatedTarget;
+  document.getElementById('approvalReaderId').value = button.dataset.readerId;
+  document.getElementById('approvalReaderName').textContent = button.dataset.readerName;
+  document.getElementById('approvalReaderEmail').textContent = button.dataset.readerEmail;
+});
+const rejectModal = document.getElementById('rejectModal');
+let rejectedReaderId = 0;
+rejectModal.addEventListener('show.bs.modal', event => {
+  const button = event.relatedTarget;
+  rejectedReaderId = Number(button.dataset.readerId);
+  document.getElementById('rejectionReaderName').textContent = button.dataset.readerName;
+  document.getElementById('rejectionReaderEmail').textContent = button.dataset.readerEmail;
+  document.getElementById('rejectionReason').value = '';
+  document.getElementById('rejectionError').textContent = '';
+});
+document.getElementById('issuedOn').addEventListener('change', event => {
+  const issue = new Date(event.target.value + 'T00:00:00');
+  if (!Number.isNaN(issue.valueOf())) { issue.setFullYear(issue.getFullYear() + 1); document.getElementById('expiresOn').value = issue.toISOString().slice(0, 10); }
+});
+
+const searchInput = document.getElementById('pendingSearch');
+const fromDateInput = document.getElementById('fromDate');
+const toDateInput = document.getElementById('toDate');
+const filterError = document.getElementById('filterError');
+const results = document.getElementById('pendingResults');
+const readerCount = document.getElementById('pendingReaderCount');
+let searchTimer;
+
+function appendTextCell(row, value) {
+  const cell = document.createElement('td');
+  cell.textContent = value;
+  row.appendChild(cell);
+  return cell;
+}
+
+function renderReaders(readers) {
+  readerCount.textContent = `${readers.length} hồ sơ`;
+  results.replaceChildren();
+  if (!readers.length) {
+    const message = document.createElement('div');
+    message.className = 'alert alert-info';
+    message.textContent = 'Không tìm thấy hồ sơ phù hợp.';
+    results.appendChild(message);
+    return;
+  }
+
+  const responsive = document.createElement('div');
+  responsive.className = 'table-responsive';
+  const table = document.createElement('table');
+  table.className = 'table table-hover align-middle';
+  table.innerHTML = '<thead><tr><th>Bạn đọc</th><th>Liên hệ</th><th>Ngày đăng ký</th><th>Trạng thái</th><th></th></tr></thead>';
+  const body = document.createElement('tbody');
+  readers.forEach(reader => {
+    const row = document.createElement('tr');
+    const readerCell = document.createElement('td');
+    const name = document.createElement('div'); name.className = 'fw-semibold'; name.textContent = reader.fullName;
+    const code = document.createElement('small'); code.className = 'text-muted'; code.textContent = reader.studentOrStaffCode;
+    readerCell.append(name, code); row.appendChild(readerCell);
+    const contactCell = document.createElement('td'); contactCell.append(reader.email, document.createElement('br'));
+    const phone = document.createElement('small'); phone.className = 'text-muted'; phone.textContent = reader.phoneNumber; contactCell.appendChild(phone); row.appendChild(contactCell);
+    appendTextCell(row, new Date(reader.createdAtUtc).toLocaleString('vi-VN'));
+    const statusCell = document.createElement('td'); const status = document.createElement('span'); status.className = 'badge bg-warning text-dark'; status.textContent = reader.status; statusCell.appendChild(status); row.appendChild(statusCell);
+    const actionCell = document.createElement('td'); const approveButton = document.createElement('button');
+    approveButton.type = 'button'; approveButton.className = 'btn btn-primary btn-sm'; approveButton.textContent = 'Duyệt';
+    approveButton.dataset.bsToggle = 'modal'; approveButton.dataset.bsTarget = '#approveModal'; approveButton.dataset.readerId = reader.id; approveButton.dataset.readerName = reader.fullName; approveButton.dataset.readerEmail = reader.email;
+    const rejectButton = document.createElement('button');
+    rejectButton.type = 'button'; rejectButton.className = 'btn btn-outline-danger btn-sm ms-1'; rejectButton.textContent = 'Từ chối';
+    rejectButton.dataset.bsToggle = 'modal'; rejectButton.dataset.bsTarget = '#rejectModal'; rejectButton.dataset.readerId = reader.id; rejectButton.dataset.readerName = reader.fullName; rejectButton.dataset.readerEmail = reader.email;
+    actionCell.append(approveButton, rejectButton); row.appendChild(actionCell); body.appendChild(row);
+  });
+  table.appendChild(body); responsive.appendChild(table); results.appendChild(responsive);
+}
+
+async function refreshPendingReaders() {
+  filterError.textContent = '';
+  if (fromDateInput.value && toDateInput.value && fromDateInput.value > toDateInput.value) {
+    filterError.textContent = 'Từ ngày không được lớn hơn đến ngày.';
+    return;
+  }
+  const parameters = new URLSearchParams();
+  if (searchInput.value.trim()) parameters.set('search', searchInput.value.trim());
+  if (fromDateInput.value) parameters.set('fromDate', fromDateInput.value);
+  if (toDateInput.value) parameters.set('toDate', toDateInput.value);
+  try {
+    const response = await fetch(`/api/reader-registrations/pending?${parameters}`, { credentials: 'same-origin' });
+    if (response.status === 401) { window.location.assign('/Account/Login'); return; }
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.message || 'Không thể tải danh sách hồ sơ.');
+    renderReaders(payload);
+  } catch (error) {
+    filterError.textContent = error.message || 'Không thể tải danh sách hồ sơ.';
+  }
+}
+
+function scheduleRefresh() { window.clearTimeout(searchTimer); searchTimer = window.setTimeout(refreshPendingReaders, 300); }
+searchInput.addEventListener('input', scheduleRefresh);
+fromDateInput.addEventListener('change', refreshPendingReaders);
+toDateInput.addEventListener('change', refreshPendingReaders);
+document.getElementById('clearFilters').addEventListener('click', () => {
+  searchInput.value = ''; fromDateInput.value = ''; toDateInput.value = ''; refreshPendingReaders();
+});
+document.getElementById('rejectForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const reasonInput = document.getElementById('rejectionReason');
+  const rejectionError = document.getElementById('rejectionError');
+  const reason = reasonInput.value.trim();
+  rejectionError.textContent = '';
+  if (!reason) { rejectionError.textContent = 'Vui lòng nhập lý do từ chối.'; return; }
+
+  const form = event.currentTarget;
+  const token = form.querySelector('input[name="__RequestVerificationToken"]').value;
+  try {
+    const response = await fetch(`/api/reader-registrations/${rejectedReaderId}/reject`, {
+      method: 'PUT', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+      body: JSON.stringify({ rejectionReason: reason })
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.message || 'Không thể từ chối hồ sơ.');
+    bootstrap.Modal.getInstance(rejectModal).hide();
+    const feedback = document.getElementById('rejectionFeedback');
+    feedback.className = 'alert alert-success'; feedback.textContent = payload.message;
+    refreshPendingReaders();
+  } catch (exception) {
+    rejectionError.textContent = exception.message || 'Không thể từ chối hồ sơ.';
+  }
+});
+</script>
+}

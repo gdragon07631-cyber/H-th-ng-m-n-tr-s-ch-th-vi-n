@@ -1,0 +1,136 @@
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using Project.Data;
+using Project.Models;
+
+namespace Project.Services;
+
+public sealed class WorkingScheduleService(ApplicationDbContext db) : IWorkingScheduleService
+{
+    private static readonly DayOfWeek[] OrderedDays =
+    [
+        DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday,
+        DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday
+    ];
+
+    public async Task<IReadOnlyList<WeeklyWorkingSchedule>> GetWeeklySchedulesAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureSevenDaysAsync(cancellationToken);
+        var schedules = await db.WeeklyWorkingSchedules.ToListAsync(cancellationToken);
+        return schedules.OrderBy(schedule => Array.IndexOf(OrderedDays, schedule.DayOfWeek)).ToList();
+    }
+
+    public async Task<WeeklyWorkingScheduleOutcome> UpdateWeeklyScheduleAsync(
+        DayOfWeek dayOfWeek, bool isOpen, string? note, CancellationToken cancellationToken = default)
+    {
+        if (!OrderedDays.Contains(dayOfWeek))
+            return new(false, "Thứ trong tuần không hợp lệ.");
+
+        await EnsureSevenDaysAsync(cancellationToken);
+        var schedule = await db.WeeklyWorkingSchedules
+            .SingleAsync(item => item.DayOfWeek == dayOfWeek, cancellationToken);
+        if (note?.Length > 500) return new(false, "Ghi chú không được vượt quá 500 ký tự.");
+
+        schedule.IsOpen = isOpen;
+        schedule.Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        await db.SaveChangesAsync(cancellationToken);
+        return new(true, Schedule: schedule);
+    }
+
+    public async Task<IReadOnlyList<HolidayClosure>> GetHolidayClosuresAsync(CancellationToken cancellationToken = default) =>
+        await db.HolidayClosures.AsNoTracking().OrderBy(holiday => holiday.HolidayDate).ToListAsync(cancellationToken);
+
+    public Task<HolidayClosure?> GetHolidayClosureByIdAsync(int id, CancellationToken cancellationToken = default) =>
+        db.HolidayClosures.AsNoTracking().FirstOrDefaultAsync(holiday => holiday.Id == id, cancellationToken);
+
+    public async Task<HolidayClosureOutcome> CreateHolidayClosureAsync(
+        DateOnly holidayDate, string reason, string? note, CancellationToken cancellationToken = default)
+    {
+        var validationError = ValidateHoliday(reason, note);
+        if (validationError != null) return new(false, validationError);
+        if (await db.HolidayClosures.AnyAsync(holiday => holiday.HolidayDate == holidayDate, cancellationToken))
+            return new(false, $"Ngày {holidayDate:dd/MM/yyyy} đã có trong danh sách ngày nghỉ.");
+
+        var holiday = new HolidayClosure
+        {
+            HolidayDate = holidayDate,
+            Reason = reason.Trim(),
+            Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim()
+        };
+        db.HolidayClosures.Add(holiday);
+        try { await db.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateException exception) when (IsUniqueViolation(exception))
+        {
+            return new(false, $"Ngày {holidayDate:dd/MM/yyyy} đã có trong danh sách ngày nghỉ.");
+        }
+        return new(true, Holiday: holiday);
+    }
+
+    public async Task<HolidayClosureOutcome> UpdateHolidayClosureAsync(
+        int id, DateOnly holidayDate, string reason, string? note, CancellationToken cancellationToken = default)
+    {
+        var holiday = await db.HolidayClosures.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (holiday == null) return new(false, "Không tìm thấy ngày nghỉ.");
+        var validationError = ValidateHoliday(reason, note);
+        if (validationError != null) return new(false, validationError);
+        if (await db.HolidayClosures.AnyAsync(item => item.Id != id && item.HolidayDate == holidayDate, cancellationToken))
+            return new(false, $"Ngày {holidayDate:dd/MM/yyyy} đã có trong danh sách ngày nghỉ.");
+
+        holiday.HolidayDate = holidayDate;
+        holiday.Reason = reason.Trim();
+        holiday.Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        try { await db.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateException exception) when (IsUniqueViolation(exception))
+        {
+            return new(false, $"Ngày {holidayDate:dd/MM/yyyy} đã có trong danh sách ngày nghỉ.");
+        }
+        return new(true, Holiday: holiday);
+    }
+
+    public async Task<HolidayClosureOutcome> DeleteHolidayClosureAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var holiday = await db.HolidayClosures.FindAsync([id], cancellationToken);
+        if (holiday == null) return new(false, "Không tìm thấy ngày nghỉ.");
+        db.HolidayClosures.Remove(holiday);
+        await db.SaveChangesAsync(cancellationToken);
+        return new(true, Holiday: holiday);
+    }
+
+    public async Task<LibraryOpeningStatus> GetStatusForDateAsync(DateOnly date, CancellationToken cancellationToken = default)
+    {
+        var holiday = await db.HolidayClosures.AsNoTracking()
+            .FirstOrDefaultAsync(item => item.HolidayDate == date, cancellationToken);
+        if (holiday != null)
+            return new(false, true, holiday.Reason);
+
+        await EnsureSevenDaysAsync(cancellationToken);
+        var schedule = await db.WeeklyWorkingSchedules.AsNoTracking()
+            .SingleAsync(item => item.DayOfWeek == date.DayOfWeek, cancellationToken);
+        return new(schedule.IsOpen, false, schedule.Note);
+    }
+
+    private async Task EnsureSevenDaysAsync(CancellationToken cancellationToken)
+    {
+        var configuredDays = await db.WeeklyWorkingSchedules.Select(schedule => schedule.DayOfWeek).ToListAsync(cancellationToken);
+        var missingSchedules = OrderedDays.Where(day => !configuredDays.Contains(day))
+            .Select(day => new WeeklyWorkingSchedule { DayOfWeek = day, IsOpen = true }).ToList();
+        if (missingSchedules.Count == 0) return;
+        db.WeeklyWorkingSchedules.AddRange(missingSchedules);
+        try { await db.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateException exception) when (IsUniqueViolation(exception))
+        {
+            db.ChangeTracker.Clear();
+        }
+    }
+
+    private static string? ValidateHoliday(string reason, string? note)
+    {
+        if (string.IsNullOrWhiteSpace(reason)) return "Vui lòng nhập tên hoặc lý do nghỉ.";
+        if (reason.Trim().Length > 150) return "Tên/lý do nghỉ không được vượt quá 150 ký tự.";
+        if (note?.Length > 500) return "Ghi chú không được vượt quá 500 ký tự.";
+        return null;
+    }
+
+    private static bool IsUniqueViolation(DbUpdateException exception) =>
+        exception.InnerException is SqlException { Number: 2601 or 2627 };
+}

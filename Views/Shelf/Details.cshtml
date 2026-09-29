@@ -1,0 +1,53 @@
+@model Project.Models.Shelf
+@{
+    ViewData["Title"] = "Chi tiết kệ";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Warehouse" asp-action="Index">Danh sách kho</a></li>
+                    <li class="breadcrumb-item"><a asp-controller="Warehouse" asp-action="Details" asp-route-id="@Model.WarehouseId">@Model.Warehouse?.Code</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">@Model.Code</li>
+                </ol>
+            </nav>
+            <h1 class="h3 mb-0 text-primary fw-bold">Chi tiết kệ: @Model.Name</h1>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="Index" asp-route-warehouseId="@Model.WarehouseId" class="btn btn-outline-secondary">Danh sách kệ</a>
+            <a asp-controller="Warehouse" asp-action="Details" asp-route-id="@Model.WarehouseId" class="btn btn-outline-primary">Về kho</a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3">
+            <h2 class="h5 mb-0 fw-semibold">Thông tin kệ sách</h2>
+        </div>
+        <div class="card-body">
+            <div class="row g-4">
+                <div class="col-md-3">
+                    <div class="text-muted small">Mã kệ</div>
+                    <div class="fs-5 fw-bold font-monospace text-primary">@Model.Code</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-muted small">Tên kệ</div>
+                    <div class="fs-6 fw-semibold">@Model.Name</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-muted small">Kho trực thuộc</div>
+                    <div><a asp-controller="Warehouse" asp-action="Details" asp-route-id="@Model.WarehouseId">@Model.Warehouse?.Name (@Model.Warehouse?.Code)</a></div>
+                </div>
+                <div class="col-md-2">
+                    <div class="text-muted small">Trạng thái</div>
+                    <span class="badge @(Model.Status == Project.Models.ShelfStatus.Active ? "bg-success" : "bg-secondary") fs-6">@Model.Status</span>
+                </div>
+                <div class="col-12 border-top pt-3">
+                    <div class="text-muted small">Mô tả</div>
+                    <div>@(Model.Description ?? "Chưa có mô tả")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

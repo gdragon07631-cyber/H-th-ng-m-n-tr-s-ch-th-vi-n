@@ -1,13 +1,19 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Project.Data;
 using Project.Models;
+using Project.Services;
 
 namespace Project.Controllers;
 
-public class HomeController : Controller
+public class HomeController(ApplicationDbContext dbContext) : Controller
 {
-    public IActionResult Index()
+    public async Task<IActionResult> Index(CancellationToken cancellationToken = default)
     {
+        if (!await IsLibrarianSignedInAsync(cancellationToken))
+            return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Index)) });
+
         return View();
     }
 
@@ -20,5 +26,17 @@ public class HomeController : Controller
     public IActionResult Error()
     {
         return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+    }
+
+    private async Task<bool> IsLibrarianSignedInAsync(CancellationToken cancellationToken)
+    {
+        if (!Request.Cookies.TryGetValue("admin_refresh", out var token) || string.IsNullOrWhiteSpace(token))
+            return false;
+
+        var hash = TokenService.HashRefreshToken(token);
+        return await dbContext.RefreshTokens.AnyAsync(item => item.TokenHash == hash &&
+            item.RevokedAtUtc == null && item.ExpiresAtUtc > DateTime.UtcNow && item.AdminAccount.IsActive &&
+            (item.AdminAccount.Role == AccountRoles.SystemAdmin || item.AdminAccount.Role == AccountRoles.LibraryManager),
+            cancellationToken);
     }
 }

@@ -1,0 +1,23 @@
+@model Project.Models.LoanIndexViewModel
+@{
+    ViewData["Title"] = "Phiếu mượn";
+}
+<div class="container py-4">
+    <div class="mb-4"><h1 class="h3 mb-1 text-primary fw-bold">Phiếu mượn</h1><p class="text-muted mb-0">Hạn trả được tự động chuyển sang ngày thư viện mở cửa kế tiếp.</p></div>
+    @if (TempData["SuccessMessage"] is string success) { <div class="alert alert-success">@success</div> }
+    @if (TempData["ErrorMessage"] is string error) { <div class="alert alert-danger">@error</div> }
+    <div class="card shadow-sm border-0 mb-4"><div class="card-header bg-white"><h2 class="h5 mb-0">Tạo phiếu mượn</h2></div><div class="card-body">
+        <form asp-action="Create" method="post" class="row g-3 align-items-end">
+            @Html.AntiForgeryToken()
+            <div class="col-md-4"><label class="form-label">Sách</label><select class="form-select" name="BookId" required><option value="">-- Chọn sách --</option>@foreach (var book in Model.Books) { <option value="@book.Id">@book.Title</option> }</select></div>
+            <div class="col-md-4"><label class="form-label">Bạn đọc</label><select class="form-select" name="ReaderAccountId" required><option value="">-- Chọn bạn đọc --</option>@foreach (var reader in Model.Readers) { <option value="@reader.Id">@reader.FullName (@reader.StudentOrStaffCode)</option> }</select></div>
+            <div class="col-md-2"><label class="form-label">Ngày mượn</label><input class="form-control" type="date" name="LoanDate" value="@Model.NewLoan.LoanDate?.ToString("yyyy-MM-dd")" required /></div>
+            <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Tạo phiếu</button></div>
+        </form>
+    </div></div>
+    <div class="card shadow-sm border-0"><div class="card-header bg-white"><h2 class="h5 mb-0">Danh sách phiếu mượn</h2></div><div class="table-responsive"><table class="table table-hover align-middle mb-0">
+        <thead class="table-light"><tr><th>Sách</th><th>Bạn đọc</th><th>Ngày mượn</th><th>Hạn trả</th><th>Thao tác</th></tr></thead><tbody>
+        @if (Model.Loans.Count == 0) { <tr><td colspan="5" class="text-center text-muted py-4">Chưa có phiếu mượn.</td></tr> }
+        @foreach (var loan in Model.Loans) { var renewalLimit = loan.ReaderAccount?.LibraryCard?.LibraryCardType?.MaxRenewals ?? 0; <tr><td>@loan.Book?.Title</td><td>@loan.ReaderAccount?.FullName</td><td>@loan.LoanDate.ToString("dd/MM/yyyy")</td><td class="fw-semibold">@loan.DueDate.ToString("dd/MM/yyyy") @if (loan.DueDate != loan.OriginalDueDate) { <span class="badge bg-info text-dark">Đã điều chỉnh</span> }<div class="small text-muted">Số lần gia hạn: @loan.RenewalCount / @renewalLimit</div></td><td>@if (loan.DueDate >= DateOnly.FromDateTime(DateTime.Today)) { <form asp-action="Renew" method="post" class="d-inline">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@loan.Id" /><button class="btn btn-sm btn-outline-primary" type="submit">Gia hạn</button></form> }</td></tr> }
+    </tbody></table></div></div>
+</div>

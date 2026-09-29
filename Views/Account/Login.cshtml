@@ -1,35 +1,70 @@
 @model Project.Models.LoginViewModel
 @{
-    ViewData["Title"] = "Đăng nhập quản trị";
+    Layout = null;
+    ViewData["Title"] = "Đăng nhập hệ thống";
 }
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <title>@ViewData["Title"] - Thư viện</title>
+    <partial name="_HeadAssets" />
+</head>
+<body class="login-page">
+    <main class="login-wrap reader-login-wrap">
+        <header class="login-brand">
+            <span class="login-brand-pill"><span class="login-brand-icon">▤</span> HỆ THỐNG QUẢN LÝ THƯ VIỆN ĐIỆN TỬ</span>
+            <div class="login-brand-sub">NỀN TẢNG ĐIỀU HÀNH VÀ QUẢN LÝ TÀI NGUYÊN SỐ</div>
+        </header>
 
-<div class="row justify-content-center py-5">
-    <div class="col-12 col-md-7 col-lg-5">
-        <div class="card shadow-sm">
-            <div class="card-body p-4 p-md-5">
-                <h1 class="h3 mb-4 text-center">Đăng nhập quản trị</h1>
-                <form asp-action="Login" method="post" id="loginForm" data-has-refresh="@ViewData["HasRefreshToken"]">
+            <section class="login-card reader-login-card">
+                <div class="login-card-heading">
+                    <div>
+                        <h1>Đăng nhập hệ thống</h1>
+                        <p>Cổng truy cập nghiệp vụ dành cho cán bộ thư viện.</p>
+                    </div>
+                    <span class="login-version"><i></i> BẢO MẬT</span>
+                </div>
+                <partial name="_StaffLoginSwitch" model="@("Account")" />
+
+                @if (TempData["LogoutMessage"] is string logoutMessage) { <div class="login-notice" role="status">@logoutMessage</div> }
+
+                <div asp-validation-summary="ModelOnly" class="login-validation" role="alert"></div>
+                <div id="authMessage" class="d-none" role="status" aria-live="polite"></div>
+
+                <form asp-action="Login" method="post" id="loginForm" data-has-refresh="false" data-dashboard-url="@ViewData["DashboardUrl"]">
                     <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
-                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
-                    <div id="authMessage" class="d-none" role="status" aria-live="polite"></div>
-                    <div class="mb-3">
-                        <label asp-for="Email" class="form-label"></label>
-                        <input asp-for="Email" class="form-control" autocomplete="username" autofocus />
-                        <span asp-validation-for="Email" class="text-danger"></span>
+                    <div class="login-field">
+                        <div class="login-label-row"><label asp-for="Email">Email công vụ hoặc mã định danh</label><span>TÀI KHOẢN</span></div>
+                        <div class="login-input-wrap"><span aria-hidden="true">✉</span><input asp-for="Email" class="form-control" placeholder="quantri@thuvien.edu.vn" autocomplete="username" autofocus /></div>
+                        <span asp-validation-for="Email" class="text-danger small"></span>
                     </div>
-                    <div class="mb-4">
-                        <label asp-for="Password" class="form-label"></label>
-                        <input asp-for="Password" class="form-control" autocomplete="current-password" />
-                        <span asp-validation-for="Password" class="text-danger"></span>
+                    <div class="login-field">
+                        <div class="login-label-row"><label asp-for="Password">Mật khẩu truy cập</label><span>BẢO MẬT</span></div>
+                        <div class="login-input-wrap"><span aria-hidden="true">⚿</span><input asp-for="Password" class="form-control" placeholder="Nhập mật khẩu" autocomplete="current-password" /><button class="login-password-toggle" type="button" aria-label="Hiện mật khẩu" aria-pressed="false">◉</button></div>
+                        <span asp-validation-for="Password" class="text-danger small"></span>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">Đăng nhập</button>
+                    <div class="login-options"><label><input type="checkbox" checked disabled /> Duy trì trạng thái đăng nhập</label><span>Phiên đăng nhập được bảo vệ</span></div>
+                    <button type="submit" class="login-submit">Đăng nhập quản trị hệ thống <span aria-hidden="true">→</span></button>
                 </form>
-            </div>
-        </div>
-    </div>
-</div>
 
-@section Scripts {
-    <partial name="_ValidationScriptsPartial" />
+                <div class="login-help"><span class="login-help-icon">i</span><span>Chỉ tài khoản có vai trò Quản trị hệ thống mới đăng nhập tại đây.</span></div>
+            </section>
+
+        <footer class="login-footer reader-login-footer"><span>© 2026 Thư viện · Hệ thống quản lý nội bộ</span><span>Hỗ trợ kỹ thuật: Quản trị hệ thống</span></footer>
+    </main>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+    <script src="~/lib/jquery-validation-unobtrusive/dist/jquery.validate.unobtrusive.min.js"></script>
     <script src="~/js/auth-session.js" asp-append-version="true"></script>
-}
+    <script>
+        document.querySelector('.login-password-toggle')?.addEventListener('click', event => {
+            const button = event.currentTarget;
+            const input = document.getElementById('Password');
+            const reveal = input.type === 'password';
+            input.type = reveal ? 'text' : 'password';
+            button.setAttribute('aria-pressed', String(reveal));
+            button.setAttribute('aria-label', reveal ? 'Ẩn mật khẩu' : 'Hiện mật khẩu');
+        });
+    </script>
+</body>
+</html>
