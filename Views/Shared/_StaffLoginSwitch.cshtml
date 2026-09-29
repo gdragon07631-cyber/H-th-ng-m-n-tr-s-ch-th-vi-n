@@ -1,0 +1,18 @@
+@model string
+@* Chọn cổng đăng nhập; Model là controller của trang hiện tại. *@
+@{
+    var options = new[]
+    {
+        new { Controller = "Librarian", Icon = "✓", Name = "Thủ thư", Hint = "Duyệt hồ sơ bạn đọc" },
+        new { Controller = "Manager", Icon = "▤", Name = "Quản lý thư viện", Hint = "Tài liệu, kho, mượn trả" },
+        new { Controller = "Account", Icon = "⚙", Name = "Quản trị viên", Hint = "Quản trị hệ thống" },
+        new { Controller = "ReaderRegistration", Icon = "♙", Name = "Bạn đọc", Hint = "Đăng nhập thư viện" },
+    };
+}
+<nav class="login-role-switch" aria-label="Chọn loại đăng nhập">
+    @foreach (var option in options)
+    {
+        var selected = option.Controller == Model;
+        <a class="@(selected ? "selected" : null)" aria-current="@(selected ? "page" : null)" asp-controller="@option.Controller" asp-action="Login"><span>@option.Icon</span><span><strong>@option.Name</strong><small>@option.Hint</small></span></a>
+    }
+</nav>

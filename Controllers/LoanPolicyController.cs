@@ -72,6 +72,6 @@ public sealed class LoanPolicyController(
     private async Task<AdminAccount?> GetSignedInAdminAsync(CancellationToken cancellationToken)
     {
         var staff = await auditLogService.GetSignedInStaffAsync(Request, cancellationToken);
-        return staff?.Role == AccountRoles.SystemAdmin ? staff : null;
+        return staff?.Role is AccountRoles.SystemAdmin or AccountRoles.LibraryManager ? staff : null;
     }
 }

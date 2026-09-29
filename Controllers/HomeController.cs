@@ -36,7 +36,7 @@ public class HomeController(ApplicationDbContext dbContext) : Controller
         var hash = TokenService.HashRefreshToken(token);
         return await dbContext.RefreshTokens.AnyAsync(item => item.TokenHash == hash &&
             item.RevokedAtUtc == null && item.ExpiresAtUtc > DateTime.UtcNow && item.AdminAccount.IsActive &&
-            item.AdminAccount.Role == AccountRoles.SystemAdmin,
+            (item.AdminAccount.Role == AccountRoles.SystemAdmin || item.AdminAccount.Role == AccountRoles.LibraryManager),
             cancellationToken);
     }
 }

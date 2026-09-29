@@ -1,0 +1,74 @@
+@model Project.Models.StaffAccountFormViewModel
+@using Project.Models
+@{
+    var isEdit = Model.Id is not null;
+    ViewData["Title"] = isEdit ? "Sửa tài khoản nhân sự" : "Tạo tài khoản nhân sự";
+    var roleHints = new Dictionary<string, string>
+    {
+        [AccountRoles.Librarian] = "Duyệt hồ sơ và cấp thẻ bạn đọc.",
+        [AccountRoles.LibraryManager] = "Sách, tác giả, thể loại, kho, kệ, mượn trả, lịch làm việc, chính sách mượn.",
+        [AccountRoles.SystemAdmin] = "Toàn quyền, gồm quản lý tài khoản nhân sự và nhật ký hoạt động."
+    };
+}
+<div class="container py-4">
+    <div class="mb-4">
+        <a asp-action="Index" class="small text-decoration-none">← Danh sách tài khoản</a>
+        <h1 class="h3 mt-2 mb-1 text-primary fw-bold">@ViewData["Title"]</h1>
+        <p class="text-muted mb-0">@(isEdit
+            ? "Cập nhật thông tin, vai trò hoặc trạng thái. Tắt \"Đang hoạt động\" sẽ đăng xuất người này ngay lập tức."
+            : "Tài khoản mới sẽ nhận email đặt mật khẩu lần đầu, liên kết có hiệu lực 24 giờ.")</p>
+    </div>
+
+    <div class="card shadow-sm border-0" style="max-width: 46rem">
+        <div class="card-body p-4">
+            <form asp-action="@(isEdit ? "Edit" : "Create")" asp-route-id="@Model.Id" method="post">
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label asp-for="FullName" class="form-label"></label>
+                        <input asp-for="FullName" class="form-control" placeholder="Nguyễn Thị Lan" autofocus />
+                        <span asp-validation-for="FullName" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-7">
+                        <label asp-for="Email" class="form-label"></label>
+                        <input asp-for="Email" type="email" class="form-control" placeholder="lan.nguyen@thuvien.edu.vn" />
+                        <span asp-validation-for="Email" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-5">
+                        <label asp-for="PhoneNumber" class="form-label"></label>
+                        <input asp-for="PhoneNumber" type="tel" inputmode="numeric" class="form-control" placeholder="0901234567" />
+                        <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+                    </div>
+                    <fieldset class="col-12">
+                        <legend class="form-label">Vai trò</legend>
+                        <div class="row g-2">
+                            @foreach (var role in AccountRoles.All)
+                            {
+                                <div class="col-md-4">
+                                    <label class="form-check card card-body h-100 p-3 mb-0" style="cursor: pointer">
+                                        <span class="d-flex gap-2">
+                                            <input class="form-check-input ms-0 mt-1" type="radio" name="Role" value="@role" checked="@(Model.Role == role)" required />
+                                            <span><strong class="d-block">@AccountRoles.DisplayName(role)</strong><small class="text-muted">@roleHints[role]</small></span>
+                                        </span>
+                                    </label>
+                                </div>
+                            }
+                        </div>
+                        <span asp-validation-for="Role" class="text-danger small"></span>
+                    </fieldset>
+                    <div class="col-12">
+                        <div class="form-check form-switch">
+                            <input asp-for="IsActive" class="form-check-input" role="switch" />
+                            <label asp-for="IsActive" class="form-check-label"></label>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn btn-primary">@(isEdit ? "Lưu thay đổi" : "Tạo tài khoản và gửi email")</button>
+                    <a asp-action="Index" class="btn btn-outline-secondary">Huỷ</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

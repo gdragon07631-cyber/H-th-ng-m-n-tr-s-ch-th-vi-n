@@ -1,7 +1,7 @@
 @model Project.Models.LoginViewModel
 @{
     Layout = null;
-    ViewData["Title"] = "Đăng nhập thủ thư";
+    ViewData["Title"] = "Đăng nhập quản lý thư viện";
 }
 <!DOCTYPE html>
 <html lang="vi">
@@ -13,21 +13,21 @@
     <main class="login-wrap reader-login-wrap">
         <header class="login-brand">
             <span class="login-brand-pill"><span class="login-brand-icon">▤</span> HỆ THỐNG QUẢN LÝ THƯ VIỆN</span>
-            <div class="login-brand-sub">CỔNG NGHIỆP VỤ DÀNH CHO THỦ THƯ</div>
+            <div class="login-brand-sub">CỔNG NGHIỆP VỤ DÀNH CHO QUẢN LÝ THƯ VIỆN</div>
         </header>
         <section class="login-card reader-login-card">
             <div class="login-card-heading">
-                <div><h1>Đăng nhập thủ thư</h1><p>Dùng tài khoản được cấp riêng với vai trò Thủ thư.</p></div>
+                <div><h1>Đăng nhập quản lý</h1><p>Dùng tài khoản được cấp với vai trò Quản lý thư viện.</p></div>
                 <span class="login-version"><i></i> NHÂN SỰ</span>
             </div>
-            <partial name="_StaffLoginSwitch" model="@("Librarian")" />
+            <partial name="_StaffLoginSwitch" model="@("Manager")" />
             @if (TempData["LogoutMessage"] is string logoutMessage) { <div class="login-notice" role="status">@logoutMessage</div> }
             <div asp-validation-summary="ModelOnly" class="login-validation" role="alert"></div>
             <form asp-action="Login" method="post">
                 <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
                 <div class="login-field">
-                    <div class="login-label-row"><label asp-for="Email">Email thủ thư</label><span>VAI TRÒ: THỦ THƯ</span></div>
-                    <div class="login-input-wrap"><span aria-hidden="true">✉</span><input asp-for="Email" class="form-control" placeholder="thuthu@thuvien.edu.vn" autocomplete="username" autofocus /></div>
+                    <div class="login-label-row"><label asp-for="Email">Email quản lý</label><span>VAI TRÒ: QUẢN LÝ</span></div>
+                    <div class="login-input-wrap"><span aria-hidden="true">✉</span><input asp-for="Email" class="form-control" placeholder="quanly@thuvien.edu.vn" autocomplete="username" autofocus /></div>
                     <span asp-validation-for="Email" class="text-danger small"></span>
                 </div>
                 <div class="login-field">
@@ -35,9 +35,9 @@
                     <div class="login-input-wrap"><span aria-hidden="true">⚿</span><input asp-for="Password" class="form-control" placeholder="Mật khẩu của bạn" autocomplete="current-password" /></div>
                     <span asp-validation-for="Password" class="text-danger small"></span>
                 </div>
-                <button type="submit" class="login-submit reader-login-submit">Đăng nhập thủ thư <span aria-hidden="true">→</span></button>
+                <button type="submit" class="login-submit reader-login-submit">Đăng nhập quản lý thư viện <span aria-hidden="true">→</span></button>
             </form>
-            <div class="login-help"><span class="login-help-icon">i</span><span>Tài khoản quản trị viên và bạn đọc không đăng nhập được tại cổng thủ thư.</span></div>
+            <div class="login-help"><span class="login-help-icon">i</span><span>Quản lý thư viện phụ trách tài liệu, kho, mượn trả, lịch làm việc và chính sách mượn.</span></div>
         </section>
         <footer class="login-footer reader-login-footer"><span>© 2026 Thư viện · Cổng nhân sự</span><a asp-controller="Account" asp-action="Login">Đăng nhập quản trị hệ thống</a></footer>
     </main>

@@ -29,6 +29,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<HolidayClosure> HolidayClosures => Set<HolidayClosure>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<LoanPolicy> LoanPolicies => Set<LoanPolicy>();
+    public DbSet<StaffPasswordSetupToken> StaffPasswordSetupTokens => Set<StaffPasswordSetupToken>();
 
     public const string AuditLogReadOnlyTrigger = "TR_AuditLogs_ReadOnly";
 
@@ -100,8 +101,30 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(account => account.Role).HasMaxLength(30).HasDefaultValue(AccountRoles.SystemAdmin).IsRequired();
             entity.Property(account => account.IsActive).HasDefaultValue(true);
             entity.Property(account => account.FailedLoginAttempts).HasDefaultValue(0);
-            entity.ToTable(table => table.HasCheckConstraint(
-                "CK_AdminAccounts_FailedLoginAttempts_NonNegative", "[FailedLoginAttempts] >= 0"));
+            entity.Property(account => account.FullName).HasMaxLength(100).HasDefaultValue(string.Empty).IsRequired();
+            entity.Property(account => account.PhoneNumber).HasMaxLength(20);
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_AdminAccounts_FailedLoginAttempts_NonNegative", "[FailedLoginAttempts] >= 0");
+                table.HasCheckConstraint(
+                    "CK_AdminAccounts_Role_Valid",
+                    $"[Role] IN ('{AccountRoles.Librarian}', '{AccountRoles.LibraryManager}', '{AccountRoles.SystemAdmin}')");
+            });
+        });
+
+        modelBuilder.Entity<StaffPasswordSetupToken>(entity =>
+        {
+            entity.HasIndex(token => token.TokenHash).IsUnique();
+            entity.HasIndex(token => new { token.AdminAccountId, token.ExpiresAtUtc });
+            entity.Property(token => token.TokenHash).HasMaxLength(64).IsRequired();
+            entity.Property(token => token.CreatedAtUtc).HasColumnType("datetime2");
+            entity.Property(token => token.ExpiresAtUtc).HasColumnType("datetime2");
+            entity.Property(token => token.UsedAtUtc).HasColumnType("datetime2");
+            entity.HasOne(token => token.AdminAccount)
+                .WithMany()
+                .HasForeignKey(token => token.AdminAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<LoginLog>(entity =>
