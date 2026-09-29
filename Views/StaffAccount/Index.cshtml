@@ -1,0 +1,109 @@
+@model IReadOnlyList<Project.Models.AdminAccount>
+@using Project.Models
+@{
+    ViewData["Title"] = "Tài khoản nhân sự";
+    var currentAdminId = (int)ViewBag.CurrentAdminId;
+    string RoleBadge(string role) => role switch
+    {
+        AccountRoles.SystemAdmin => "bg-danger-subtle text-danger-emphasis",
+        AccountRoles.LibraryManager => "bg-warning-subtle text-warning-emphasis",
+        _ => "bg-primary-subtle text-primary-emphasis"
+    };
+}
+<div class="container py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+            <h1 class="h3 mb-1 text-primary fw-bold">Tài khoản nhân sự</h1>
+            <p class="text-muted mb-0">Tạo tài khoản cho thủ thư, quản lý thư viện và quản trị hệ thống; mỗi tài khoản nhận đúng một vai trò.</p>
+        </div>
+        <a asp-action="Create" class="btn btn-primary"><span aria-hidden="true">＋</span> Tạo tài khoản</a>
+    </div>
+
+    @if (TempData["SuccessMessage"] is string success)
+    {
+        <div class="alert alert-success" role="status">@success</div>
+    }
+    @if (TempData["InfoMessage"] is string info)
+    {
+        <div class="alert alert-info" role="status">@info</div>
+    }
+    @if (TempData["WarningMessage"] is string warning)
+    {
+        <div class="alert alert-warning" role="alert">
+            @warning
+            @if (TempData["DevSetupLink"] is string devLink)
+            {
+                <div class="mt-2 small"><strong>Môi trường phát triển:</strong> liên kết đặt mật khẩu <a href="@devLink" class="alert-link text-break">@devLink</a></div>
+            }
+        </div>
+    }
+    @if (TempData["ErrorMessage"] is string error)
+    {
+        <div class="alert alert-danger" role="alert">@error</div>
+    }
+
+    <div class="card shadow-sm border-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr><th>Họ và tên</th><th>Email</th><th>Số điện thoại</th><th>Vai trò</th><th>Trạng thái</th><th>Mật khẩu</th><th class="text-end">Thao tác</th></tr>
+                </thead>
+                <tbody>
+                    @if (Model.Count == 0)
+                    {
+                        <tr><td colspan="7" class="text-center text-muted py-4">Chưa có tài khoản nhân sự.</td></tr>
+                    }
+                    @foreach (var account in Model)
+                    {
+                        var isSelf = account.Id == currentAdminId;
+                        var awaitingPassword = string.IsNullOrEmpty(account.PasswordHash);
+                        <tr>
+                            <td class="fw-semibold">@(string.IsNullOrWhiteSpace(account.FullName) ? "—" : account.FullName)@(isSelf ? " (bạn)" : "")</td>
+                            <td>@account.Email</td>
+                            <td>@(account.PhoneNumber ?? "—")</td>
+                            <td><span class="badge @RoleBadge(account.Role)">@AccountRoles.DisplayName(account.Role)</span></td>
+                            <td>
+                                @if (account.IsActive)
+                                {
+                                    <span class="badge bg-success-subtle text-success-emphasis">Đang hoạt động</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary-subtle text-secondary-emphasis">Đã khoá</span>
+                                }
+                            </td>
+                            <td>
+                                @if (awaitingPassword)
+                                {
+                                    <span class="text-warning-emphasis small">Chờ đặt mật khẩu</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">Đã thiết lập</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <div class="d-inline-flex flex-wrap justify-content-end gap-2">
+                                    <a asp-action="Edit" asp-route-id="@account.Id" class="btn btn-sm btn-outline-primary">Sửa</a>
+                                    @if (awaitingPassword)
+                                    {
+                                        <form asp-action="ResendSetup" asp-route-id="@account.Id" method="post">
+                                            <button type="submit" class="btn btn-sm btn-outline-secondary">Gửi lại email</button>
+                                        </form>
+                                    }
+                                    @if (!isSelf)
+                                    {
+                                        <form asp-action="SetActive" asp-route-id="@account.Id" method="post">
+                                            <input type="hidden" name="isActive" value="@(account.IsActive ? "false" : "true")" />
+                                            <button type="submit" class="btn btn-sm @(account.IsActive ? "btn-outline-danger" : "btn-outline-primary")">@(account.IsActive ? "Khoá" : "Mở khoá")</button>
+                                        </form>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

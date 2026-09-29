@@ -12,6 +12,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<LoginLog> LoginLogs => Set<LoginLog>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<ReaderAccount> ReaderAccounts => Set<ReaderAccount>();
+    public DbSet<ReaderPasswordHistory> ReaderPasswordHistories => Set<ReaderPasswordHistory>();
+    public DbSet<ReaderPasswordResetToken> ReaderPasswordResetTokens => Set<ReaderPasswordResetToken>();
+    public DbSet<ReaderPasswordResetRequest> ReaderPasswordResetRequests => Set<ReaderPasswordResetRequest>();
     public DbSet<Author> Authors => Set<Author>();
     public DbSet<Book> Books => Set<Book>();
     public DbSet<Category> Categories => Set<Category>();
@@ -24,6 +27,30 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Shelf> Shelves => Set<Shelf>();
     public DbSet<WeeklyWorkingSchedule> WeeklyWorkingSchedules => Set<WeeklyWorkingSchedule>();
     public DbSet<HolidayClosure> HolidayClosures => Set<HolidayClosure>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<LoanPolicy> LoanPolicies => Set<LoanPolicy>();
+    public DbSet<StaffPasswordSetupToken> StaffPasswordSetupTokens => Set<StaffPasswordSetupToken>();
+
+    public const string AuditLogReadOnlyTrigger = "TR_AuditLogs_ReadOnly";
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        EnsureAuditLogsAreAppendOnly();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        EnsureAuditLogsAreAppendOnly();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    /// <summary>Nhật ký hoạt động chỉ được thêm mới; mọi thao tác sửa/xóa qua hệ thống đều bị từ chối.</summary>
+    private void EnsureAuditLogsAreAppendOnly()
+    {
+        if (ChangeTracker.Entries<AuditLog>().Any(entry => entry.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Nhật ký hoạt động là dữ liệu chỉ đọc, không được sửa hoặc xóa.");
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -71,10 +98,33 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasIndex(account => account.Email).IsUnique();
             entity.Property(account => account.Email).HasMaxLength(256).IsRequired();
             entity.Property(account => account.PasswordHash).HasMaxLength(512).IsRequired();
+            entity.Property(account => account.Role).HasMaxLength(30).HasDefaultValue(AccountRoles.SystemAdmin).IsRequired();
             entity.Property(account => account.IsActive).HasDefaultValue(true);
             entity.Property(account => account.FailedLoginAttempts).HasDefaultValue(0);
-            entity.ToTable(table => table.HasCheckConstraint(
-                "CK_AdminAccounts_FailedLoginAttempts_NonNegative", "[FailedLoginAttempts] >= 0"));
+            entity.Property(account => account.FullName).HasMaxLength(100).HasDefaultValue(string.Empty).IsRequired();
+            entity.Property(account => account.PhoneNumber).HasMaxLength(20);
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_AdminAccounts_FailedLoginAttempts_NonNegative", "[FailedLoginAttempts] >= 0");
+                table.HasCheckConstraint(
+                    "CK_AdminAccounts_Role_Valid",
+                    $"[Role] IN ('{AccountRoles.Librarian}', '{AccountRoles.LibraryManager}', '{AccountRoles.SystemAdmin}')");
+            });
+        });
+
+        modelBuilder.Entity<StaffPasswordSetupToken>(entity =>
+        {
+            entity.HasIndex(token => token.TokenHash).IsUnique();
+            entity.HasIndex(token => new { token.AdminAccountId, token.ExpiresAtUtc });
+            entity.Property(token => token.TokenHash).HasMaxLength(64).IsRequired();
+            entity.Property(token => token.CreatedAtUtc).HasColumnType("datetime2");
+            entity.Property(token => token.ExpiresAtUtc).HasColumnType("datetime2");
+            entity.Property(token => token.UsedAtUtc).HasColumnType("datetime2");
+            entity.HasOne(token => token.AdminAccount)
+                .WithMany()
+                .HasForeignKey(token => token.AdminAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<LoginLog>(entity =>
@@ -109,8 +159,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(reader => reader.FullName).HasMaxLength(100).IsRequired();
             entity.Property(reader => reader.Email).HasMaxLength(256).IsRequired();
             entity.Property(reader => reader.PhoneNumber).HasMaxLength(20).IsRequired();
+            entity.Property(reader => reader.Address).HasMaxLength(500);
             entity.Property(reader => reader.StudentOrStaffCode).HasMaxLength(50).IsRequired();
             entity.Property(reader => reader.PasswordHash).HasMaxLength(512).IsRequired();
+            entity.Property(reader => reader.SessionVersion).HasDefaultValue(0);
             entity.Property(reader => reader.Status).HasMaxLength(50).HasDefaultValue("Chờ duyệt").IsRequired();
             entity.Property(reader => reader.RejectionReason).HasMaxLength(1000);
             entity.Property(reader => reader.CreatedAtUtc).HasColumnType("datetime2");
@@ -124,6 +176,15 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(type => type.Name).HasMaxLength(100).IsRequired();
             entity.Property(type => type.IsActive).HasDefaultValue(true);
             entity.Property(type => type.MaxRenewals).HasDefaultValue(LibraryCardType.DefaultMaxRenewals);
+        });
+
+        modelBuilder.Entity<ReaderPasswordHistory>(entity =>
+        {
+            entity.HasIndex(history => new { history.ReaderAccountId, history.CreatedAtUtc });
+            entity.Property(history => history.PasswordHash).HasMaxLength(512).IsRequired();
+            entity.Property(history => history.CreatedAtUtc).HasColumnType("datetime2");
+            entity.HasOne(history => history.ReaderAccount).WithMany(reader => reader.PasswordHistories)
+                .HasForeignKey(history => history.ReaderAccountId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<LibraryCard>(entity =>
@@ -212,6 +273,47 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(holiday => holiday.HolidayDate).HasColumnType("date").IsRequired();
             entity.Property(holiday => holiday.Reason).HasMaxLength(150).IsRequired();
             entity.Property(holiday => holiday.Note).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<ReaderPasswordResetToken>(entity =>
+        {
+            entity.HasIndex(token => token.TokenHash).IsUnique();
+            entity.HasIndex(token => new { token.ReaderAccountId, token.ExpiresAtUtc });
+            entity.Property(token => token.TokenHash).HasMaxLength(64).IsRequired();
+            entity.HasOne(token => token.ReaderAccount)
+                .WithMany()
+                .HasForeignKey(token => token.ReaderAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ReaderPasswordResetRequest>(entity =>
+        {
+            entity.HasIndex(request => new { request.EmailHash, request.RequestedAtUtc });
+            entity.Property(request => request.EmailHash).HasMaxLength(64).IsRequired();
+        });
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            // The database trigger rejects UPDATE/DELETE; declaring it stops EF from using OUTPUT on INSERT.
+            entity.ToTable(table => table.HasTrigger(AuditLogReadOnlyTrigger));
+            entity.HasIndex(log => log.OccurredAtUtc);
+            entity.Property(log => log.OccurredAtUtc).HasColumnType("datetime2");
+            entity.Property(log => log.Actor).HasMaxLength(256).IsRequired();
+            entity.Property(log => log.Action).HasMaxLength(100).IsRequired();
+            entity.Property(log => log.Target).HasMaxLength(500).IsRequired();
+            entity.Property(log => log.IpAddress).HasMaxLength(45).IsRequired();
+        });
+
+        modelBuilder.Entity<LoanPolicy>(entity =>
+        {
+            entity.Property(policy => policy.Id).ValueGeneratedNever();
+            entity.Property(policy => policy.UpdatedAtUtc).HasColumnType("datetime2");
+            entity.HasData(new LoanPolicy
+            {
+                Id = LoanPolicy.SingletonId,
+                LoanDays = LoanPolicy.DefaultLoanDays,
+                UpdatedAtUtc = new DateTime(2026, 9, 29, 0, 0, 0, DateTimeKind.Utc)
+            });
         });
     }
 }

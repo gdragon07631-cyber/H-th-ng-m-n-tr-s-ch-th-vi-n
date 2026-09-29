@@ -1,6 +1,9 @@
-@model Project.Models.ReaderAccount
+@model Project.Models.ReaderProfileViewModel
 @{
+    Layout = "_ReaderLayout";
     ViewData["Title"] = "Thông tin tài khoản Bạn đọc";
+    // Viết qua biến vì "@@" bên trong thuộc tính của tag helper bị Razor sinh sai HTML.
+    const string EmailPattern = @"[^@\s]+@[^@\s]+\.[^@\s]+";
 }
 
 <div class="row justify-content-center py-4">
@@ -91,6 +94,86 @@
                     </div>
                 }
 
+                @if (TempData["ProfileSuccessMessage"] != null)
+                {
+                    <div class="alert alert-success" role="status">@TempData["ProfileSuccessMessage"]</div>
+                }
+
+                <form asp-action="Profile" method="post" class="mb-4" id="profileForm">
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <label class="form-label">Họ và tên</label>
+                            <input class="form-control" value="@Model.FullName" readonly />
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label">Ngày sinh</label>
+                            <input class="form-control" value="@Model.DateOfBirth.ToString("dd/MM/yyyy")" readonly />
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label">Mã thẻ</label>
+                            <input class="form-control" value="@Model.CardCode" readonly />
+                        </div>
+                        <div class="col-sm-6">
+                            <label asp-for="PhoneNumber" class="form-label">Số điện thoại</label>
+                            <input asp-for="PhoneNumber" class="form-control" />
+                            <span asp-validation-for="PhoneNumber" class="text-danger"></span>
+                        </div>
+                        <div class="col-12">
+                            <label asp-for="Address" class="form-label">Địa chỉ</label>
+                            <input asp-for="Address" class="form-control" />
+                            <span asp-validation-for="Address" class="text-danger"></span>
+                        </div>
+                        <div class="col-12">
+                            <label asp-for="Email" class="form-label"></label>
+                            <input asp-for="Email" type="email" pattern="@EmailPattern" class="form-control" data-initial-email="@Model.Email" />
+                            <span asp-validation-for="Email" class="text-danger"></span>
+                        </div>
+                        <div class="col-12" id="currentPasswordContainer" hidden>
+                            <label asp-for="CurrentPassword" class="form-label">Mật khẩu hiện tại</label>
+                            <input asp-for="CurrentPassword" type="password" class="form-control" autocomplete="current-password" />
+                            <span asp-validation-for="CurrentPassword" class="text-danger"></span>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary mt-3">Lưu thay đổi</button>
+                </form>
+
+                @if (Model.CardCode != null)
+                {
+                    <div class="row g-3 mb-4">
+                        <div class="col-sm-6"><label class="text-muted small">Loại thẻ</label><div class="fw-bold">@Model.CardType</div></div>
+                        <div class="col-sm-6"><label class="text-muted small">Ngày hết hạn thẻ</label><div class="fw-bold">@Model.CardExpiresOn?.ToString("dd/MM/yyyy")</div></div>
+                        <div class="col-sm-6"><label class="text-muted small">Trạng thái thẻ</label><div class="fw-bold">@Model.CardStatus</div></div>
+                    </div>
+                }
+
+                <div class="card card-body bg-light mb-4">
+                    <h5 class="fw-bold mb-3">Đổi mật khẩu</h5>
+                    @if (TempData["PasswordSuccessMessage"] != null)
+                    {
+                        <div class="alert alert-success" role="status">@TempData["PasswordSuccessMessage"]</div>
+                    }
+                    @if (TempData["PasswordErrorMessage"] != null)
+                    {
+                        <div class="alert alert-danger" role="alert">@TempData["PasswordErrorMessage"]</div>
+                    }
+                    <form asp-action="ChangePassword" method="post" id="changePasswordForm">
+                        <div class="mb-3">
+                            <label for="changeCurrentPassword" class="form-label">Mật khẩu cũ</label>
+                            <input type="password" id="changeCurrentPassword" name="CurrentPassword" class="form-control" autocomplete="current-password" required />
+                        </div>
+                        <div class="mb-3">
+                            <label for="newPassword" class="form-label">Mật khẩu mới</label>
+                            <input type="password" id="newPassword" name="NewPassword" class="form-control" autocomplete="new-password" required />
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirmNewPassword" class="form-label">Nhập lại mật khẩu mới</label>
+                            <input type="password" id="confirmNewPassword" name="ConfirmNewPassword" class="form-control" autocomplete="new-password" required />
+                        </div>
+                        <button type="submit" class="btn btn-outline-primary">Đổi mật khẩu</button>
+                    </form>
+                </div>
+
                 <hr class="my-4">
 
                 <h5 class="fw-bold mb-3 text-secondary">Chức năng: Đặt giữ tài liệu</h5>
@@ -118,3 +201,57 @@
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const form = document.getElementById("profileForm");
+            const email = document.getElementById("Email");
+            const password = document.getElementById("CurrentPassword");
+            const passwordContainer = document.getElementById("currentPasswordContainer");
+            if (!form || !email || !password || !passwordContainer) return;
+
+            const originalEmail = (email.dataset.initialEmail || "").trim().toLowerCase();
+            const emailChanged = () => email.value.trim().toLowerCase() !== originalEmail;
+            const updatePasswordVisibility = () => {
+                passwordContainer.hidden = !emailChanged();
+            };
+
+            email.addEventListener("input", updatePasswordVisibility);
+            updatePasswordVisibility();
+            form.addEventListener("submit", event => {
+                if (emailChanged() && !password.value.trim()) {
+                    event.preventDefault();
+                    passwordContainer.hidden = false;
+                    password.setCustomValidity("Vui lòng nhập mật khẩu hiện tại.");
+                    password.reportValidity();
+                } else {
+                    password.setCustomValidity("");
+                }
+            });
+            password.addEventListener("input", () => password.setCustomValidity(""));
+        })();
+    </script>
+    <script>
+        (() => {
+            const form = document.getElementById("changePasswordForm");
+            const newPassword = document.getElementById("newPassword");
+            const confirmation = document.getElementById("confirmNewPassword");
+            if (!form || !newPassword || !confirmation) return;
+
+            const validateConfirmation = () => {
+                confirmation.setCustomValidity(
+                    confirmation.value && confirmation.value !== newPassword.value
+                        ? "Mật khẩu mới và mật khẩu xác nhận không trùng khớp."
+                        : "");
+            };
+            newPassword.addEventListener("input", validateConfirmation);
+            confirmation.addEventListener("input", validateConfirmation);
+            form.addEventListener("submit", event => {
+                validateConfirmation();
+                if (!form.reportValidity()) event.preventDefault();
+            });
+        })();
+    </script>
+}

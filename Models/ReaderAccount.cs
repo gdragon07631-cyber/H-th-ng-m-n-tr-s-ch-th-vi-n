@@ -18,6 +18,9 @@ public sealed class ReaderAccount
     [Required, MaxLength(20)]
     public string PhoneNumber { get; set; } = string.Empty;
 
+    [MaxLength(500)]
+    public string? Address { get; set; }
+
     [Required, MaxLength(50)]
     public string StudentOrStaffCode { get; set; } = string.Empty;
 
@@ -34,8 +37,9 @@ public sealed class ReaderAccount
 
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 
-    public decimal OutstandingBalance { get; set; }
+    public int SessionVersion { get; set; }
 
     public LibraryCard? LibraryCard { get; set; }
     public ICollection<BookHold> BookHolds { get; set; } = [];
+    public ICollection<ReaderPasswordHistory> PasswordHistories { get; set; } = [];
 }

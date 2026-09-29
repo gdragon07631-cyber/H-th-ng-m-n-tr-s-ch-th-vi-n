@@ -1,0 +1,92 @@
+@model Project.Models.AuditLogIndexViewModel
+@{
+    ViewData["Title"] = "Nhật ký hoạt động";
+    var filter = Model.Filter;
+    var actors = Model.Actors.ToList();
+    if (!string.IsNullOrWhiteSpace(filter.Actor) && !actors.Contains(filter.Actor))
+    {
+        actors.Insert(0, filter.Actor);
+    }
+}
+<div class="container py-4">
+    <div class="mb-4">
+        <h1 class="h3 mb-1 text-primary fw-bold">Nhật ký hoạt động</h1>
+        <p class="text-muted mb-0">Ai đã thao tác gì, lúc nào, trên đối tượng nào và từ IP nào. Hiển thị @Project.Controllers.AuditLogController.DisplayLimit bản ghi mới nhất.</p>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <form asp-action="Index" method="get" class="row g-3 align-items-end" role="search" aria-label="Lọc nhật ký hoạt động">
+                <div class="col-sm-6 col-lg-2">
+                    <label for="FromDate" class="form-label fw-semibold">Từ ngày</label>
+                    <input type="date" id="FromDate" name="FromDate" class="form-control" value="@filter.FromDate?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-sm-6 col-lg-2">
+                    <label for="ToDate" class="form-label fw-semibold">Đến ngày</label>
+                    <input type="date" id="ToDate" name="ToDate" class="form-control" value="@filter.ToDate?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label for="Actor" class="form-label fw-semibold">Người thực hiện</label>
+                    <select id="Actor" name="Actor" class="form-select">
+                        <option value="">Tất cả</option>
+                        @foreach (var actor in actors)
+                        {
+                            <option value="@actor" selected="@(actor == filter.Actor)">@actor</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-sm-6 col-lg-2">
+                    <label for="Action" class="form-label fw-semibold">Loại hành động</label>
+                    <select id="Action" name="Action" class="form-select">
+                        <option value="">Tất cả</option>
+                        @foreach (var action in Model.Actions)
+                        {
+                            <option value="@action" selected="@(action == filter.Action)">@action</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-lg-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-fill">Tra cứu</button>
+                    <a asp-action="Index" class="btn btn-outline-secondary flex-fill">Xóa bộ lọc</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @if (Model.ErrorMessage is string error)
+    {
+        <div class="alert alert-danger" role="alert">@error</div>
+    }
+    else if (!filter.IsEmpty)
+    {
+        <p class="text-muted small mb-2" role="status">Tìm thấy @Model.Logs.Count bản ghi phù hợp.</p>
+    }
+
+    <div class="card shadow-sm border-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr><th>Thời điểm</th><th>Người thực hiện</th><th>Hành động</th><th>Đối tượng</th><th>IP</th></tr>
+                </thead>
+                <tbody>
+                    @if (Model.Logs.Count == 0 && Model.ErrorMessage is null)
+                    {
+                        <tr><td colspan="5" class="text-center text-muted py-4">@(filter.IsEmpty
+                            ? "Chưa có nhật ký hoạt động."
+                            : "Không có nhật ký nào phù hợp với điều kiện lọc. Hãy thay đổi điều kiện hoặc nhấn Xóa bộ lọc.")</td></tr>
+                    }
+                    @foreach (var log in Model.Logs)
+                    {
+                        <tr>
+                            <td class="text-nowrap">@DateTime.SpecifyKind(log.OccurredAtUtc, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
+                            <td>@log.Actor</td>
+                            <td><span class="badge bg-primary-subtle text-primary-emphasis">@log.Action</span></td>
+                            <td>@log.Target</td>
+                            <td class="text-nowrap font-monospace small">@log.IpAddress</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
