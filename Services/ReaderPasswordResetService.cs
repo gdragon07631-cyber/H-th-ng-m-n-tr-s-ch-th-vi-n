@@ -97,7 +97,7 @@ public sealed class ReaderPasswordResetService(
             .SingleOrDefaultAsync(item => item.TokenHash == hash && item.UsedAtUtc == null && item.ExpiresAtUtc > now, cancellationToken);
         if (resetToken is null)
         {
-            await transaction.RollbackAsync(cancellationToken);
+            await transaction.RollbackAsync(CancellationToken.None);
             return false;
         }
 
