@@ -447,3 +447,18 @@ textarea.form-control { min-height: 96px; }
   .reader-auth-hero { padding: 24px 22px; }
   .reader-auth-form { padding: 26px 20px; }
 }
+.book-cover-display {
+    width: 180px;
+    height: 260px;
+    object-fit: cover;
+    border-radius: .375rem;
+    box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .15);
+}
+
+.book-cover-thumbnail {
+    width: 60px;
+    height: 86px;
+    object-fit: cover;
+    border-radius: .2rem;
+    box-shadow: 0 .125rem .35rem rgba(0, 0, 0, .14);
+}

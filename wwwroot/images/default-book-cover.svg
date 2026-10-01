@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="520" viewBox="0 0 360 520" role="img" aria-label="Bìa sách mặc định">
+  <rect width="360" height="520" rx="16" fill="#eef2f7"/>
+  <rect x="28" y="28" width="304" height="464" rx="10" fill="#fff" stroke="#cbd5e1" stroke-width="4"/>
+  <path d="M85 145h190M85 175h150M85 205h175" stroke="#94a3b8" stroke-width="12" stroke-linecap="round"/>
+  <path d="M180 270c-45-48-100-18-100 28 0 44 100 112 100 112s100-68 100-112c0-46-55-76-100-28z" fill="#64748b"/>
+  <text x="180" y="455" text-anchor="middle" font-family="sans-serif" font-size="22" fill="#475569">CHƯA CÓ ẢNH BÌA</text>
+</svg>

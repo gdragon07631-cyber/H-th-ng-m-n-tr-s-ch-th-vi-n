@@ -95,6 +95,8 @@ public sealed class BookService(
                 ? "Chưa phân loại"
                 : book.Category.Parent == null ? book.Category.Name : $"{book.Category.Parent.Name} > {book.Category.Name}",
             Description = book.Description,
+            CoverImagePath = book.CoverImagePath,
+            ThumbnailImagePath = book.ThumbnailImagePath,
             CreatedAtUtc = book.CreatedAtUtc
         };
     }
