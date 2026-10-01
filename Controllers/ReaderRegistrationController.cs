@@ -422,6 +422,66 @@ public sealed class ReaderRegistrationController(
         });
     }
 
+    // S2-08: Bạn đọc chỉ xem/hủy đơn của chính mình; mã bạn đọc luôn lấy từ phiên đăng nhập, không nhận từ client.
+    [HttpGet]
+    public async Task<IActionResult> MyHolds(CancellationToken cancellationToken = default)
+    {
+        var readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
+        if (readerId <= 0)
+        {
+            return RedirectToAction(nameof(Login), new { returnUrl = Url.Action(nameof(MyHolds)) });
+        }
+
+        return View(await registrationService.GetReaderHoldsAsync(readerId, cancellationToken));
+    }
+
+    [HttpGet("api/reader/holds")]
+    public async Task<IActionResult> GetMyHoldsApi(CancellationToken cancellationToken = default)
+    {
+        var readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
+        if (readerId <= 0)
+            return Unauthorized(new { message = "Vui lòng đăng nhập để xem đơn đặt giữ." });
+
+        var holds = await registrationService.GetReaderHoldsAsync(readerId, cancellationToken);
+        return Ok(holds.Select(hold => new
+        {
+            id = hold.Id,
+            bookId = hold.BookId,
+            bookTitle = hold.BookTitle,
+            heldAtUtc = hold.HeldAtUtc,
+            heldAt = DateTime.SpecifyKind(hold.HeldAtUtc, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM/yyyy HH:mm"),
+            status = hold.Status,
+            queuePosition = hold.QueuePosition,
+            pickupDeadlineUtc = hold.PickupDeadlineUtc,
+            pickupDeadline = hold.PickupDeadlineText,
+            canCancel = hold.CanCancel
+        }));
+    }
+
+    [HttpPost("api/reader/holds/{holdId:long}/cancel")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CancelMyHoldApi(long holdId, CancellationToken cancellationToken = default)
+    {
+        var readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
+        if (readerId <= 0)
+            return Unauthorized(new { message = "Vui lòng đăng nhập để hủy đơn đặt giữ." });
+
+        var outcome = await registrationService.CancelReaderHoldAsync(readerId, holdId, cancellationToken);
+        return outcome.Result switch
+        {
+            BookHoldCancelResult.Success => Ok(new
+            {
+                id = holdId,
+                status = outcome.Status,
+                message = outcome.Message,
+                promotedHoldId = outcome.PromotedHoldId,
+                releasedCopyId = outcome.ReleasedCopyId
+            }),
+            BookHoldCancelResult.NotWaiting => Conflict(new { id = holdId, status = outcome.Status, message = outcome.Message }),
+            _ => NotFound(new { message = outcome.Message })
+        };
+    }
+
     private void SetReaderSessionCookies(ReaderAccount reader) =>
         ReaderSessionCookies.Append(HttpContext, dataProtectionProvider, reader);
 

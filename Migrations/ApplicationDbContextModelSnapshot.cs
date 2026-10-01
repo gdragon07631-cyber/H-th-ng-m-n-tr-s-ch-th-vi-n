@@ -250,16 +250,31 @@ namespace Project.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
+                    b.Property<long?>("BookCopyId")
+                        .HasColumnType("bigint");
+
                     b.Property<int>("BookId")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("HeldAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("PickupDeadlineUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("ReaderAccountId")
                         .HasColumnType("int");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("Đang chờ");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("BookCopyId");
 
                     b.HasIndex("BookId");
 
@@ -906,6 +921,11 @@ namespace Project.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Project.Models.BookCopy", "BookCopy")
+                        .WithMany()
+                        .HasForeignKey("BookCopyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Project.Models.ReaderAccount", "ReaderAccount")
                         .WithMany("BookHolds")
                         .HasForeignKey("ReaderAccountId")
@@ -913,6 +933,8 @@ namespace Project.Migrations
                         .IsRequired();
 
                     b.Navigation("Book");
+
+                    b.Navigation("BookCopy");
 
                     b.Navigation("ReaderAccount");
                 });

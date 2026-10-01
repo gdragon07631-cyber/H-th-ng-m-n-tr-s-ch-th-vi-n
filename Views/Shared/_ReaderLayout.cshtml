@@ -21,6 +21,7 @@
                 @if (readerSignedIn)
                 {
                     <a class="@NavClass("Profile")" asp-controller="ReaderRegistration" asp-action="Profile">Tài khoản</a>
+                    <a class="@NavClass("MyHolds")" asp-controller="ReaderRegistration" asp-action="MyHolds">Đơn đặt giữ của tôi</a>
                     <form asp-controller="ReaderRegistration" asp-action="Logout" method="post" class="m-0">
                         <button type="submit" class="reader-nav-logout">Đăng xuất</button>
                     </form>

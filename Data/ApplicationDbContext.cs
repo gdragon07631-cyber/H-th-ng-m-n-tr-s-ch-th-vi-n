@@ -203,10 +203,14 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         {
             entity.HasIndex(hold => new { hold.ReaderAccountId, hold.BookId }).IsUnique();
             entity.Property(hold => hold.HeldAtUtc).HasColumnType("datetime2");
+            entity.Property(hold => hold.Status).HasMaxLength(50).HasDefaultValue(BookHoldStatus.Waiting).IsRequired();
+            entity.Property(hold => hold.PickupDeadlineUtc).HasColumnType("datetime2");
             entity.HasOne(hold => hold.ReaderAccount).WithMany(reader => reader.BookHolds)
                 .HasForeignKey(hold => hold.ReaderAccountId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(hold => hold.Book).WithMany()
                 .HasForeignKey(hold => hold.BookId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(hold => hold.BookCopy).WithMany()
+                .HasForeignKey(hold => hold.BookCopyId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Warehouse>(entity =>

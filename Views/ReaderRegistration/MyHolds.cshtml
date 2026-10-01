@@ -1,0 +1,184 @@
+@using Project.Models
+@model IReadOnlyList<Project.Services.ReaderBookHoldItem>
+@{
+    Layout = "_ReaderLayout";
+    ViewData["Title"] = "Đơn đặt giữ của tôi";
+
+    static string StatusBadgeClass(string status) => status switch
+    {
+        BookHoldStatus.Waiting => "bg-warning text-dark",
+        BookHoldStatus.Available => "bg-success",
+        BookHoldStatus.ConvertedToLoan => "bg-primary",
+        _ => "bg-secondary"
+    };
+}
+
+<div class="row justify-content-center py-4">
+    <div class="col-12 col-lg-10">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-primary text-white py-3">
+                <h4 class="mb-0 fs-5"><i class="bi bi-bookmark me-2"></i>Đơn đặt giữ của tôi</h4>
+            </div>
+            <div class="card-body p-4">
+                @Html.AntiForgeryToken()
+                <div id="holdFeedback" class="d-none" role="alert"></div>
+
+                @if (Model.Count == 0)
+                {
+                    <p class="text-muted mb-0" id="noHoldsMessage">Bạn chưa có đơn đặt giữ nào.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0" id="holdsTable">
+                            <thead>
+                                <tr>
+                                    <th>Tên sách</th>
+                                    <th class="text-nowrap">Ngày đặt</th>
+                                    <th>Trạng thái</th>
+                                    <th>Vị trí hàng đợi</th>
+                                    <th>Hạn cuối nhận sách</th>
+                                    <th class="text-end">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var hold in Model)
+                                {
+                                    <tr data-hold-id="@hold.Id">
+                                        <td>@hold.BookTitle</td>
+                                        <td class="text-nowrap">@DateTime.SpecifyKind(hold.HeldAtUtc, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                        <td><span class="badge @StatusBadgeClass(hold.Status)" data-hold-status>@hold.Status</span></td>
+                                        <td data-hold-queue>
+                                            @if (hold.QueuePosition is { } position)
+                                            {
+                                                <text>Vị trí trong hàng đợi: <strong>@position</strong></text>
+                                            }
+                                        </td>
+                                        <td class="text-nowrap">
+                                            @if (hold.PickupDeadlineText is { } deadline)
+                                            {
+                                                <text>Hạn nhận sách: <strong>@deadline</strong></text>
+                                            }
+                                        </td>
+                                        <td class="text-end" data-hold-actions>
+                                            @if (hold.CanCancel)
+                                            {
+                                                <button type="button" class="btn btn-outline-danger btn-sm" data-cancel-hold="@hold.Id"
+                                                        data-book-title="@hold.BookTitle">Hủy đơn</button>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(() => {
+  const feedback = document.getElementById('holdFeedback');
+  const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+
+  const showFeedback = (kind, message) => {
+    feedback.className = `alert alert-${kind} mb-4`;
+    feedback.textContent = message;
+  };
+
+  const badgeClasses = {
+    'Đang chờ': 'bg-warning text-dark',
+    'Đã có sách': 'bg-success',
+    'Đã chuyển thành phiếu mượn': 'bg-primary'
+  };
+
+  const cell = (className, ...children) => {
+    const td = document.createElement('td');
+    if (className) td.className = className;
+    td.append(...children);
+    return td;
+  };
+
+  const labelled = (label, value) => {
+    const strong = document.createElement('strong');
+    strong.textContent = value;
+    return [label, strong];
+  };
+
+  const renderRow = hold => {
+    const tr = document.createElement('tr');
+    tr.dataset.holdId = hold.id;
+
+    const badge = document.createElement('span');
+    badge.className = `badge ${badgeClasses[hold.status] || 'bg-secondary'}`;
+    badge.dataset.holdStatus = '';
+    badge.textContent = hold.status;
+
+    const queue = cell('', ...(hold.queuePosition != null ? labelled('Vị trí trong hàng đợi: ', hold.queuePosition) : []));
+    queue.dataset.holdQueue = '';
+    const actions = cell('text-end');
+    actions.dataset.holdActions = '';
+    if (hold.canCancel) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn btn-outline-danger btn-sm';
+      button.dataset.cancelHold = hold.id;
+      button.dataset.bookTitle = hold.bookTitle;
+      button.textContent = 'Hủy đơn';
+      actions.append(button);
+    }
+
+    tr.append(
+      cell('', hold.bookTitle),
+      cell('text-nowrap', hold.heldAt),
+      cell('', badge),
+      queue,
+      cell('text-nowrap', ...(hold.pickupDeadline ? labelled('Hạn nhận sách: ', hold.pickupDeadline) : [])),
+      actions);
+    return tr;
+  };
+
+  // Tải lại danh sách từ API để phản ánh hàng đợi/hạn nhận mới nhất sau khi hủy.
+  const reloadHolds = async () => {
+    const tbody = document.querySelector('#holdsTable tbody');
+    if (!tbody) return;
+    const response = await fetch('/api/reader/holds', { credentials: 'same-origin' });
+    if (!response.ok) return;
+    const holds = await response.json();
+    tbody.replaceChildren(...holds.map(renderRow));
+  };
+
+  document.addEventListener('click', async event => {
+    const button = event.target.closest('[data-cancel-hold]');
+    if (!button) return;
+    const holdId = button.dataset.cancelHold;
+    if (!confirm(`Bạn có chắc muốn hủy đơn đặt giữ sách "${button.dataset.bookTitle}"?`)) return;
+
+    button.disabled = true;
+    try {
+      const response = await fetch(`/api/reader/holds/${holdId}/cancel`, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'RequestVerificationToken': token }
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Không thể hủy đơn đặt giữ.');
+
+      const row = button.closest('tr');
+      const badge = row.querySelector('[data-hold-status]');
+      badge.textContent = payload.status;
+      badge.className = 'badge bg-secondary';
+      row.querySelector('[data-hold-queue]').textContent = '';
+      button.remove();
+      showFeedback('success', payload.message || 'Hủy đơn đặt giữ thành công.');
+      try { await reloadHolds(); } catch { /* giữ cập nhật cục bộ ở trên nếu tải lại thất bại */ }
+    } catch (error) {
+      button.disabled = false;
+      showFeedback('danger', error.message || 'Không thể hủy đơn đặt giữ.');
+    }
+  });
+})();
+</script>
+}

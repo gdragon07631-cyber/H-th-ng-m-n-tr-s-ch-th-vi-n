@@ -2,6 +2,14 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Project.Models;
 
+public static class BookCopyStatus
+{
+    public const string Available = "Sẵn sàng";
+    public const string OnLoan = "Đang mượn";
+    /// <summary>Bản sao đang được giữ cho một đơn đặt giữ.</summary>
+    public const string OnHold = "Đang giữ";
+}
+
 public sealed class BookCopy
 {
     public long Id { get; set; }
