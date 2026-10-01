@@ -46,4 +46,6 @@ public sealed class BookDetailsViewModel
     public bool IsReaderSignedIn { get; set; }
     public bool CanHold { get; set; }
     public bool IsLibrarian { get; set; }
+    public int AvailableCopies { get; set; }
+    public int TotalCopies { get; set; }
 }

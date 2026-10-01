@@ -1,3 +1,4 @@
+using Project.Filters;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -7,6 +8,7 @@ using Project.Services;
 
 namespace Project.Controllers;
 
+[StaffOnly(AccountRoles.Librarian, AccountRoles.SystemAdmin, AccountRoles.LibraryManager)]
 public sealed class BookController(
     IBookService bookService,
     IAuthorService authorService,
@@ -114,6 +116,7 @@ public sealed class BookController(
     }
 
     [HttpGet]
+    [PublicAction]
     public async Task<IActionResult> Details(int id, CancellationToken cancellationToken = default)
     {
         var bookDetails = await bookService.GetBookDetailsAsync(id, cancellationToken);
@@ -255,6 +258,7 @@ public sealed class BookController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [PublicAction]
     public async Task<IActionResult> Hold(int id, CancellationToken cancellationToken = default)
     {
         var readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
@@ -298,6 +302,7 @@ public sealed class BookController(
     }
 
     [HttpGet("api/books/{id}")]
+    [PublicAction]
     public async Task<IActionResult> GetBookDetailsApi(int id, CancellationToken cancellationToken = default)
     {
         var details = await bookService.GetBookDetailsAsync(id, cancellationToken);

@@ -108,14 +108,15 @@ public sealed class ReaderRegistrationController(
     [HttpGet]
     public async Task<IActionResult> Profile(int? id, CancellationToken cancellationToken = default)
     {
-        int targetId = id ?? await GetCurrentLoggedInReaderIdAsync(cancellationToken);
+        // The profile always belongs to the signed-in reader; an id in the URL must match that session.
+        int targetId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (targetId <= 0)
         {
             return RedirectToAction(nameof(Login));
         }
         if (id.HasValue && id.Value != targetId)
         {
-            return Forbid();
+            return StatusCode(StatusCodes.Status403Forbidden, "Bạn không có quyền xem hồ sơ của bạn đọc khác.");
         }
 
         var reader = await registrationService.GetReaderByIdAsync(targetId, cancellationToken);
@@ -372,10 +373,15 @@ public sealed class ReaderRegistrationController(
         int? readerId = null,
         CancellationToken cancellationToken = default)
     {
-        int targetId = readerId ?? await GetCurrentLoggedInReaderIdAsync(cancellationToken);
+        int targetId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (targetId <= 0)
         {
             return RedirectToAction(nameof(Login));
+        }
+        if (readerId.HasValue && readerId.Value != targetId)
+        {
+            TempData["HoldErrorMessage"] = "Bạn chỉ có thể đặt giữ tài liệu cho chính tài khoản của mình.";
+            return RedirectToAction(nameof(Profile));
         }
 
         var outcome = await registrationService.HoldDocumentAsync(targetId, documentId, cancellationToken);
@@ -397,10 +403,19 @@ public sealed class ReaderRegistrationController(
         [FromQuery] int? readerId = null,
         CancellationToken cancellationToken = default)
     {
-        int targetId = readerId ?? await GetCurrentLoggedInReaderIdAsync(cancellationToken);
+        int targetId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (targetId <= 0)
         {
             return Unauthorized(new { message = "Vui lòng đăng nhập trước khi thực hiện đặt giữ tài liệu." });
+        }
+        if (readerId.HasValue && readerId.Value != targetId)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                isAllowed = false,
+                status = "Rejected",
+                message = "Bạn chỉ có thể đặt giữ tài liệu cho chính tài khoản của mình."
+            });
         }
 
         var outcome = await registrationService.HoldDocumentAsync(targetId, documentId, cancellationToken);

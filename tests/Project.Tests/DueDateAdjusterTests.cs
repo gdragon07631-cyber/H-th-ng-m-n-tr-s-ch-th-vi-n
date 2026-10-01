@@ -104,9 +104,10 @@ public class DueDateAdjusterTests
         var (db, service) = CreateRenewalService();
         await new WorkingScheduleService(db).UpdateWeeklyScheduleAsync(DayOfWeek.Sunday, false, null);
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var sunday = today.AddDays(1);
+        // Pick a Sunday far enough ahead that the current due date is not already overdue, whatever today is.
+        var sunday = today.AddDays(BookLoanService.DefaultRenewalDays);
         while (sunday.DayOfWeek != DayOfWeek.Sunday) sunday = sunday.AddDays(1);
-        var dueDate = sunday.AddDays(-7);
+        var dueDate = sunday.AddDays(-BookLoanService.DefaultRenewalDays);
         var loan = await CreateRenewableLoan(db, today, dueDate);
 
         var result = await service.RenewAsync(loan.Id, today);

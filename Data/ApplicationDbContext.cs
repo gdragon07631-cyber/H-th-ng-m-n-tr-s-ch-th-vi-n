@@ -23,6 +23,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<BookHold> BookHolds => Set<BookHold>();
     public DbSet<BookLoan> BookLoans => Set<BookLoan>();
     public DbSet<BookCopy> BookCopies => Set<BookCopy>();
+    public DbSet<BookCopyStatusHistory> BookCopyStatusHistories => Set<BookCopyStatusHistory>();
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
     public DbSet<Shelf> Shelves => Set<Shelf>();
     public DbSet<WeeklyWorkingSchedule> WeeklyWorkingSchedules => Set<WeeklyWorkingSchedule>();
@@ -263,6 +264,20 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .HasForeignKey(copy => copy.BookId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(copy => copy.Shelf).WithMany()
                 .HasForeignKey(copy => copy.ShelfId).OnDelete(DeleteBehavior.Restrict);
+            entity.Property(copy => copy.PhysicalCondition).HasMaxLength(50).HasDefaultValue(BookCopyCondition.Good).IsRequired();
+            entity.Property(copy => copy.Note).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<BookCopyStatusHistory>(entity =>
+        {
+            entity.HasIndex(history => new { history.BookCopyId, history.ChangedAtUtc });
+            entity.Property(history => history.FromStatus).HasMaxLength(50).IsRequired();
+            entity.Property(history => history.ToStatus).HasMaxLength(50).IsRequired();
+            entity.Property(history => history.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(history => history.ChangedBy).HasMaxLength(256).IsRequired();
+            entity.Property(history => history.ChangedAtUtc).HasColumnType("datetime2");
+            entity.HasOne(history => history.BookCopy).WithMany()
+                .HasForeignKey(history => history.BookCopyId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<WeeklyWorkingSchedule>(entity =>

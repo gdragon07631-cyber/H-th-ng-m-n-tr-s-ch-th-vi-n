@@ -70,6 +70,26 @@
                     </div>
 
                     <div class="mb-3 row">
+                        <label class="col-sm-3 col-form-label fw-semibold text-secondary">Số bản rảnh:</label>
+                        <div class="col-sm-9">
+                            <p class="form-control-plaintext mb-0" id="availableCopies">
+                                @if (Model.AvailableCopies > 0)
+                                {
+                                    <span class="badge bg-success-subtle text-success-emphasis fs-6">@Model.AvailableCopies / @Model.TotalCopies bản sẵn sàng</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary-subtle text-secondary-emphasis fs-6">Hiện không còn bản rảnh</span>
+                                }
+                            </p>
+                            @if (Model.IsLibrarian)
+                            {
+                                <a asp-controller="BookCopy" asp-action="Index" asp-route-bookId="@Model.Id" class="btn btn-sm btn-outline-primary mt-2">Quản lý bản sao</a>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="mb-3 row">
                         <label class="col-sm-3 col-form-label fw-semibold text-secondary">Tác giả:</label>
                         <div class="col-sm-9">
                             <p class="form-control-plaintext mb-1">

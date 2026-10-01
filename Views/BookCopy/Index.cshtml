@@ -1,0 +1,92 @@
+@model Project.Models.BookCopyIndexViewModel
+@using Project.Models
+@{
+    ViewData["Title"] = "Bản sao – " + Model.BookTitle;
+    string StatusBadge(string status) => status switch
+    {
+        BookCopyStatus.Available => "bg-success-subtle text-success-emphasis",
+        BookCopyStatus.UnderRepair => "bg-warning-subtle text-warning-emphasis",
+        BookCopyStatus.OnLoan => "bg-primary-subtle text-primary-emphasis",
+        _ => "bg-secondary-subtle text-secondary-emphasis"
+    };
+}
+<div class="container py-4">
+    <div class="mb-4">
+        <a asp-controller="Book" asp-action="Details" asp-route-id="@Model.BookId" class="small text-decoration-none">← @Model.BookTitle</a>
+        <h1 class="h3 mt-2 mb-1 text-primary fw-bold">Bản sao của đầu sách</h1>
+        <p class="text-muted mb-0">Cập nhật kho, kệ, tình trạng vật lý và trạng thái để sổ sách khớp với vị trí thật của sách.</p>
+    </div>
+
+    @if (TempData["SuccessMessage"] is string success)
+    {
+        <div class="alert alert-success" role="status">@success</div>
+    }
+    @if (TempData["ErrorMessage"] is string error)
+    {
+        <div class="alert alert-danger" role="alert">@error</div>
+    }
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr><th>Mã vạch</th><th>Kho</th><th>Kệ</th><th>Tình trạng vật lý</th><th>Trạng thái</th><th>Ghi chú</th><th class="text-end">Thao tác</th></tr>
+                </thead>
+                <tbody>
+                    @if (Model.Copies.Count == 0)
+                    {
+                        <tr><td colspan="7" class="text-center text-muted py-4">Đầu sách này chưa có bản sao nào.</td></tr>
+                    }
+                    @foreach (var copy in Model.Copies)
+                    {
+                        <tr>
+                            <td class="fw-semibold font-monospace">@copy.CopyCode</td>
+                            <td>@copy.Shelf?.Warehouse?.Name</td>
+                            <td>@copy.Shelf?.Code – @copy.Shelf?.Name</td>
+                            <td>@copy.PhysicalCondition</td>
+                            <td><span class="badge @StatusBadge(copy.Status)">@copy.Status</span></td>
+                            <td class="small text-muted">@(copy.Note ?? "—")</td>
+                            <td class="text-end"><a asp-action="Edit" asp-route-id="@copy.Id" class="btn btn-sm btn-outline-primary">Sửa</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0" style="max-width: 52rem">
+        <div class="card-header"><h2 class="h5 mb-0">Thêm bản sao</h2></div>
+        <div class="card-body">
+            @if (Model.Shelves.Count == 0)
+            {
+                <p class="text-muted mb-0">Chưa có kệ nào đang hoạt động. Hãy tạo kho và kệ trước khi thêm bản sao.</p>
+            }
+            else
+            {
+                <form asp-action="Create" asp-route-bookId="@Model.BookId" method="post" class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label asp-for="NewCopy.CopyCode" class="form-label"></label>
+                        <input asp-for="NewCopy.CopyCode" class="form-control" placeholder="VD: 893000123" required />
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="NewCopy.ShelfId" class="form-label"></label>
+                        <select asp-for="NewCopy.ShelfId" class="form-select" required>
+                            <option value="">-- Chọn kệ --</option>
+                            @foreach (var shelf in Model.Shelves)
+                            {
+                                <option value="@shelf.Id">@shelf.Warehouse?.Name / @shelf.Code – @shelf.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="NewCopy.PhysicalCondition" class="form-label"></label>
+                        <select asp-for="NewCopy.PhysicalCondition" class="form-select" asp-items="@(new SelectList(BookCopyCondition.All))"></select>
+                    </div>
+                    <div class="col-md-2 d-grid">
+                        <button type="submit" class="btn btn-primary">Thêm</button>
+                    </div>
+                </form>
+            }
+        </div>
+    </div>
+</div>

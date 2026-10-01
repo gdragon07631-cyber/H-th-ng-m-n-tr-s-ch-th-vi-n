@@ -97,7 +97,11 @@ public sealed class BookService(
             Description = book.Description,
             CoverImagePath = book.CoverImagePath,
             ThumbnailImagePath = book.ThumbnailImagePath,
-            CreatedAtUtc = book.CreatedAtUtc
+            CreatedAtUtc = book.CreatedAtUtc,
+            // Chỉ bản "Sẵn sàng" là bản rảnh; bản Đang sửa chữa/Đang mượn/Đang giữ không được tính.
+            AvailableCopies = await dbContext.BookCopies.CountAsync(
+                copy => copy.BookId == book.Id && copy.Status == BookCopyStatus.Available, cancellationToken),
+            TotalCopies = await dbContext.BookCopies.CountAsync(copy => copy.BookId == book.Id, cancellationToken)
         };
     }
 
