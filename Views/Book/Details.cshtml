@@ -1,0 +1,148 @@
+@model Project.Models.BookDetailsViewModel
+@{
+    ViewData["Title"] = "Chi tiết sách - " + Model.Title;
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-8 col-lg-7">
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    @TempData["SuccessMessage"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            }
+            @if (TempData["HoldSuccessMessage"] != null)
+            {
+                <div class="alert alert-success">@TempData["HoldSuccessMessage"]</div>
+            }
+            @if (TempData["HoldErrorMessage"] != null)
+            {
+                <div class="alert alert-danger">@TempData["HoldErrorMessage"]</div>
+            }
+
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white py-3">
+                    <h1 class="h4 mb-0 text-primary fw-bold">Thông tin chi tiết sách</h1>
+                </div>
+                <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <img src="@Project.Models.BookCoverPresentation.ForDetails(Model)"
+                             alt="Bìa sách @Model.Title" class="book-cover-display" />
+                    </div>
+                    @if (Model.IsLibrarian)
+                    {
+                        @if (TempData["CoverUploadError"] != null)
+                        {
+                            <div class="alert alert-danger" role="alert">@TempData["CoverUploadError"]</div>
+                        }
+                        <form asp-action="UploadCover" asp-route-id="@Model.Id" method="post" enctype="multipart/form-data" class="mb-4 border rounded p-3">
+                            @if (!string.IsNullOrWhiteSpace(Model.CoverImagePath))
+                            {
+                                <div class="alert alert-info py-2">Chọn ảnh mới để thay thế ảnh bìa hiện tại.</div>
+                            }
+                            <label for="coverImage" class="form-label fw-semibold">Tải ảnh bìa (JPG/PNG, tối đa 3MB)</label>
+                            <div class="input-group">
+                                <input type="file" id="coverImage" name="coverImage" class="form-control" accept=".jpg,.jpeg,.png,image/jpeg,image/png" required />
+                                <button class="btn btn-outline-primary" type="submit">Tải ảnh lên</button>
+                            </div>
+                            <div class="form-text">Ảnh hiển thị trên trang tra cứu với kích thước 180 × 260 px.</div>
+                        </form>
+                    }
+                    <div class="mb-3 row">
+                        <label class="col-sm-3 col-form-label fw-semibold text-secondary">Tên sách:</label>
+                        <div class="col-sm-9">
+                            <p class="form-control-plaintext fw-bold fs-5 text-dark" id="bookTitle">@Model.Title</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 row">
+                        <label class="col-sm-3 col-form-label fw-semibold text-secondary">Thể loại:</label>
+                        <div class="col-sm-9"><p class="form-control-plaintext text-dark">@Model.CategoryName</p></div>
+                    </div>
+
+                    <div class="mb-3 row">
+                        <label class="col-sm-3 col-form-label fw-semibold text-secondary">Mã ISBN:</label>
+                        <div class="col-sm-9">
+                            <p class="form-control-plaintext text-muted">@(string.IsNullOrWhiteSpace(Model.Isbn) ? "Chưa có ISBN" : Model.Isbn)</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 row">
+                        <label class="col-sm-3 col-form-label fw-semibold text-secondary">Số bản rảnh:</label>
+                        <div class="col-sm-9">
+                            <p class="form-control-plaintext mb-0" id="availableCopies">
+                                @if (Model.AvailableCopies > 0)
+                                {
+                                    <span class="badge bg-success-subtle text-success-emphasis fs-6">@Model.AvailableCopies / @Model.TotalCopies bản sẵn sàng</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary-subtle text-secondary-emphasis fs-6">Hiện không còn bản rảnh</span>
+                                }
+                            </p>
+                            @if (Model.IsLibrarian)
+                            {
+                                <a asp-controller="BookCopy" asp-action="Index" asp-route-bookId="@Model.Id" class="btn btn-sm btn-outline-primary mt-2">Quản lý bản sao</a>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="mb-3 row">
+                        <label class="col-sm-3 col-form-label fw-semibold text-secondary">Tác giả:</label>
+                        <div class="col-sm-9">
+                            <p class="form-control-plaintext mb-1">
+                                <span class="fw-semibold text-dark fs-6" id="bookAuthorName">@Model.AuthorName</span>
+                                @if (Model.AuthorStatus == Project.Models.AuthorStatus.Active)
+                                {
+                                    <span class="badge bg-success ms-2">@Model.AuthorStatus</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary ms-2">@Model.AuthorStatus</span>
+                                }
+                            </p>
+                            @if (Model.AuthorStatus == Project.Models.AuthorStatus.Inactive)
+                            {
+                                <div class="small text-muted fst-italic">
+                                    (Tác giả này hiện đang ở trạng thái <strong>Ngừng sử dụng</strong>, nhưng thông tin liên kết với sách vẫn được bảo toàn nguyên vẹn).
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="mb-3 row">
+                        <label class="col-sm-3 col-form-label fw-semibold text-secondary">Mô tả:</label>
+                        <div class="col-sm-9">
+                            <p class="form-control-plaintext text-muted">@(string.IsNullOrWhiteSpace(Model.Description) ? "Không có mô tả" : Model.Description)</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-4 row">
+                        <label class="col-sm-3 col-form-label fw-semibold text-secondary">Ngày biên mục:</label>
+                        <div class="col-sm-9">
+                            <p class="form-control-plaintext text-muted">@Model.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2 border-top pt-3">
+                        @if (Model.CanHold)
+                        {
+                            <form asp-action="Hold" asp-route-id="@Model.Id" method="post">
+                                <button type="submit" class="btn btn-success">Đặt giữ</button>
+                            </form>
+                        }
+                        else if (!Model.IsReaderSignedIn)
+                        {
+                            <a asp-controller="ReaderRegistration" asp-action="Login" asp-route-returnUrl="@Url.Action("Details", new { id = Model.Id })" class="btn btn-outline-success">Đăng nhập để đặt giữ</a>
+                        }
+                        <a asp-action="Create" class="btn btn-primary">Biên mục sách mới</a>
+                        <a asp-action="Index" class="btn btn-outline-secondary">Danh sách sách</a>
+                        <a asp-controller="Author" asp-action="Index" class="btn btn-outline-info ms-auto">Quản lý tác giả</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
