@@ -27,5 +27,11 @@ public sealed class Book
     [MaxLength(500)]
     public string? Description { get; set; }
 
+    [MaxLength(500)]
+    public string? CoverImagePath { get; set; }
+
+    [MaxLength(500)]
+    public string? ThumbnailImagePath { get; set; }
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 }

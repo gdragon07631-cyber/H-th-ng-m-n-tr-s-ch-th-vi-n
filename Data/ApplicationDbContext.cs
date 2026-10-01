@@ -70,6 +70,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(b => b.Title).HasMaxLength(250).IsRequired();
             entity.Property(b => b.Isbn).HasMaxLength(50);
             entity.Property(b => b.Description).HasMaxLength(500);
+            entity.Property(b => b.CoverImagePath).HasMaxLength(500);
+            entity.Property(b => b.ThumbnailImagePath).HasMaxLength(500);
             entity.Property(b => b.CreatedAtUtc).HasColumnType("datetime2");
             entity.HasOne(b => b.Author)
                 .WithMany(a => a.Books)

@@ -27,6 +27,29 @@
                     <h1 class="h4 mb-0 text-primary fw-bold">Thông tin chi tiết sách</h1>
                 </div>
                 <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <img src="@Project.Models.BookCoverPresentation.ForDetails(Model)"
+                             alt="Bìa sách @Model.Title" class="book-cover-display" />
+                    </div>
+                    @if (Model.IsLibrarian)
+                    {
+                        @if (TempData["CoverUploadError"] != null)
+                        {
+                            <div class="alert alert-danger" role="alert">@TempData["CoverUploadError"]</div>
+                        }
+                        <form asp-action="UploadCover" asp-route-id="@Model.Id" method="post" enctype="multipart/form-data" class="mb-4 border rounded p-3">
+                            @if (!string.IsNullOrWhiteSpace(Model.CoverImagePath))
+                            {
+                                <div class="alert alert-info py-2">Chọn ảnh mới để thay thế ảnh bìa hiện tại.</div>
+                            }
+                            <label for="coverImage" class="form-label fw-semibold">Tải ảnh bìa (JPG/PNG, tối đa 3MB)</label>
+                            <div class="input-group">
+                                <input type="file" id="coverImage" name="coverImage" class="form-control" accept=".jpg,.jpeg,.png,image/jpeg,image/png" required />
+                                <button class="btn btn-outline-primary" type="submit">Tải ảnh lên</button>
+                            </div>
+                            <div class="form-text">Ảnh hiển thị trên trang tra cứu với kích thước 180 × 260 px.</div>
+                        </form>
+                    }
                     <div class="mb-3 row">
                         <label class="col-sm-3 col-form-label fw-semibold text-secondary">Tên sách:</label>
                         <div class="col-sm-9">
