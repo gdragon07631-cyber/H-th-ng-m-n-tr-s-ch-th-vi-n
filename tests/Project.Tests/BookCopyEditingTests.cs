@@ -256,6 +256,159 @@ public sealed class BookCopyEditingTests : IDisposable
         Assert.Equal(("BC-009", BookCopyStatus.Available, shelfB1.Id, BookCopyCondition.Worn), (saved.CopyCode, saved.Status, saved.ShelfId, saved.PhysicalCondition));
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(50)]
+    public async Task BatchCreatesRequestedCopiesWithConsecutiveBarcodesAndReceivedDate(int quantity)
+    {
+        var receivedDate = new DateOnly(2026, 10, 2);
+
+        var result = await service.AddBatchAsync(book.Id, new NewBookCopyBatchViewModel
+        {
+            Quantity = quantity,
+            WarehouseId = warehouseA.Id,
+            ShelfId = shelfA1.Id,
+            ReceivedDate = receivedDate
+        });
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(quantity, result.Copies!.Count);
+        Assert.Empty(result.SkippedBarcodes!);
+        Assert.Equal(Enumerable.Range(1, quantity).Select(number => number.ToString("D6")), result.Copies.Select(copy => copy.CopyCode));
+        Assert.All(result.Copies, copy =>
+        {
+            Assert.Equal(receivedDate, copy.ReceivedDate);
+            Assert.Equal(shelfA1.Id, copy.ShelfId);
+            Assert.Equal(warehouseA.Name, copy.Shelf?.Warehouse?.Name);
+        });
+        Assert.Equal(quantity, await db.BookCopies.CountAsync());
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(51)]
+    public async Task BatchRejectsQuantityOutsideOneThroughFifty(int quantity)
+    {
+        var result = await service.AddBatchAsync(book.Id, new NewBookCopyBatchViewModel
+        {
+            Quantity = quantity,
+            WarehouseId = warehouseA.Id,
+            ShelfId = shelfA1.Id,
+            ReceivedDate = new DateOnly(2026, 10, 2)
+        });
+
+        Assert.Equal(BookCopyBatchCreateStatus.InvalidQuantity, result.Status);
+        Assert.Empty(await db.BookCopies.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(1, "000001", "000001")]
+    [InlineData(5, "000001", "000005")]
+    [InlineData(10, "000001", "000010")]
+    [InlineData(50, "000001", "000050")]
+    public async Task PreviewReturnsTheAc1BarcodeRangeWithoutSaving(int quantity, string expectedStart, string expectedEnd)
+    {
+        var result = await service.PreviewBatchAsync(quantity);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(expectedStart, result.StartBarcode);
+        Assert.Equal(expectedEnd, result.EndBarcode);
+        Assert.Equal($"{expectedStart} - {expectedEnd}", result.DisplayRange);
+        Assert.Empty(await db.BookCopies.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(51)]
+    public async Task PreviewRejectsInvalidQuantityWithoutReturningARange(int quantity)
+    {
+        var result = await service.PreviewBatchAsync(quantity);
+
+        Assert.False(result.IsSuccess);
+        Assert.Null(result.DisplayRange);
+        Assert.Contains("1 đến 50", result.ErrorMessage);
+        Assert.Empty(await db.BookCopies.ToListAsync());
+    }
+
+    [Fact]
+    public async Task PreviewStartsAfterTheLastBarcodeGeneratedByAc1()
+    {
+        await service.AddBatchAsync(book.Id, new NewBookCopyBatchViewModel
+        {
+            Quantity = 5,
+            WarehouseId = warehouseA.Id,
+            ShelfId = shelfA1.Id,
+            ReceivedDate = new DateOnly(2026, 10, 2)
+        });
+
+        var preview = await service.PreviewBatchAsync(3);
+
+        Assert.Equal("000006", preview.StartBarcode);
+        Assert.Equal("000008", preview.EndBarcode);
+        Assert.Equal(5, await db.BookCopies.CountAsync());
+    }
+
+    [Fact]
+    public async Task LabelPreviewUsesOnlyRequestedSavedCopiesInOrderWithPngBarcodes()
+    {
+        var batch = await service.AddBatchAsync(book.Id, new NewBookCopyBatchViewModel
+        {
+            Quantity = 3,
+            WarehouseId = warehouseA.Id,
+            ShelfId = shelfA1.Id,
+            ReceivedDate = new DateOnly(2026, 10, 2)
+        });
+        var ids = batch.Copies!.Select(copy => copy.Id).ToArray();
+
+        var labels = await service.GetLabelsForCopiesAsync(book.Id, [ids[2], ids[0]]);
+
+        Assert.NotNull(labels);
+        Assert.Equal(new[] { "000003", "000001" }, labels.Labels.Select(label => label.CopyCode));
+        Assert.Equal(new[] { book.Title, book.Title }, labels.Labels.Select(label => label.BookTitle));
+        Assert.Equal(new[] { warehouseA.Code, warehouseA.Code }, labels.Labels.Select(label => label.WarehouseCode));
+        Assert.All(labels.Labels, label =>
+        {
+            Assert.StartsWith("data:image/png;base64,", label.BarcodeImageDataUri);
+            var png = Convert.FromBase64String(label.BarcodeImageDataUri["data:image/png;base64,".Length..]);
+            Assert.Equal(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }, png[..8]);
+        });
+        Assert.Equal(3, await db.BookCopies.CountAsync());
+    }
+
+    [Fact]
+    public async Task LabelPreviewRejectsCopyIdsFromAnotherBook()
+    {
+        var copy = await AddCopyAsync("BC-001");
+        var otherBook = new Book { Title = "Khác", AuthorId = book.AuthorId };
+        db.Books.Add(otherBook);
+        await db.SaveChangesAsync();
+
+        var labels = await service.GetLabelsForCopiesAsync(otherBook.Id, [copy.Id]);
+
+        Assert.Null(labels);
+    }
+
+    [Fact]
+    public async Task BatchScreenShowsTheCopiesJustSaved()
+    {
+        var result = await Controller().CreateBatch(book.Id, new NewBookCopyBatchViewModel
+        {
+            Quantity = 5,
+            WarehouseId = warehouseA.Id,
+            ShelfId = shelfA1.Id,
+            ReceivedDate = new DateOnly(2026, 10, 2)
+        });
+
+        var view = Assert.IsType<ViewResult>(result);
+        var page = Assert.IsType<BookCopyIndexViewModel>(view.Model);
+        Assert.Equal(5, page.CreatedCopies.Count);
+        Assert.Equal("000001", page.CreatedCopies[0].CopyCode);
+        Assert.Equal("000005", page.CreatedCopies[^1].CopyCode);
+        Assert.Empty(page.SkippedBarcodes);
+        Assert.Equal(5, await db.BookCopies.CountAsync());
+    }
+
     [Fact]
     public void CopyScreensAreForLibraryStaffOnly()
     {

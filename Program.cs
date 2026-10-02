@@ -30,6 +30,7 @@ builder.Services.AddScoped<IBookLoanService, BookLoanService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IStaffAccountService, StaffAccountService>();
 builder.Services.AddScoped<IBookCopyService, BookCopyService>();
+builder.Services.Configure<BookCopyLabelPrintOptions>(builder.Configuration.GetSection("BookCopyLabels"));
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, "Data", "Keys")));
 builder.Services.AddDbContext<ApplicationDbContext>(options =>

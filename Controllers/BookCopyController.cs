@@ -18,6 +18,20 @@ public sealed class BookCopyController(
         return model is null ? NotFound("Không tìm thấy đầu sách.") : View(model);
     }
 
+    [HttpGet]
+    public async Task<IActionResult> PreviewBatch(int quantity, CancellationToken cancellationToken = default)
+    {
+        var result = await bookCopyService.PreviewBatchAsync(quantity, cancellationToken);
+        return result.IsSuccess ? Ok(result) : BadRequest(result);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> PrintLabels(int bookId, [FromQuery] long[] copyIds, CancellationToken cancellationToken = default)
+    {
+        var model = await bookCopyService.GetLabelsForCopiesAsync(bookId, copyIds, cancellationToken);
+        return model is null ? NotFound("Không tìm thấy danh sách bản sao cần in.") : View(model);
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(int bookId, [Bind(Prefix = "NewCopy")] NewBookCopyViewModel model, CancellationToken cancellationToken = default)
@@ -34,6 +48,28 @@ public sealed class BookCopyController(
             ? $"Đã thêm bản sao {result.Copy!.CopyCode}."
             : result.ErrorMessage;
         return RedirectToAction(nameof(Index), new { bookId });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateBatch(int bookId, [Bind(Prefix = "Batch")] NewBookCopyBatchViewModel batch, CancellationToken cancellationToken = default)
+    {
+        var page = await bookCopyService.GetBookCopiesAsync(bookId, cancellationToken);
+        if (page is null) return NotFound("Không tìm thấy đầu sách.");
+        page.Batch = batch;
+        if (!ModelState.IsValid) return View("Index", page);
+
+        var result = await bookCopyService.AddBatchAsync(bookId, batch, cancellationToken);
+        if (!result.IsSuccess)
+        {
+            ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "Không thể tạo lô bản sao.");
+            return View("Index", page);
+        }
+
+        page.CreatedCopies = result.Copies ?? [];
+        page.SkippedBarcodes = result.SkippedBarcodes ?? [];
+        page.BatchSuccessMessage = $"Tạo lô bản sao thành công: {page.CreatedCopies.Count} bản sao.";
+        return View("Index", page);
     }
 
     [HttpGet]

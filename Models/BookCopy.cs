@@ -58,6 +58,8 @@ public sealed class BookCopy
     [Required, MaxLength(50)]
     public string CopyCode { get; set; } = string.Empty;
 
+    public DateOnly? ReceivedDate { get; set; }
+
     [MaxLength(50)]
     public string Status { get; set; } = "Sẵn sàng";
 

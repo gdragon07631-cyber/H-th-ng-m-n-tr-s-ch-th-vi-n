@@ -259,6 +259,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasIndex(copy => copy.CopyCode).IsUnique();
             entity.HasIndex(copy => copy.ShelfId);
             entity.Property(copy => copy.CopyCode).HasMaxLength(50).IsRequired();
+            entity.Property(copy => copy.ReceivedDate).HasColumnType("date");
             entity.Property(copy => copy.Status).HasMaxLength(50).HasDefaultValue("Sẵn sàng").IsRequired();
             entity.HasOne(copy => copy.Book).WithMany()
                 .HasForeignKey(copy => copy.BookId).OnDelete(DeleteBehavior.Restrict);

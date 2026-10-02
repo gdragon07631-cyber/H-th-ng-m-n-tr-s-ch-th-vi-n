@@ -1,0 +1,26 @@
+@model Project.Models.BookCopyLabelsViewModel
+@{
+    ViewData["Title"] = "Xem trước nhãn mã vạch";
+}
+<link rel="stylesheet" href="~/css/book-copy-labels.css" asp-append-version="true" />
+<div class="label-toolbar">
+    <a asp-action="Index" asp-route-bookId="@Model.BookId" class="btn btn-outline-secondary">Quay lại</a>
+    <button type="button" class="btn btn-primary" onclick="window.print()">In</button>
+</div>
+<main class="label-sheet"
+      style="--label-width: @Model.Layout.WidthMm mm; --label-height: @Model.Layout.HeightMm mm; --label-gap: @Model.Layout.GapMm mm; --label-columns: @Model.Layout.Columns">
+    @foreach (var label in Model.Labels)
+    {
+        <article class="barcode-label">
+            <div class="label-library">@Model.Layout.LibraryName</div>
+            <div class="label-book-title">@label.BookTitle</div>
+            <img class="label-barcode-image" src="@label.BarcodeImageDataUri" alt="Mã vạch @label.CopyCode" />
+            <div class="label-barcode-text">@label.CopyCode</div>
+            <div class="label-location">Kho: @label.WarehouseCode · Kệ: @label.ShelfCode</div>
+            @if (label.ReceivedDate is not null)
+            {
+                <div class="label-date">Ngày nhập: @label.ReceivedDate.Value.ToString("dd/MM/yyyy")</div>
+            }
+        </article>
+    }
+</main>

@@ -1,11 +1,21 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using System.Globalization;
 using Project.Data;
 using Project.Models;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using ZXing;
+using ZXing.Common;
 
 namespace Project.Services;
 
-public sealed class BookCopyService(ApplicationDbContext dbContext) : IBookCopyService
+public sealed class BookCopyService(ApplicationDbContext dbContext, IOptions<BookCopyLabelPrintOptions>? labelOptions = null) : IBookCopyService
 {
+    private const int BarcodeLength = 6;
+    private const int MaximumBarcodeNumber = 999999;
+    private readonly BookCopyLabelPrintOptions labelLayout = labelOptions?.Value ?? new();
+
     public async Task<BookCopyIndexViewModel?> GetBookCopiesAsync(int bookId, CancellationToken cancellationToken = default)
     {
         var title = await dbContext.Books.AsNoTracking()
@@ -22,6 +32,7 @@ public sealed class BookCopyService(ApplicationDbContext dbContext) : IBookCopyS
                 .Where(copy => copy.BookId == bookId)
                 .OrderBy(copy => copy.CopyCode)
                 .ToListAsync(cancellationToken),
+            Warehouses = await GetActiveWarehousesAsync(cancellationToken),
             Shelves = await GetActiveShelvesAsync(cancellationToken)
         };
     }
@@ -95,6 +106,126 @@ public sealed class BookCopyService(ApplicationDbContext dbContext) : IBookCopyS
         return new(BookCopyUpdateStatus.Success, Copy: copy);
     }
 
+    public async Task<BookCopyBatchCreateResult> AddBatchAsync(int bookId, NewBookCopyBatchViewModel model, CancellationToken cancellationToken = default)
+    {
+        if (model.Quantity is < 1 or > 50)
+            return new(BookCopyBatchCreateStatus.InvalidQuantity, "Số lượng phải từ 1 đến 50.");
+        if (model.ReceivedDate is null)
+            return new(BookCopyBatchCreateStatus.InvalidReceivedDate, "Vui lòng chọn ngày nhập.");
+        if (!await dbContext.Books.AnyAsync(book => book.Id == bookId, cancellationToken))
+            return new(BookCopyBatchCreateStatus.NotFound, "Không tìm thấy đầu sách.");
+        if (!await IsActiveShelfAsync(model.ShelfId, model.WarehouseId, cancellationToken))
+            return new(BookCopyBatchCreateStatus.InvalidShelf, "Kệ đã chọn không thuộc kho đã chọn hoặc đã ngừng sử dụng.");
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var lastNumber = await GetLastBarcodeNumberAsync(cancellationToken);
+        var copies = new List<BookCopy>(model.Quantity);
+        var skippedBarcodes = new List<string>();
+        var nextNumber = lastNumber + 1;
+        while (copies.Count < model.Quantity)
+        {
+            if (nextNumber > MaximumBarcodeNumber)
+                return new(BookCopyBatchCreateStatus.BarcodeSequenceExhausted, "Đã hết dải mã vạch gồm 6 chữ số.");
+
+            var code = FormatBarcode(nextNumber++);
+            if (await dbContext.BookCopies.AsNoTracking().AnyAsync(copy => copy.CopyCode == code, cancellationToken))
+            {
+                skippedBarcodes.Add(code);
+                continue;
+            }
+
+            copies.Add(new BookCopy
+            {
+                BookId = bookId,
+                ShelfId = model.ShelfId,
+                CopyCode = code,
+                ReceivedDate = model.ReceivedDate.Value,
+                Status = BookCopyStatus.Available,
+                PhysicalCondition = BookCopyCondition.Good
+            });
+        }
+
+        dbContext.BookCopies.AddRange(copies);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var createdIds = copies.Select(copy => copy.Id).ToArray();
+        var savedCopies = await dbContext.BookCopies.AsNoTracking()
+            .Include(copy => copy.Shelf).ThenInclude(shelf => shelf!.Warehouse)
+            .Where(copy => createdIds.Contains(copy.Id))
+            .OrderBy(copy => copy.CopyCode)
+            .ToListAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(BookCopyBatchCreateStatus.Success, Copies: savedCopies, SkippedBarcodes: skippedBarcodes);
+    }
+
+    public async Task<BookCopyBarcodePreviewResult> PreviewBatchAsync(int quantity, CancellationToken cancellationToken = default)
+    {
+        if (quantity is < 1 or > 50)
+            return new(false, ErrorMessage: "Số lượng phải là số nguyên từ 1 đến 50.");
+
+        var startNumber = await GetLastBarcodeNumberAsync(cancellationToken) + 1;
+        var endNumber = startNumber + quantity - 1;
+        if (endNumber > MaximumBarcodeNumber)
+            return new(false, ErrorMessage: "Đã hết dải mã vạch gồm 6 chữ số.");
+
+        var startBarcode = FormatBarcode(startNumber);
+        var endBarcode = FormatBarcode(endNumber);
+        return new(true, startBarcode, endBarcode, $"{startBarcode} - {endBarcode}");
+    }
+
+    public async Task<BookCopyLabelsViewModel?> GetLabelsForCopiesAsync(int bookId, IReadOnlyList<long> copyIds, CancellationToken cancellationToken = default)
+    {
+        if (copyIds.Count is < 1 or > 50 || copyIds.Distinct().Count() != copyIds.Count)
+            return null;
+
+        var copies = await dbContext.BookCopies.AsNoTracking()
+            .Include(copy => copy.Book)
+            .Include(copy => copy.Shelf).ThenInclude(shelf => shelf!.Warehouse)
+            .Where(copy => copy.BookId == bookId && copyIds.Contains(copy.Id))
+            .ToListAsync(cancellationToken);
+        if (copies.Count != copyIds.Count) return null;
+
+        var copiesById = copies.ToDictionary(copy => copy.Id);
+        var writer = new BarcodeWriterPixelData
+        {
+            Format = BarcodeFormat.CODE_128,
+            Options = new EncodingOptions
+            {
+                Width = labelLayout.BarcodeWidthPx,
+                Height = labelLayout.BarcodeHeightPx,
+                Margin = 8,
+                PureBarcode = true
+            }
+        };
+        var labels = new List<BookCopyLabelViewModel>(copyIds.Count);
+        foreach (var copyId in copyIds)
+        {
+            var copy = copiesById[copyId];
+            var pixels = writer.Write(copy.CopyCode);
+            using var image = Image.LoadPixelData<Bgra32>(pixels.Pixels, pixels.Width, pixels.Height);
+            await using var stream = new MemoryStream();
+            await image.SaveAsPngAsync(stream, cancellationToken);
+            labels.Add(new BookCopyLabelViewModel
+            {
+                CopyId = copy.Id,
+                CopyCode = copy.CopyCode,
+                BookTitle = copy.Book?.Title ?? string.Empty,
+                WarehouseCode = copy.Shelf?.Warehouse?.Code ?? string.Empty,
+                ShelfCode = copy.Shelf?.Code ?? string.Empty,
+                ReceivedDate = copy.ReceivedDate,
+                BarcodeImageDataUri = $"data:image/png;base64,{Convert.ToBase64String(stream.ToArray())}"
+            });
+        }
+
+        return new BookCopyLabelsViewModel
+        {
+            BookId = bookId,
+            BookTitle = copiesById[copyIds[0]].Book?.Title ?? string.Empty,
+            Layout = labelLayout,
+            Labels = labels
+        };
+    }
+
     public async Task<BookCopyUpdateResult> UpdateAsync(long copyId, BookCopyEditViewModel model, string changedBy, CancellationToken cancellationToken = default)
     {
         var copy = await dbContext.BookCopies.SingleOrDefaultAsync(item => item.Id == copyId, cancellationToken);
@@ -153,4 +284,18 @@ public sealed class BookCopyService(ApplicationDbContext dbContext) : IBookCopyS
             shelf.Status == ShelfStatus.Active &&
             shelf.Warehouse!.Status == WarehouseStatus.Active &&
             (warehouseId == null || shelf.WarehouseId == warehouseId), cancellationToken);
+
+    private async Task<int> GetLastBarcodeNumberAsync(CancellationToken cancellationToken)
+    {
+        var existingCodes = await dbContext.BookCopies.AsNoTracking()
+            .Where(copy => copy.CopyCode.Length == BarcodeLength)
+            .Select(copy => copy.CopyCode)
+            .ToListAsync(cancellationToken);
+        return existingCodes
+            .Select(code => int.TryParse(code, NumberStyles.None, CultureInfo.InvariantCulture, out var number) ? number : 0)
+            .DefaultIfEmpty(0)
+            .Max();
+    }
+
+    private static string FormatBarcode(int number) => number.ToString($"D{BarcodeLength}", CultureInfo.InvariantCulture);
 }

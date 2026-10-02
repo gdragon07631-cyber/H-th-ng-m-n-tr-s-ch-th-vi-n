@@ -1,0 +1,115 @@
+.label-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin: 1rem auto;
+    max-width: 900px;
+}
+
+.label-sheet {
+    display: grid;
+    grid-template-columns: repeat(var(--label-columns), var(--label-width));
+    gap: var(--label-gap);
+    justify-content: center;
+    padding: 1rem;
+}
+
+.barcode-label {
+    box-sizing: border-box;
+    width: var(--label-width);
+    height: var(--label-height);
+    padding: 2.5mm;
+    overflow: hidden;
+    border: 1px solid #8a8a8a;
+    background: #fff;
+    color: #111;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    text-align: center;
+    font-family: Arial, sans-serif;
+}
+
+.label-library {
+    font-size: 8pt;
+    font-weight: 700;
+}
+
+.label-book-title {
+    width: 100%;
+    overflow: hidden;
+    font-size: 7pt;
+    line-height: 1.15;
+    max-height: 2.3em;
+}
+
+.label-barcode-image {
+    display: block;
+    width: 88%;
+    height: auto;
+    max-height: 16mm;
+    object-fit: contain;
+}
+
+.label-barcode-text {
+    font-family: monospace;
+    font-size: 9pt;
+    font-weight: 700;
+}
+
+.label-location,
+.label-date {
+    width: 100%;
+    font-size: 6.5pt;
+    line-height: 1.1;
+}
+
+@media print {
+    @page {
+        size: A4;
+        margin: 8mm;
+    }
+
+    html,
+    body {
+        width: auto !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    body * {
+        visibility: hidden !important;
+    }
+
+    .label-sheet,
+    .label-sheet * {
+        visibility: visible !important;
+    }
+
+    .label-toolbar {
+        display: none !important;
+    }
+
+    .label-sheet {
+        position: absolute;
+        top: 0;
+        left: 0;
+        display: grid;
+        grid-template-columns: repeat(var(--label-columns), var(--label-width));
+        gap: var(--label-gap);
+        justify-content: start;
+        margin: 0;
+        padding: 0;
+    }
+
+    .barcode-label {
+        border: 0.25mm solid #777;
+        break-inside: avoid;
+        page-break-inside: avoid;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+}

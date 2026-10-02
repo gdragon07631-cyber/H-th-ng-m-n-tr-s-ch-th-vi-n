@@ -7,8 +7,32 @@ public sealed class BookCopyIndexViewModel
     public int BookId { get; set; }
     public string BookTitle { get; set; } = string.Empty;
     public IReadOnlyList<BookCopy> Copies { get; set; } = [];
+    public IReadOnlyList<BookCopy> CreatedCopies { get; set; } = [];
+    public IReadOnlyList<string> SkippedBarcodes { get; set; } = [];
+    public IReadOnlyList<Warehouse> Warehouses { get; set; } = [];
     public IReadOnlyList<Shelf> Shelves { get; set; } = [];
     public NewBookCopyViewModel NewCopy { get; set; } = new();
+    public NewBookCopyBatchViewModel Batch { get; set; } = new();
+    public string? BatchSuccessMessage { get; set; }
+}
+
+public sealed class NewBookCopyBatchViewModel
+{
+    [Range(1, 50, ErrorMessage = "Số lượng phải là số nguyên từ 1 đến 50.")]
+    [Display(Name = "Số lượng")]
+    public int Quantity { get; set; }
+
+    [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn kho.")]
+    [Display(Name = "Kho")]
+    public int WarehouseId { get; set; }
+
+    [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn kệ.")]
+    [Display(Name = "Kệ")]
+    public int ShelfId { get; set; }
+
+    [Required(ErrorMessage = "Vui lòng chọn ngày nhập.")]
+    [Display(Name = "Ngày nhập")]
+    public DateOnly? ReceivedDate { get; set; }
 }
 
 public sealed class NewBookCopyViewModel
@@ -70,4 +94,34 @@ public sealed class BookCopyEditViewModel
 
     /// <summary>Trạng thái do nghiệp vụ mượn/đặt giữ quản lý thì thủ thư không đổi trực tiếp.</summary>
     public bool StatusLocked => !BookCopyStatus.Editable.Contains(CurrentStatus);
+}
+
+public sealed class BookCopyLabelPrintOptions
+{
+    public string LibraryName { get; set; } = "Thư viện";
+    public int WidthMm { get; set; } = 70;
+    public int HeightMm { get; set; } = 38;
+    public int GapMm { get; set; } = 4;
+    public int Columns { get; set; } = 2;
+    public int BarcodeWidthPx { get; set; } = 360;
+    public int BarcodeHeightPx { get; set; } = 100;
+}
+
+public sealed class BookCopyLabelsViewModel
+{
+    public int BookId { get; set; }
+    public string BookTitle { get; set; } = string.Empty;
+    public BookCopyLabelPrintOptions Layout { get; set; } = new();
+    public IReadOnlyList<BookCopyLabelViewModel> Labels { get; set; } = [];
+}
+
+public sealed class BookCopyLabelViewModel
+{
+    public long CopyId { get; set; }
+    public string CopyCode { get; set; } = string.Empty;
+    public string BookTitle { get; set; } = string.Empty;
+    public string WarehouseCode { get; set; } = string.Empty;
+    public string ShelfCode { get; set; } = string.Empty;
+    public DateOnly? ReceivedDate { get; set; }
+    public string BarcodeImageDataUri { get; set; } = string.Empty;
 }
