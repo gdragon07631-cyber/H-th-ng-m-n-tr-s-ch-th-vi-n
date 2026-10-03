@@ -1,6 +1,7 @@
 @model IReadOnlyList<Project.Models.Book>
 @{
     ViewData["Title"] = "Danh mục sách";
+    var copyCounts = ViewData["CopyCounts"] as IReadOnlyDictionary<int, int> ?? new Dictionary<int, int>();
 }
 
 <div class="container py-4">
@@ -36,9 +37,13 @@
                         <tr>
                             <th scope="col" style="width: 60px;" class="text-center">STT</th>
                             <th scope="col" style="width: 90px;" class="text-center">Bìa</th>
-                            <th scope="col">Tên sách</th>
-                            <th scope="col">Mã ISBN</th>
+                            <th scope="col">Nhan đề</th>
+                            <th scope="col">ISBN</th>
                             <th scope="col">Tác giả</th>
+                            <th scope="col">Nhà xuất bản</th>
+                            <th scope="col" class="text-center">Năm XB</th>
+                            <th scope="col">Thể loại</th>
+                            <th scope="col" class="text-center">Số trang</th>
                             <th scope="col" style="width: 140px;" class="text-center">Thao tác</th>
                         </tr>
                     </thead>
@@ -46,7 +51,7 @@
                         @if (Model.Count == 0)
                         {
                             <tr>
-                                <td colspan="6" class="text-center py-4 text-muted">
+                                <td colspan="10" class="text-center py-4 text-muted">
                                     Chưa có cuốn sách nào được biên mục. Hãy nhấn <strong>Biên mục sách mới</strong> để thêm.
                                 </td>
                             </tr>
@@ -68,18 +73,38 @@
                                         <a asp-action="Details" asp-route-id="@book.Id" class="text-decoration-none">
                                             @book.Title
                                         </a>
+                                        @if (!string.IsNullOrWhiteSpace(book.Subtitle))
+                                        {
+                                            <div class="small text-muted">@book.Subtitle</div>
+                                        }
+                                        @if (copyCounts.GetValueOrDefault(book.Id) == 0)
+                                        {
+                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle mt-1" data-status="no-copies">@Project.Models.BookCatalogStatus.NoCopies</span>
+                                        }
                                     </td>
                                     <td class="text-muted small">@(string.IsNullOrWhiteSpace(book.Isbn) ? "-" : book.Isbn)</td>
                                     <td>
-                                        <span class="fw-semibold">@book.Author?.Name</span>
-                                        @if (book.Author?.Status == Project.Models.AuthorStatus.Inactive)
+                                        @foreach (var author in Project.Models.BookAuthorList.For(book))
                                         {
-                                            <span class="badge bg-secondary ms-1 small">Ngừng sử dụng</span>
+                                            <div>
+                                                <span class="fw-semibold">@author.Name</span>
+                                                @if (author.Status == Project.Models.AuthorStatus.Inactive)
+                                                {
+                                                    <span class="badge bg-secondary ms-1 small">Ngừng sử dụng</span>
+                                                }
+                                            </div>
                                         }
                                     </td>
+                                    <td>@(string.IsNullOrWhiteSpace(book.Publisher) ? "-" : book.Publisher)</td>
+                                    <td class="text-center">@(book.PublicationYear?.ToString() ?? "-")</td>
+                                    <td>@(book.Category == null ? "-" : book.Category.Parent == null ? book.Category.Name : $"{book.Category.Parent.Name} > {book.Category.Name}")</td>
+                                    <td class="text-center">@(book.PageCount?.ToString() ?? "-")</td>
                                     <td class="text-center">
                                         <a asp-action="Details" asp-route-id="@book.Id" class="btn btn-sm btn-outline-primary">
                                             Chi tiết
+                                        </a>
+                                        <a asp-action="Edit" asp-route-id="@book.Id" class="btn btn-sm btn-outline-secondary mt-1">
+                                            Sửa
                                         </a>
                                     </td>
                                 </tr>

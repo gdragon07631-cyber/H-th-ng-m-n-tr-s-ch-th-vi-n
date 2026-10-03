@@ -57,6 +57,42 @@
                         </div>
                     </div>
 
+                    @if (Model.IsLibrarian && Model.TotalCopies == 0)
+                    {
+                        <div class="mb-3 row">
+                            <label class="col-sm-3 col-form-label fw-semibold text-secondary">Trạng thái:</label>
+                            <div class="col-sm-9">
+                                <p class="form-control-plaintext mb-0">
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fs-6" id="bookCopyStatus">@Project.Models.BookCatalogStatus.NoCopies</span>
+                                </p>
+                                <div class="form-text">Đầu sách chưa hiển thị trong tra cứu công khai cho tới khi có ít nhất 1 bản sao.</div>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(Model.Subtitle))
+                    {
+                        <div class="mb-3 row">
+                            <label class="col-sm-3 col-form-label fw-semibold text-secondary">Nhan đề phụ:</label>
+                            <div class="col-sm-9"><p class="form-control-plaintext text-dark">@Model.Subtitle</p></div>
+                        </div>
+                    }
+
+                    <div class="mb-3 row">
+                        <label class="col-sm-3 col-form-label fw-semibold text-secondary">Nhà xuất bản:</label>
+                        <div class="col-sm-9"><p class="form-control-plaintext text-dark">@(string.IsNullOrWhiteSpace(Model.Publisher) ? "Chưa có" : Model.Publisher)</p></div>
+                    </div>
+
+                    <div class="mb-3 row">
+                        <label class="col-sm-3 col-form-label fw-semibold text-secondary">Năm xuất bản:</label>
+                        <div class="col-sm-9"><p class="form-control-plaintext text-dark">@(Model.PublicationYear?.ToString() ?? "Chưa có")</p></div>
+                    </div>
+
+                    <div class="mb-3 row">
+                        <label class="col-sm-3 col-form-label fw-semibold text-secondary">Số trang:</label>
+                        <div class="col-sm-9"><p class="form-control-plaintext text-dark">@(Model.PageCount?.ToString() ?? "Chưa có")</p></div>
+                    </div>
+
                     <div class="mb-3 row">
                         <label class="col-sm-3 col-form-label fw-semibold text-secondary">Thể loại:</label>
                         <div class="col-sm-9"><p class="form-control-plaintext text-dark">@Model.CategoryName</p></div>
@@ -103,6 +139,13 @@
                                     <span class="badge bg-secondary ms-2">@Model.AuthorStatus</span>
                                 }
                             </p>
+                            @foreach (var coAuthor in Model.Authors.Where(author => author.Id != Model.AuthorId))
+                            {
+                                <p class="form-control-plaintext mb-1 py-0">
+                                    <span class="fw-semibold text-dark fs-6">@coAuthor.Name</span>
+                                    <span class="badge @(coAuthor.Status == Project.Models.AuthorStatus.Active ? "bg-success" : "bg-secondary") ms-2">@coAuthor.Status</span>
+                                </p>
+                            }
                             @if (Model.AuthorStatus == Project.Models.AuthorStatus.Inactive)
                             {
                                 <div class="small text-muted fst-italic">

@@ -194,6 +194,20 @@ namespace Project.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<int?>("PageCount")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("PublicationYear")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Publisher")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Subtitle")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
                     b.Property<string>("ThumbnailImagePath")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -210,6 +224,24 @@ namespace Project.Migrations
                     b.HasIndex("CategoryId");
 
                     b.ToTable("Books");
+                });
+
+            modelBuilder.Entity("Project.Models.BookAuthor", b =>
+                {
+                    b.Property<int>("BookId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AuthorId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("BookId", "AuthorId");
+
+                    b.HasIndex("AuthorId");
+
+                    b.ToTable("BookAuthors");
                 });
 
             modelBuilder.Entity("Project.Models.BookCopy", b =>
@@ -957,6 +989,25 @@ namespace Project.Migrations
                     b.Navigation("Category");
                 });
 
+            modelBuilder.Entity("Project.Models.BookAuthor", b =>
+                {
+                    b.HasOne("Project.Models.Author", "Author")
+                        .WithMany("BookAuthors")
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Project.Models.Book", "Book")
+                        .WithMany("BookAuthors")
+                        .HasForeignKey("BookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+
+                    b.Navigation("Book");
+                });
+
             modelBuilder.Entity("Project.Models.BookCopy", b =>
                 {
                     b.HasOne("Project.Models.Book", "Book")
@@ -1128,7 +1179,14 @@ namespace Project.Migrations
 
             modelBuilder.Entity("Project.Models.Author", b =>
                 {
+                    b.Navigation("BookAuthors");
+
                     b.Navigation("Books");
+                });
+
+            modelBuilder.Entity("Project.Models.Book", b =>
+                {
+                    b.Navigation("BookAuthors");
                 });
 
             modelBuilder.Entity("Project.Models.Category", b =>

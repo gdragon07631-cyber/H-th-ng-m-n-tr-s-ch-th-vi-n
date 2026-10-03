@@ -17,6 +17,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<ReaderPasswordResetRequest> ReaderPasswordResetRequests => Set<ReaderPasswordResetRequest>();
     public DbSet<Author> Authors => Set<Author>();
     public DbSet<Book> Books => Set<Book>();
+    public DbSet<BookAuthor> BookAuthors => Set<BookAuthor>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<LibraryCardType> LibraryCardTypes => Set<LibraryCardType>();
     public DbSet<LibraryCard> LibraryCards => Set<LibraryCard>();
@@ -69,7 +70,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         modelBuilder.Entity<Book>(entity =>
         {
             entity.Property(b => b.Title).HasMaxLength(250).IsRequired();
+            entity.Property(b => b.Subtitle).HasMaxLength(250);
             entity.Property(b => b.Isbn).HasMaxLength(50);
+            entity.Property(b => b.Publisher).HasMaxLength(200);
             entity.Property(b => b.Description).HasMaxLength(500);
             entity.Property(b => b.CoverImagePath).HasMaxLength(500);
             entity.Property(b => b.ThumbnailImagePath).HasMaxLength(500);
@@ -81,6 +84,20 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasOne(b => b.Category)
                 .WithMany(c => c.Books)
                 .HasForeignKey(b => b.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BookAuthor>(entity =>
+        {
+            entity.HasKey(link => new { link.BookId, link.AuthorId });
+            entity.HasIndex(link => link.AuthorId);
+            entity.HasOne(link => link.Book)
+                .WithMany(book => book.BookAuthors)
+                .HasForeignKey(link => link.BookId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(link => link.Author)
+                .WithMany(author => author.BookAuthors)
+                .HasForeignKey(link => link.AuthorId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

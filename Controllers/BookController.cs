@@ -28,6 +28,7 @@ public sealed class BookController(
 
         var books = await bookService.GetAllBooksAsync(cancellationToken);
         await EnsureExistingBookThumbnailsAsync(books, cancellationToken);
+        ViewData["CopyCounts"] = await bookService.GetCopyCountsAsync(books.Select(book => book.Id), cancellationToken);
         return View(books);
     }
 
@@ -97,22 +98,82 @@ public sealed class BookController(
     {
         if (!ModelState.IsValid)
         {
-            model.ActiveAuthors = await authorService.GetActiveAuthorsAsync(cancellationToken);
-            model.ActiveCategories = await categoryService.GetActiveAsync(cancellationToken);
+            await FillBookFormListsAsync(model, cancellationToken);
             return View(model);
         }
 
         var outcome = await bookService.CatalogBookAsync(model, cancellationToken);
         if (!outcome.IsSuccess)
         {
-            ModelState.AddModelError(string.Empty, outcome.ErrorMessage ?? "Không thể biên mục sách.");
-            model.ActiveAuthors = await authorService.GetActiveAuthorsAsync(cancellationToken);
-            model.ActiveCategories = await categoryService.GetActiveAsync(cancellationToken);
+            if (outcome.RequiresTitleConfirmation)
+                model.DuplicateTitleMatches = outcome.DuplicateTitleMatches;
+            else
+                ModelState.AddModelError(outcome.IsDuplicateIsbn ? nameof(model.Isbn) : string.Empty, outcome.ErrorMessage ?? "Không thể biên mục sách.");
+            await FillBookFormListsAsync(model, cancellationToken);
             return View(model);
         }
 
         TempData["SuccessMessage"] = $"Biên mục sách \"{outcome.Book!.Title}\" thành công.";
-        return RedirectToAction(nameof(Details), new { id = outcome.Book.Id });
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Edit(int id, CancellationToken cancellationToken = default)
+    {
+        if (!await IsLibrarianSignedInAsync(cancellationToken))
+            return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Edit), new { id }) });
+
+        var model = await bookService.GetBookForEditAsync(id, cancellationToken);
+        if (model == null) return NotFound("Không tìm thấy thông tin sách.");
+        await FillBookFormListsAsync(model, cancellationToken);
+        return View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(int id, CatalogBookViewModel model, CancellationToken cancellationToken = default)
+    {
+        if (!await IsLibrarianSignedInAsync(cancellationToken))
+            return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Edit), new { id }) });
+
+        model.Id = id;
+        if (ModelState.IsValid)
+        {
+            var outcome = await bookService.UpdateBookAsync(id, model, cancellationToken);
+            if (outcome.IsSuccess)
+            {
+                TempData["SuccessMessage"] = $"Cập nhật đầu sách \"{outcome.Book!.Title}\" thành công.";
+                return RedirectToAction(nameof(Index));
+            }
+            if (!await dbContext.Books.AnyAsync(book => book.Id == id, cancellationToken))
+                return NotFound("Không tìm thấy thông tin sách.");
+            ModelState.AddModelError(outcome.IsDuplicateIsbn ? nameof(model.Isbn) : string.Empty, outcome.ErrorMessage ?? "Không thể cập nhật đầu sách.");
+        }
+
+        await FillBookFormListsAsync(model, cancellationToken);
+        return View(model);
+    }
+
+    /// <summary>Nạp danh sách tác giả/thể loại đang hoạt động và các tác giả đang được chọn để hiển thị lại trên form.</summary>
+    private async Task FillBookFormListsAsync(CatalogBookViewModel model, CancellationToken cancellationToken)
+    {
+        model.ActiveAuthors = await authorService.GetActiveAuthorsAsync(cancellationToken);
+        model.ActiveCategories = await categoryService.GetActiveAsync(cancellationToken);
+        if (model.Id > 0 && model.CategoryId > 0 && model.ActiveCategories.All(category => category.Id != model.CategoryId))
+        {
+            var current = await dbContext.Categories.AsNoTracking().Include(category => category.Parent)
+                .FirstOrDefaultAsync(category => category.Id == model.CategoryId, cancellationToken);
+            if (current != null) model.ActiveCategories = [.. model.ActiveCategories, current];
+        }
+
+        var selectedIds = model.ResolveAuthorIds();
+        var selected = await dbContext.Authors.AsNoTracking()
+            .Where(author => selectedIds.Contains(author.Id))
+            .ToListAsync(cancellationToken);
+        model.SelectedAuthors = selectedIds
+            .Select(id => selected.FirstOrDefault(author => author.Id == id))
+            .OfType<Author>()
+            .ToList();
     }
 
     [HttpGet]
@@ -279,12 +340,21 @@ public sealed class BookController(
         [FromBody] CatalogBookViewModel request,
         CancellationToken cancellationToken = default)
     {
-        if (request == null || string.IsNullOrWhiteSpace(request.Title) || request.AuthorId <= 0 || request.CategoryId <= 0)
+        if (request == null || string.IsNullOrWhiteSpace(request.Title) || request.ResolveAuthorIds().Count == 0 || request.CategoryId <= 0)
         {
             return BadRequest(new { message = "Vui lòng nhập đầy đủ tiêu đề sách và tác giả hợp lệ." });
         }
 
         var outcome = await bookService.CatalogBookAsync(request, cancellationToken);
+        if (outcome.RequiresTitleConfirmation)
+        {
+            // Gửi lại kèm "confirmedDuplicateTitle" bằng đúng nhan đề này để xác nhận vẫn tạo đầu sách mới.
+            return Conflict(new { message = outcome.ErrorMessage, requiresConfirmation = true, duplicateTitleMatches = outcome.DuplicateTitleMatches });
+        }
+        if (outcome.IsDuplicateIsbn)
+        {
+            return Conflict(new { message = outcome.ErrorMessage });
+        }
         if (!outcome.IsSuccess)
         {
             return BadRequest(new { message = outcome.ErrorMessage });
@@ -294,8 +364,13 @@ public sealed class BookController(
         {
             id = outcome.Book!.Id,
             title = outcome.Book.Title,
+            subtitle = outcome.Book.Subtitle,
             isbn = outcome.Book.Isbn,
+            publisher = outcome.Book.Publisher,
+            publicationYear = outcome.Book.PublicationYear,
+            pageCount = outcome.Book.PageCount,
             authorId = outcome.Book.AuthorId,
+            authorIds = outcome.Book.BookAuthors.OrderBy(link => link.SortOrder).Select(link => link.AuthorId).ToArray(),
             categoryId = outcome.Book.CategoryId,
             createdAtUtc = outcome.Book.CreatedAtUtc
         });

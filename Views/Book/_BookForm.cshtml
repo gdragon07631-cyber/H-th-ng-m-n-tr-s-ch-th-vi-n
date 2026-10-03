@@ -1,0 +1,155 @@
+@model Project.Models.CatalogBookViewModel
+@{
+    var selectedIds = Model.SelectedAuthors.Select(author => author.Id).ToHashSet();
+}
+
+<div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+<div class="mb-3">
+    <label asp-for="Title" class="form-label fw-semibold">Nhan đề <span class="text-danger">*</span></label>
+    <input asp-for="Title" class="form-control" placeholder="Nhập nhan đề sách..." autofocus />
+    <span asp-validation-for="Title" class="text-danger small"></span>
+</div>
+
+<div class="mb-3">
+    <label asp-for="Subtitle" class="form-label fw-semibold">Nhan đề phụ</label>
+    <input asp-for="Subtitle" class="form-control" placeholder="Nhập nhan đề phụ (nếu có)..." />
+    <span asp-validation-for="Subtitle" class="text-danger small"></span>
+</div>
+
+<div class="mb-3">
+    <label asp-for="Isbn" class="form-label fw-semibold">ISBN</label>
+    <input asp-for="Isbn" class="form-control" inputmode="numeric" maxlength="13" placeholder="Ví dụ: 9786042000000" />
+    <span asp-validation-for="Isbn" class="text-danger small"></span>
+    <div class="form-text small text-muted">Không bắt buộc. Nếu nhập, chỉ gồm chữ số và đúng 10 hoặc 13 chữ số.</div>
+</div>
+
+<div class="mb-3" id="authorPicker">
+    <label for="authorSelect" class="form-label fw-semibold">Tác giả <span class="text-danger">*</span></label>
+    <div class="input-group">
+        <select class="form-select" id="authorSelect" aria-describedby="authorPickerHelp">
+            <option value="">-- Chọn tác giả (chỉ hiển thị tác giả đang hoạt động) --</option>
+            @foreach (var author in Model.ActiveAuthors)
+            {
+                <option value="@author.Id" hidden="@selectedIds.Contains(author.Id)">@author.Name</option>
+            }
+        </select>
+        <button type="button" class="btn btn-outline-primary" id="addAuthorButton">Thêm tác giả</button>
+    </div>
+    <span asp-validation-for="AuthorIds" class="text-danger small"></span>
+    <div class="form-text small text-muted" id="authorPickerHelp">
+        Có thể chọn nhiều tác giả; tác giả đầu tiên là tác giả chính. Chỉ những tác giả đang ở trạng thái <strong>Hoạt động</strong> mới xuất hiện trong danh sách này.
+    </div>
+
+    <div class="fw-semibold small text-secondary mt-3 mb-1">Tác giả đã chọn</div>
+    <ul class="list-group" id="selectedAuthors" aria-live="polite">
+        @foreach (var author in Model.SelectedAuthors)
+        {
+            <li class="list-group-item d-flex justify-content-between align-items-center" data-author-id="@author.Id">
+                <span>
+                    <span class="fw-semibold">@author.Name</span>
+                    @if (author.Status != Project.Models.AuthorStatus.Active)
+                    {
+                        <span class="badge bg-secondary ms-1 small">Ngừng sử dụng</span>
+                    }
+                </span>
+                <input type="hidden" name="AuthorIds" value="@author.Id" />
+                <button type="button" class="btn btn-sm btn-outline-danger" data-remove-author aria-label="Bỏ tác giả @author.Name">Bỏ</button>
+            </li>
+        }
+    </ul>
+    <div class="form-text text-muted" id="noAuthorsMessage" hidden="@(Model.SelectedAuthors.Count > 0)">Chưa chọn tác giả nào.</div>
+</div>
+
+<div class="mb-3">
+    <label asp-for="Publisher" class="form-label fw-semibold">Nhà xuất bản</label>
+    <input asp-for="Publisher" class="form-control" placeholder="Nhập tên nhà xuất bản..." />
+    <span asp-validation-for="Publisher" class="text-danger small"></span>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-sm-6">
+        <label asp-for="PublicationYear" class="form-label fw-semibold">Năm xuất bản</label>
+        <input asp-for="PublicationYear" type="number" min="1000" max="@DateTime.Now.Year" step="1" class="form-control" placeholder="Ví dụ: 2024" />
+        <span asp-validation-for="PublicationYear" class="text-danger small"></span>
+    </div>
+    <div class="col-sm-6">
+        <label asp-for="PageCount" class="form-label fw-semibold">Số trang</label>
+        <input asp-for="PageCount" type="number" min="1" step="1" class="form-control" placeholder="Ví dụ: 320" />
+        <span asp-validation-for="PageCount" class="text-danger small"></span>
+    </div>
+</div>
+
+<div class="mb-3">
+    <label asp-for="CategoryId" class="form-label fw-semibold">Thể loại <span class="text-danger">*</span></label>
+    <select asp-for="CategoryId" class="form-select">
+        <option value="">-- Chọn thể loại đang hoạt động --</option>
+        @foreach (var category in Model.ActiveCategories)
+        {
+            <option value="@category.Id">@(category.Parent == null ? category.Name : $"{category.Parent.Name} > {category.Name}")</option>
+        }
+    </select>
+    <span asp-validation-for="CategoryId" class="text-danger small"></span>
+    @if (Model.ActiveCategories.Count == 0)
+    {
+        <div class="form-text text-danger">Hiện chưa có thể loại hoạt động. Hãy thêm thể loại trước khi biên mục.</div>
+    }
+</div>
+
+<div class="mb-4">
+    <label asp-for="Description" class="form-label fw-semibold">Tóm tắt nội dung</label>
+    <textarea asp-for="Description" class="form-control" rows="3" placeholder="Nhập tóm tắt nội dung sách..."></textarea>
+    <span asp-validation-for="Description" class="text-danger small"></span>
+</div>
+
+<script>
+    (() => {
+        const select = document.getElementById('authorSelect');
+        const addButton = document.getElementById('addAuthorButton');
+        const list = document.getElementById('selectedAuthors');
+        const emptyMessage = document.getElementById('noAuthorsMessage');
+
+        const refresh = () => { emptyMessage.hidden = list.children.length > 0; };
+
+        addButton.addEventListener('click', () => {
+            const option = select.selectedOptions[0];
+            if (!option || !option.value || list.querySelector(`[data-author-id="${option.value}"]`)) return;
+
+            const item = document.createElement('li');
+            item.className = 'list-group-item d-flex justify-content-between align-items-center';
+            item.dataset.authorId = option.value;
+
+            const name = document.createElement('span');
+            name.className = 'fw-semibold';
+            name.textContent = option.textContent;
+
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = 'AuthorIds';
+            hidden.value = option.value;
+
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'btn btn-sm btn-outline-danger';
+            remove.dataset.removeAuthor = '';
+            remove.setAttribute('aria-label', `Bỏ tác giả ${option.textContent}`);
+            remove.textContent = 'Bỏ';
+
+            item.append(name, hidden, remove);
+            list.append(item);
+            option.hidden = true;
+            select.value = '';
+            refresh();
+        });
+
+        list.addEventListener('click', event => {
+            const button = event.target.closest('[data-remove-author]');
+            if (!button) return;
+            const item = button.closest('li');
+            const option = select.querySelector(`option[value="${item.dataset.authorId}"]`);
+            if (option) option.hidden = false;
+            item.remove();
+            refresh();
+        });
+    })();
+</script>

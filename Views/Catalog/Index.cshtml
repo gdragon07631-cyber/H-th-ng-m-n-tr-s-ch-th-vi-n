@@ -1,0 +1,79 @@
+@model Project.Models.PublicCatalogSearchViewModel
+@{
+    ViewData["Title"] = "Tra cứu sách";
+    Layout = "_ReaderLayout";
+}
+
+<div class="container py-4">
+    <div class="mb-4">
+        <h1 class="h3 mb-1 text-primary fw-bold">Tra cứu sách</h1>
+        <p class="text-muted mb-0">Tìm sách theo nhan đề, tác giả hoặc ISBN trong kho sách của thư viện.</p>
+    </div>
+
+    <form asp-action="Index" method="get" class="row g-2 mb-4" role="search" aria-label="Tra cứu sách">
+        <div class="col-12 col-md">
+            <label for="catalogKeyword" class="visually-hidden">Từ khóa</label>
+            <input id="catalogKeyword" name="q" type="search" value="@Model.Keyword" class="form-control" placeholder="Nhập nhan đề, tác giả hoặc ISBN..." autocomplete="off" />
+        </div>
+        <div class="col-12 col-md-auto d-flex gap-2">
+            <button type="submit" class="btn btn-primary flex-fill">Tra cứu</button>
+            @if (!string.IsNullOrEmpty(Model.Keyword))
+            {
+                <a asp-action="Index" class="btn btn-outline-secondary flex-fill">Xóa lọc</a>
+            }
+        </div>
+    </form>
+
+    <p class="text-muted small mb-3" id="catalogResultCount">
+        @(string.IsNullOrEmpty(Model.Keyword) ? $"Có {Model.Results.Count} đầu sách." : $"Tìm thấy {Model.Results.Count} đầu sách cho \"{Model.Keyword}\".")
+    </p>
+
+    @if (Model.Results.Count == 0)
+    {
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center text-muted py-5">Không tìm thấy đầu sách phù hợp.</div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3" id="catalogResults">
+            @foreach (var book in Model.Results)
+            {
+                <div class="col-12 col-lg-6">
+                    <article class="card border-0 shadow-sm h-100" data-book-id="@book.Id">
+                        <div class="card-body d-flex gap-3">
+                            <a asp-controller="Book" asp-action="Details" asp-route-id="@book.Id" class="flex-shrink-0" aria-label="Xem chi tiết @book.Title">
+                                <img src="@book.CoverImageUrl" alt="Bìa sách @book.Title" class="book-cover-thumbnail" loading="lazy" />
+                            </a>
+                            <div style="min-width: 0;">
+                                <h2 class="h5 mb-1">
+                                    <a asp-controller="Book" asp-action="Details" asp-route-id="@book.Id" class="text-decoration-none catalog-title">@book.Title</a>
+                                </h2>
+                                @if (!string.IsNullOrWhiteSpace(book.Subtitle))
+                                {
+                                    <div class="text-muted small mb-2">@book.Subtitle</div>
+                                }
+                                <div class="small mb-1"><span class="text-secondary">Tác giả:</span> <span class="fw-semibold catalog-authors">@string.Join(", ", book.Authors)</span></div>
+                                <div class="small mb-1"><span class="text-secondary">Thể loại:</span> <span class="catalog-category">@book.CategoryName</span></div>
+                                @if (book.PublicationYear is int year)
+                                {
+                                    <div class="small mb-1"><span class="text-secondary">Năm xuất bản:</span> @year</div>
+                                }
+                                <div class="mt-2">
+                                    @if (book.AvailableCopies > 0)
+                                    {
+                                        <span class="badge bg-success-subtle text-success-emphasis">@book.AvailableCopies / @book.TotalCopies bản sẵn sàng</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary-subtle text-secondary-emphasis">Hiện không còn bản rảnh</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            }
+        </div>
+    }
+</div>

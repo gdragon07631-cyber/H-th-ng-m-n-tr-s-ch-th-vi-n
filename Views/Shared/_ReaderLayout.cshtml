@@ -2,7 +2,9 @@
     var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
     // Chỉ để chọn nút hiển thị; quyền truy cập vẫn do controller kiểm tra phiên đầy đủ.
     var readerSignedIn = Context.Request.Cookies.ContainsKey("reader_id");
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
     string NavClass(string action) => string.Equals(currentAction, action, StringComparison.OrdinalIgnoreCase) ? "is-active" : "";
+    var catalogNavClass = string.Equals(currentController, "Catalog", StringComparison.OrdinalIgnoreCase) ? "is-active" : "";
 }
 <!DOCTYPE html>
 <html lang="vi">
@@ -18,6 +20,7 @@
                 <span><strong>Thư Viện</strong><small>Cổng thông tin Bạn đọc</small></span>
             </a>
             <nav class="reader-nav" aria-label="Điều hướng bạn đọc">
+                <a class="@catalogNavClass" asp-controller="Catalog" asp-action="Index">Tra cứu sách</a>
                 @if (readerSignedIn)
                 {
                     <a class="@NavClass("Profile")" asp-controller="ReaderRegistration" asp-action="Profile">Tài khoản</a>
