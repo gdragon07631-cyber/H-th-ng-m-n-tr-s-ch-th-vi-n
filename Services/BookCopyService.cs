@@ -56,6 +56,7 @@ public sealed class BookCopyService(ApplicationDbContext dbContext, IOptions<Boo
             ShelfId = copy.ShelfId,
             PhysicalCondition = copy.PhysicalCondition,
             Status = copy.Status,
+            Reason = copy.StatusReason,
             Note = copy.Note
         };
     }
@@ -238,9 +239,9 @@ public sealed class BookCopyService(ApplicationDbContext dbContext, IOptions<Boo
         var statusChanged = !string.Equals(copy.Status, model.Status, StringComparison.Ordinal);
         if (statusChanged)
         {
-            if (copy.Status == BookCopyStatus.OnLoan)
+            if (model.Status == BookCopyStatus.UnderRepair && copy.Status == BookCopyStatus.OnLoan)
                 return new(BookCopyUpdateStatus.OnActiveLoan,
-                    "Không thể chuyển sang Đang sửa chữa: bản sao đang thuộc một phiếu mượn chưa trả.");
+                    "Không thể chuyển bản sao sang Đang sửa chữa vì bản sao đang thuộc phiếu mượn chưa trả.");
             if (copy.Status == BookCopyStatus.OnHold)
                 return new(BookCopyUpdateStatus.StatusManagedByHold,
                     "Không thể đổi trạng thái: bản sao đang được giữ cho một đơn đặt giữ.");
@@ -259,6 +260,7 @@ public sealed class BookCopyService(ApplicationDbContext dbContext, IOptions<Boo
                 ChangedAtUtc = DateTime.UtcNow
             });
             copy.Status = model.Status;
+            copy.StatusReason = model.Reason.Trim();
         }
 
         // Mã vạch (CopyCode) cố ý không được gán lại.

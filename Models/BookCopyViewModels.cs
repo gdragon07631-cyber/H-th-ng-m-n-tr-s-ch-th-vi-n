@@ -92,8 +92,8 @@ public sealed class BookCopyEditViewModel
     public IReadOnlyList<Shelf> Shelves { get; set; } = [];
     public IReadOnlyList<BookCopyStatusHistory> History { get; set; } = [];
 
-    /// <summary>Trạng thái do nghiệp vụ mượn/đặt giữ quản lý thì thủ thư không đổi trực tiếp.</summary>
-    public bool StatusLocked => !BookCopyStatus.Editable.Contains(CurrentStatus);
+    /// <summary>Trạng thái đang được yêu cầu giữ chỗ quản lý thì không thể sửa trực tiếp.</summary>
+    public bool StatusLocked => CurrentStatus == BookCopyStatus.OnHold;
 }
 
 public sealed class BookCopyLabelPrintOptions

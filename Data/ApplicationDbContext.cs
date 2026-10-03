@@ -284,6 +284,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .HasForeignKey(copy => copy.ShelfId).OnDelete(DeleteBehavior.Restrict);
             entity.Property(copy => copy.PhysicalCondition).HasMaxLength(50).HasDefaultValue(BookCopyCondition.Good).IsRequired();
             entity.Property(copy => copy.Note).HasMaxLength(500);
+            entity.Property(copy => copy.StatusReason).HasMaxLength(500);
         });
 
         modelBuilder.Entity<BookCopyStatusHistory>(entity =>

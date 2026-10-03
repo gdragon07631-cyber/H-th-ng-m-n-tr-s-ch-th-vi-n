@@ -102,7 +102,9 @@ public sealed class BookCopyController(
             var result = await bookCopyService.UpdateAsync(id, model, staff?.Email ?? "Không xác định", cancellationToken);
             if (result.IsSuccess)
             {
-                TempData["SuccessMessage"] = $"Đã cập nhật bản sao {current.CopyCode}.";
+                TempData["SuccessMessage"] = current.CurrentStatus != model.Status
+                    ? $"Đã chuyển bản sao {current.CopyCode} sang trạng thái {model.Status}."
+                    : $"Đã cập nhật bản sao {current.CopyCode}.";
                 return RedirectToAction(nameof(Index), new { bookId = current.BookId });
             }
 

@@ -7,7 +7,7 @@
     <div class="mb-4">
         <a asp-action="Index" asp-route-bookId="@Model.BookId" class="small text-decoration-none">← Bản sao của “@Model.BookTitle”</a>
         <h1 class="h3 mt-2 mb-1 text-primary fw-bold">Sửa bản sao</h1>
-        <p class="text-muted mb-0">Đổi kho, kệ, tình trạng vật lý, ghi chú hoặc trạng thái. Mã vạch không sửa được.</p>
+        <p class="text-muted mb-0">Đổi kho, kệ, tình trạng vật lý, ghi chú hoặc trạng thái. Khi đổi trạng thái, nhập lý do. Mã vạch không sửa được.</p>
     </div>
 
     <div class="row g-4">
@@ -67,7 +67,7 @@
                                 }
                                 else
                                 {
-                                    <select asp-for="Status" class="form-select" id="statusSelect" asp-items="@(new SelectList(BookCopyStatus.Editable))" data-current="@Model.CurrentStatus"></select>
+                                    <select asp-for="Status" class="form-select" id="statusSelect" asp-items="@(new SelectList(BookCopyStatus.Editable.Append(Model.CurrentStatus).Distinct()))" data-current="@Model.CurrentStatus"></select>
                                 }
                                 <span asp-validation-for="Status" class="text-danger small"></span>
                             </div>
@@ -93,18 +93,18 @@
 
         <div class="col-lg-5">
             <div class="card shadow-sm border-0">
-                <div class="card-header"><h2 class="h5 mb-0">Lịch sử đổi trạng thái</h2></div>
+                <div class="card-header"><h2 class="h5 mb-0">Lịch sử thay đổi trạng thái</h2></div>
                 <ul class="list-group list-group-flush">
                     @if (Model.History.Count == 0)
                     {
-                        <li class="list-group-item text-muted">Chưa có lần đổi trạng thái nào.</li>
+                        <li class="list-group-item text-muted">Chưa có lần thay đổi trạng thái nào.</li>
                     }
                     @foreach (var history in Model.History)
                     {
                         <li class="list-group-item">
                             <div class="d-flex justify-content-between gap-2">
                                 <strong>@history.FromStatus → @history.ToStatus</strong>
-                                <small class="text-muted text-nowrap">@DateTime.SpecifyKind(history.ChangedAtUtc, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+                                <small class="text-muted text-nowrap">@DateTime.SpecifyKind(history.ChangedAtUtc, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</small>
                             </div>
                             <div class="small">@history.Reason</div>
                             <div class="small text-muted">Người thực hiện: @history.ChangedBy</div>
@@ -113,6 +113,7 @@
                 </ul>
             </div>
         </div>
+
     </div>
 </div>
 @section Scripts {

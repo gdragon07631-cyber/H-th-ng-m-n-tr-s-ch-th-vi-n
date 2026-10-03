@@ -68,4 +68,7 @@ public sealed class BookCopy
 
     [MaxLength(500)]
     public string? Note { get; set; }
+
+    [MaxLength(500)]
+    public string? StatusReason { get; set; }
 }

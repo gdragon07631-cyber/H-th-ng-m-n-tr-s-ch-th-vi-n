@@ -284,6 +284,10 @@ namespace Project.Migrations
                         .HasColumnType("nvarchar(50)")
                         .HasDefaultValue("Sẵn sàng");
 
+                    b.Property<string>("StatusReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("BookId");

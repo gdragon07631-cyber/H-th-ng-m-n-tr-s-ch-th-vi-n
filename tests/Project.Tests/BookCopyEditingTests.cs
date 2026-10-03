@@ -56,6 +56,28 @@ public sealed class BookCopyEditingTests : IDisposable
         Assert.Equal("BC-001", saved.CopyCode);
     }
 
+    [Theory]
+    [InlineData("warehouse")]
+    [InlineData("shelf")]
+    [InlineData("condition")]
+    [InlineData("note")]
+    public async Task IndividualCopyFieldsCanBeChanged(string field)
+    {
+        var copy = await AddCopyAsync("BC-010");
+        var warehouseId = field == "warehouse" ? warehouseB.Id : warehouseA.Id;
+        var shelfId = field == "warehouse" ? shelfB1.Id : shelfA1.Id;
+        var condition = field == "condition" ? BookCopyCondition.Worn : BookCopyCondition.Good;
+        var note = field == "note" ? "Ghi chú mới" : null;
+
+        var result = await service.UpdateAsync(copy.Id, Edit(copy, warehouseId, shelfId, condition, note), "staff");
+
+        Assert.True(result.IsSuccess);
+        var saved = await ReloadAsync(copy.Id);
+        Assert.Equal(shelfId, saved.ShelfId);
+        Assert.Equal(condition, saved.PhysicalCondition);
+        Assert.Equal(note, saved.Note);
+    }
+
     [Fact]
     public async Task BarcodeCannotBeChangedEvenIfTheFormSendsAnotherOne()
     {
@@ -67,6 +89,51 @@ public sealed class BookCopyEditingTests : IDisposable
         await controller.Edit(copy.Id, model);
 
         Assert.Equal("BC-001", (await ReloadAsync(copy.Id)).CopyCode);
+    }
+
+    [Fact]
+    public async Task SuccessfulEditRedirectsWithSuccessMessageAndReloadsSavedValues()
+    {
+        var copy = await AddCopyAsync("BC-015");
+        var controller = Controller();
+
+        var result = await controller.Edit(copy.Id, Edit(copy, warehouseB.Id, shelfB1.Id, BookCopyCondition.Worn, "Ghi chú mới"));
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Contains("SuccessMessage", controller.TempData.Keys);
+        Assert.Equal(shelfB1.Id, (await service.GetForEditAsync(copy.Id))!.ShelfId);
+        Assert.Equal("BC-015", (await ReloadAsync(copy.Id)).CopyCode);
+    }
+
+    [Fact]
+    public async Task InvalidEditShowsValidationErrorAndDoesNotSave()
+    {
+        var copy = await AddCopyAsync("BC-016");
+        var model = Edit(copy, warehouseA.Id, shelfA1.Id);
+        model.PhysicalCondition = "Không hợp lệ";
+        var controller = Controller();
+
+        var result = await controller.Edit(copy.Id, model);
+
+        Assert.IsType<ViewResult>(result);
+        Assert.Contains("PhysicalCondition", controller.ModelState.Keys);
+        var saved = await ReloadAsync(copy.Id);
+        Assert.Equal(BookCopyCondition.Good, saved.PhysicalCondition);
+        Assert.Equal(shelfA1.Id, saved.ShelfId);
+    }
+
+    [Fact]
+    public async Task FailedEditShowsClearErrorAndDoesNotSave()
+    {
+        var copy = await AddCopyAsync("BC-017");
+        var model = Edit(copy, warehouseA.Id, shelfB1.Id);
+        var controller = Controller();
+
+        var result = await controller.Edit(copy.Id, model);
+
+        Assert.IsType<ViewResult>(result);
+        Assert.Contains(controller.ModelState.Values.SelectMany(value => value.Errors), error => error.ErrorMessage.Contains("Kệ đã chọn"));
+        Assert.Equal(shelfA1.Id, (await ReloadAsync(copy.Id)).ShelfId);
     }
 
     [Fact]
@@ -115,6 +182,8 @@ public sealed class BookCopyEditingTests : IDisposable
         var details = (await bookService.GetBookDetailsAsync(book.Id))!;
         Assert.Equal(1, details.AvailableCopies);
         Assert.Equal(2, details.TotalCopies);
+        var refreshedCopies = await service.GetBookCopiesAsync(book.Id);
+        Assert.Equal(BookCopyStatus.UnderRepair, refreshedCopies!.Copies.Single(copy => copy.Id == first.Id).Status);
     }
 
     [Fact]
@@ -127,19 +196,82 @@ public sealed class BookCopyEditingTests : IDisposable
         Assert.Equal((1, 1), await service.CountCopiesAsync(book.Id));
     }
 
-    // ---------- Không cho sửa chữa bản đang thuộc phiếu mượn chưa trả ----------
+    // ---------- Chặn bản sao đang mượn nhưng cho phép sau khi trạng thái được trả ----------
 
     [Fact]
     public async Task CopyOnAnOpenLoanCannotBeSentToRepair()
     {
         var copy = await AddCopyAsync("BC-001", BookCopyStatus.OnLoan);
+        await AddCopyAsync("BC-002");
+        var reader = new ReaderAccount
+        {
+            FullName = "Bạn đọc",
+            DateOfBirth = new DateOnly(1990, 1, 1),
+            Email = "reader@example.test",
+            PhoneNumber = "0900000000",
+            StudentOrStaffCode = "R-001",
+            PasswordHash = "test",
+            Status = "Đang hoạt động"
+        };
+        db.ReaderAccounts.Add(reader);
+        await db.SaveChangesAsync();
+        var loanDate = new DateOnly(2026, 10, 1);
+        var loan = new BookLoan
+        {
+            BookId = book.Id,
+            ReaderAccountId = reader.Id,
+            LoanDate = loanDate,
+            OriginalDueDate = loanDate.AddDays(14),
+            DueDate = loanDate.AddDays(14)
+        };
+        db.BookLoans.Add(loan);
+        await db.SaveChangesAsync();
 
         var result = await service.UpdateAsync(copy.Id, Edit(copy, warehouseA.Id, shelfA1.Id, status: BookCopyStatus.UnderRepair, reason: "Hỏng"), "thuthu@tv.vn");
 
         Assert.Equal(BookCopyUpdateStatus.OnActiveLoan, result.Status);
-        Assert.Contains("phiếu mượn chưa trả", result.ErrorMessage);
-        Assert.Equal(BookCopyStatus.OnLoan, (await ReloadAsync(copy.Id)).Status);
+        Assert.Equal("Không thể chuyển bản sao sang Đang sửa chữa vì bản sao đang thuộc phiếu mượn chưa trả.", result.ErrorMessage);
+        var saved = await ReloadAsync(copy.Id);
+        Assert.Equal(BookCopyStatus.OnLoan, saved.Status);
+        Assert.Null(saved.StatusReason);
+        var bookService = new BookService(db, NullLogger<BookService>.Instance);
+        Assert.Equal(1, (await bookService.GetBookDetailsAsync(book.Id))!.AvailableCopies);
+        Assert.Equal(2, await db.BookCopies.CountAsync());
+        var loanAfter = await db.BookLoans.SingleAsync(item => item.Id == loan.Id);
+        Assert.Equal((loan.LoanDate, loan.OriginalDueDate, loan.DueDate, loan.RenewalCount),
+            (loanAfter.LoanDate, loanAfter.OriginalDueDate, loanAfter.DueDate, loanAfter.RenewalCount));
         Assert.Empty(await db.BookCopyStatusHistories.ToListAsync());
+    }
+
+    [Fact]
+    public async Task BlockedRepairTransitionShowsClearMessageOnEditScreen()
+    {
+        var copy = await AddCopyAsync("BC-019", BookCopyStatus.OnLoan);
+        var controller = Controller();
+
+        var result = await controller.Edit(copy.Id, Edit(copy, warehouseA.Id, shelfA1.Id,
+            status: BookCopyStatus.UnderRepair, reason: "Hỏng"));
+
+        Assert.IsType<ViewResult>(result);
+        Assert.Contains(controller.ModelState[nameof(BookCopyEditViewModel.Status)]!.Errors,
+            error => error.ErrorMessage == "Không thể chuyển bản sao sang Đang sửa chữa vì bản sao đang thuộc phiếu mượn chưa trả.");
+        Assert.Equal(BookCopyStatus.OnLoan, (await ReloadAsync(copy.Id)).Status);
+    }
+
+    [Fact]
+    public async Task ReturningCopyAllowsLaterRepairTransition()
+    {
+        var copy = await AddCopyAsync("BC-018", BookCopyStatus.OnLoan);
+        copy.Status = BookCopyStatus.Available;
+        await db.SaveChangesAsync();
+
+        var result = await service.UpdateAsync(copy.Id, Edit(copy, warehouseA.Id, shelfA1.Id,
+            status: BookCopyStatus.UnderRepair, reason: "Gáy sách bong"), "staff");
+
+        Assert.True(result.IsSuccess);
+        var saved = await ReloadAsync(copy.Id);
+        Assert.Equal(BookCopyStatus.UnderRepair, saved.Status);
+        Assert.Equal("Gáy sách bong", saved.StatusReason);
     }
 
     [Fact]
@@ -177,23 +309,59 @@ public sealed class BookCopyEditingTests : IDisposable
         Assert.Equal(BookCopyStatus.Available, (await ReloadAsync(copy.Id)).Status);
     }
 
-    // ---------- Ghi lại người thực hiện, thời điểm và lý do ----------
+    // ---------- Lưu lý do trực tiếp cùng trạng thái, không tạo lịch sử ----------
 
     [Fact]
-    public async Task EveryStatusChangeIsRecordedWithActorTimeAndReason()
+    public async Task StatusAndReasonPersistAndAreReturnedInHistory()
     {
         var copy = await AddCopyAsync("BC-001");
 
         await service.UpdateAsync(copy.Id, Edit(copy, warehouseA.Id, shelfA1.Id, status: BookCopyStatus.UnderRepair, reason: "Bong gáy"), "thuthu@tv.vn");
-        await service.UpdateAsync(copy.Id, Edit(copy, warehouseA.Id, shelfA1.Id, status: BookCopyStatus.Available, reason: "Đã sửa xong"), "quanly@tv.vn");
 
+        var saved = await ReloadAsync(copy.Id);
+        var reloaded = await service.GetForEditAsync(copy.Id);
         var history = await service.GetHistoryAsync(copy.Id);
-        Assert.Equal(2, history.Count);
-        Assert.Equal((BookCopyStatus.UnderRepair, BookCopyStatus.Available, "Đã sửa xong", "quanly@tv.vn"),
-            (history[0].FromStatus, history[0].ToStatus, history[0].Reason, history[0].ChangedBy));
-        Assert.Equal((BookCopyStatus.Available, BookCopyStatus.UnderRepair, "Bong gáy", "thuthu@tv.vn"),
-            (history[1].FromStatus, history[1].ToStatus, history[1].Reason, history[1].ChangedBy));
-        Assert.All(history, item => Assert.InRange(item.ChangedAtUtc, DateTime.UtcNow.AddMinutes(-1), DateTime.UtcNow.AddMinutes(1)));
+        Assert.Equal(BookCopyStatus.UnderRepair, saved.Status);
+        Assert.Equal("Bong gáy", saved.StatusReason);
+        Assert.Equal("Bong gáy", reloaded!.Reason);
+        var entry = Assert.Single(history);
+        Assert.Equal(copy.Id, entry.BookCopyId);
+        Assert.Equal(BookCopyStatus.Available, entry.FromStatus);
+        Assert.Equal(BookCopyStatus.UnderRepair, entry.ToStatus);
+        Assert.Equal("Bong gáy", entry.Reason);
+        Assert.Equal("thuthu@tv.vn", entry.ChangedBy);
+        Assert.InRange(entry.ChangedAtUtc, DateTime.UtcNow.AddMinutes(-1), DateTime.UtcNow.AddMinutes(1));
+
+        var page = Assert.IsType<BookCopyEditViewModel>(Assert.IsType<ViewResult>(await Controller().Edit(copy.Id)).Model);
+        Assert.Single(page.History);
+        Assert.Equal("thuthu@tv.vn", page.History[0].ChangedBy);
+    }
+
+    [Fact]
+    public async Task MultipleStatusChangesAreListedNewestFirstAndScopedToEachCopy()
+    {
+        var copyA = await AddCopyAsync("BC-020");
+        var copyB = await AddCopyAsync("BC-021");
+        await service.UpdateAsync(copyA.Id, Edit(copyA, warehouseA.Id, shelfA1.Id,
+            status: BookCopyStatus.UnderRepair, reason: "Gáy bong"), "staff-a");
+        await Task.Delay(20);
+        await service.UpdateAsync(copyA.Id, Edit(copyA, warehouseA.Id, shelfA1.Id,
+            status: BookCopyStatus.Available, reason: "Đã sửa xong"), "staff-b");
+        await service.UpdateAsync(copyB.Id, Edit(copyB, warehouseA.Id, shelfA1.Id,
+            status: BookCopyStatus.UnderRepair, reason: "Bìa rách"), "staff-c");
+
+        var historyA = await service.GetHistoryAsync(copyA.Id);
+        var historyB = await service.GetHistoryAsync(copyB.Id);
+
+        Assert.Equal(2, historyA.Count);
+        Assert.Equal((BookCopyStatus.UnderRepair, BookCopyStatus.Available, "Đã sửa xong", "staff-b"),
+            (historyA[0].FromStatus, historyA[0].ToStatus, historyA[0].Reason, historyA[0].ChangedBy));
+        Assert.Equal((BookCopyStatus.Available, BookCopyStatus.UnderRepair, "Gáy bong", "staff-a"),
+            (historyA[1].FromStatus, historyA[1].ToStatus, historyA[1].Reason, historyA[1].ChangedBy));
+        Assert.True(historyA[0].ChangedAtUtc >= historyA[1].ChangedAtUtc);
+        var entryB = Assert.Single(historyB);
+        Assert.Equal(copyB.Id, entryB.BookCopyId);
+        Assert.Equal("Bìa rách", entryB.Reason);
     }
 
     [Fact]
@@ -205,32 +373,60 @@ public sealed class BookCopyEditingTests : IDisposable
 
         Assert.Equal(BookCopyUpdateStatus.ReasonRequired, result.Status);
         Assert.Equal(BookCopyStatus.Available, (await ReloadAsync(copy.Id)).Status);
+        Assert.Equal((1, 1), await service.CountCopiesAsync(book.Id));
+        Assert.Equal(1, (await new BookService(db, NullLogger<BookService>.Instance).GetBookDetailsAsync(book.Id))!.AvailableCopies);
+        Assert.Empty(await db.BookCopyStatusHistories.ToListAsync());
     }
 
     [Fact]
-    public async Task EditingWithoutStatusChangeWritesNoHistory()
+    public async Task EditingWithoutStatusChangeLeavesStatusReasonUnchanged()
     {
         var copy = await AddCopyAsync("BC-001");
 
         await service.UpdateAsync(copy.Id, Edit(copy, warehouseB.Id, shelfB1.Id), "thuthu@tv.vn");
 
+        Assert.Null((await ReloadAsync(copy.Id)).StatusReason);
         Assert.Empty(await service.GetHistoryAsync(copy.Id));
     }
 
     [Fact]
-    public async Task ScreenRecordsTheSignedInStaffAsActor()
+    public async Task ScreenShowsStatusTransitionSuccessMessage()
     {
         var copy = await AddCopyAsync("BC-001");
-        var account = new AdminAccount { Email = "lan.thuthu@tv.vn", Role = AccountRoles.Librarian, IsActive = true, PasswordHash = "x" };
-        var token = Guid.NewGuid().ToString("N");
-        db.RefreshTokens.Add(new RefreshToken { AdminAccount = account, TokenHash = TokenService.HashRefreshToken(token), CreatedAtUtc = DateTime.UtcNow, ExpiresAtUtc = DateTime.UtcNow.AddDays(1) });
-        await db.SaveChangesAsync();
-
-        var redirect = await Controller($"admin_refresh={token}")
-            .Edit(copy.Id, Edit(copy, warehouseA.Id, shelfA1.Id, status: BookCopyStatus.UnderRepair, reason: "Bong gáy"));
+        var controller = Controller();
+        var redirect = await controller.Edit(copy.Id, Edit(copy, warehouseA.Id, shelfA1.Id, status: BookCopyStatus.UnderRepair, reason: "Bong gáy"));
 
         Assert.IsType<RedirectToActionResult>(redirect);
-        Assert.Equal("lan.thuthu@tv.vn", (await service.GetHistoryAsync(copy.Id)).Single().ChangedBy);
+        Assert.Contains("SuccessMessage", controller.TempData.Keys);
+        Assert.Contains("Đang sửa chữa", controller.TempData["SuccessMessage"]!.ToString());
+    }
+
+    [Fact]
+    public async Task StatusHistoryUsesTheSignedInStaffIdentity()
+    {
+        var copy = await AddCopyAsync("BC-022");
+        var account = new AdminAccount
+        {
+            Email = "lan.thuthu@tv.vn",
+            Role = AccountRoles.Librarian,
+            IsActive = true,
+            PasswordHash = "test"
+        };
+        var token = Guid.NewGuid().ToString("N");
+        db.RefreshTokens.Add(new RefreshToken
+        {
+            AdminAccount = account,
+            TokenHash = TokenService.HashRefreshToken(token),
+            CreatedAtUtc = DateTime.UtcNow,
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(1)
+        });
+        await db.SaveChangesAsync();
+
+        var result = await Controller($"admin_refresh={token}").Edit(copy.Id,
+            Edit(copy, warehouseA.Id, shelfA1.Id, status: BookCopyStatus.UnderRepair, reason: "Rách bìa"));
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("lan.thuthu@tv.vn", Assert.Single(await service.GetHistoryAsync(copy.Id)).ChangedBy);
     }
 
     // ---------- Thêm bản sao & phân quyền ----------
