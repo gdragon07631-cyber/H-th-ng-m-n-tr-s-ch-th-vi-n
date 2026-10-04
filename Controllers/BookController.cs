@@ -14,6 +14,9 @@ public sealed class BookController(
     IAuthorService authorService,
     ICategoryService categoryService,
     IReaderRegistrationService registrationService,
+    IBookHoldQueueService holdQueueService,
+    IStaffHoldCancellationService staffHoldCancellationService,
+    IAuditLogService auditLogService,
     ApplicationDbContext dbContext,
     IDataProtectionProvider dataProtectionProvider,
     IBookCoverThumbnailService thumbnailService) : Controller
@@ -178,7 +181,7 @@ public sealed class BookController(
 
     [HttpGet]
     [PublicAction]
-    public async Task<IActionResult> Details(int id, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> Details(int id, string? status, CancellationToken cancellationToken = default)
     {
         var bookDetails = await bookService.GetBookDetailsAsync(id, cancellationToken);
         if (bookDetails == null)
@@ -188,6 +191,13 @@ public sealed class BookController(
 
         var readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         bookDetails.IsLibrarian = await IsLibrarianSignedInAsync(cancellationToken);
+        if (bookDetails.IsLibrarian)
+        {
+            if (!BookHoldQueueFilter.TryNormalize(status, out var filter))
+                filter = BookHoldQueueFilter.All;
+            bookDetails.SelectedHoldQueueFilter = filter;
+            bookDetails.ActiveHoldQueue = await holdQueueService.GetQueueForBookAsync(id, filter, cancellationToken);
+        }
         if (readerId > 0)
         {
             var reader = await registrationService.GetReaderByIdAsync(readerId, cancellationToken);
@@ -195,6 +205,38 @@ public sealed class BookController(
             bookDetails.IsReaderSignedIn = reader != null;
         }
         return View(bookDetails);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CancelHold(long holdId, string? reason, string? status, int bookId,
+        CancellationToken cancellationToken = default)
+    {
+        var staff = await auditLogService.GetSignedInStaffAsync(Request, cancellationToken);
+        if (staff == null) return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Details), new { id = bookId, status }) });
+
+        var outcome = await staffHoldCancellationService.CancelAsync(holdId, reason, staff.Id, cancellationToken);
+        TempData[outcome.IsSuccess ? "SuccessMessage" : "HoldCancelErrorMessage"] = outcome.Message;
+        return RedirectToAction(nameof(Details), new { id = bookId, status });
+    }
+
+    [HttpPost("api/holds/{holdId}/cancel")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CancelHoldApi(long holdId, [FromBody] CancelHoldRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        var staff = await auditLogService.GetSignedInStaffAsync(Request, cancellationToken);
+        if (staff == null) return Unauthorized(new { message = "Vui lòng đăng nhập bằng tài khoản nhân sự." });
+        var outcome = await staffHoldCancellationService.CancelAsync(holdId, request?.Reason, staff.Id, cancellationToken);
+        if (!outcome.IsSuccess)
+        {
+            var statusCode = outcome.Result is StaffHoldCancellationResult.AlreadyCancelled or StaffHoldCancellationResult.ConvertedToLoan
+                ? StatusCodes.Status409Conflict : StatusCodes.Status400BadRequest;
+            return StatusCode(statusCode, new { message = outcome.Message });
+        }
+        var hold = outcome.Hold!;
+        return Ok(new { id = hold.Id, status = hold.Status, cancellationReason = hold.CancellationReason,
+            cancelledAtUtc = hold.CancelledAtUtc, cancelledByAdminAccountId = hold.CancelledByAdminAccountId });
     }
 
     [HttpPost]
@@ -387,6 +429,32 @@ public sealed class BookController(
         }
 
         return Ok(details);
+    }
+
+    [HttpGet("api/books/{id}/holds/queue")]
+    public async Task<IActionResult> GetHoldQueueApi(int id, string? status, CancellationToken cancellationToken = default)
+    {
+        if (!BookHoldQueueFilter.TryNormalize(status, out var filter))
+            return BadRequest(new { message = "Trạng thái lọc không hợp lệ." });
+        if (!await dbContext.Books.AnyAsync(book => book.Id == id, cancellationToken))
+            return NotFound(new { message = "Không tìm thấy thông tin sách." });
+
+        var queue = await holdQueueService.GetQueueForBookAsync(id, filter, cancellationToken);
+        return Ok(queue.Select(item => new
+        {
+            holdId = item.HoldId,
+            position = item.Position,
+            readerAccountId = item.ReaderAccountId,
+            readerName = item.ReaderName,
+            placedAtUtc = item.HeldAtUtc,
+            placedAt = item.HeldAtText,
+            status = item.Status,
+            bookCopyId = item.BookCopyId,
+            copyBarcode = item.CopyBarcode,
+            pickupDeadlineUtc = item.PickupDeadlineUtc,
+            cancellationReason = item.CancellationReason,
+            cancelledAtUtc = item.CancelledAtUtc
+        }));
     }
 
     private Task<int> GetCurrentLoggedInReaderIdAsync(CancellationToken cancellationToken) =>

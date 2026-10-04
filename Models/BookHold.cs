@@ -22,4 +22,8 @@ public sealed class BookHold
     /// <summary>Bản sao đang được giữ cho đơn này (nếu có).</summary>
     public long? BookCopyId { get; set; }
     public BookCopy? BookCopy { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(1000)]
+    public string? CancellationReason { get; set; }
+    public DateTime? CancelledAtUtc { get; set; }
+    public int? CancelledByAdminAccountId { get; set; }
 }

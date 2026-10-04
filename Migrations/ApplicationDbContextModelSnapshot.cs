@@ -352,6 +352,16 @@ namespace Project.Migrations
                     b.Property<long?>("BookCopyId")
                         .HasColumnType("bigint");
 
+                    b.Property<DateTime?>("CancelledAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CancelledByAdminAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<int>("BookId")
                         .HasColumnType("int");
 

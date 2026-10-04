@@ -21,6 +21,10 @@
             {
                 <div class="alert alert-danger">@TempData["HoldErrorMessage"]</div>
             }
+            @if (TempData["HoldCancelErrorMessage"] != null)
+            {
+                <div class="alert alert-danger">@TempData["HoldCancelErrorMessage"]</div>
+            }
 
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-white py-3">
@@ -168,6 +172,84 @@
                             <p class="form-control-plaintext text-muted">@Model.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
                         </div>
                     </div>
+
+                    @if (Model.IsLibrarian)
+                    {
+                        <section class="border-top pt-4 mb-4" aria-labelledby="holdQueueHeading">
+                            <h2 id="holdQueueHeading" class="h5 text-primary fw-bold">Hàng đợi đặt giữ</h2>
+                            <form method="get" asp-action="Details" asp-route-id="@Model.Id" class="row g-2 align-items-end mb-3">
+                                <div class="col-sm-6 col-md-5">
+                                    <label for="holdQueueStatus" class="form-label mb-1">Lọc theo trạng thái</label>
+                                    <select id="holdQueueStatus" name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                                        <option value="@Project.Models.BookHoldQueueFilter.All" selected="@(Model.SelectedHoldQueueFilter == Project.Models.BookHoldQueueFilter.All)">Tất cả</option>
+                                        <option value="@Project.Models.BookHoldQueueFilter.Queued" selected="@(Model.SelectedHoldQueueFilter == Project.Models.BookHoldQueueFilter.Queued)">Đang xếp hàng</option>
+                                        <option value="@Project.Models.BookHoldQueueFilter.WaitingPickup" selected="@(Model.SelectedHoldQueueFilter == Project.Models.BookHoldQueueFilter.WaitingPickup)">Đang chờ nhận</option>
+                                        <option value="@Project.Models.BookHoldQueueFilter.ConvertedToLoan" selected="@(Model.SelectedHoldQueueFilter == Project.Models.BookHoldQueueFilter.ConvertedToLoan)">Đã chuyển thành phiếu mượn</option>
+                                        <option value="@Project.Models.BookHoldQueueFilter.Cancelled" selected="@(Model.SelectedHoldQueueFilter == Project.Models.BookHoldQueueFilter.Cancelled)">Đã hủy</option>
+                                    </select>
+                                </div>
+                                <div class="col-auto"><button type="submit" class="btn btn-sm btn-outline-primary">Lọc</button></div>
+                            </form>
+                            @if (Model.ActiveHoldQueue.Count == 0)
+                            {
+                                <p class="text-muted mb-0">Chưa có yêu cầu đặt giữ phù hợp với trạng thái đã chọn.</p>
+                            }
+                            else
+                            {
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover align-middle mb-0">
+                                        <thead class="table-light"><tr><th>STT</th><th>Bạn đọc</th><th>Thời điểm đặt</th><th>Trạng thái</th><th>Mã vạch bản sao</th><th>Hạn nhận</th><th>Lý do hủy</th><th></th></tr></thead>
+                                        <tbody>
+                                        @foreach (var hold in Model.ActiveHoldQueue)
+                                        {
+                                            <tr>
+                                                <td>@hold.Position</td><td>@hold.ReaderName</td><td class="font-monospace">@hold.HeldAtText</td><td>@hold.Status</td>
+                                                <td>@(hold.CopyBarcode ?? "—")</td><td>@(hold.PickupDeadlineText ?? "—")</td>
+                                                <td>@(hold.CancellationReason ?? "—")</td>
+                                                <td class="text-end">
+                                                    @if (hold.CanBeCancelledByStaff)
+                                                    {
+                                                        <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelHold-@hold.HoldId">Hủy yêu cầu</button>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                        </tbody>
+                                    </table>
+                                </div>
+                                @foreach (var hold in Model.ActiveHoldQueue.Where(item => item.CanBeCancelledByStaff))
+                                {
+                                    <div class="modal fade" id="cancelHold-@hold.HoldId" tabindex="-1" aria-labelledby="cancelHoldLabel-@hold.HoldId" aria-hidden="true">
+                                        <div class="modal-dialog"><div class="modal-content">
+                                            <form asp-action="CancelHold" method="post" class="hold-cancel-form">
+                                                <input type="hidden" name="holdId" value="@hold.HoldId" />
+                                                <input type="hidden" name="bookId" value="@Model.Id" />
+                                                <input type="hidden" name="status" value="@Model.SelectedHoldQueueFilter" />
+                                                <div class="modal-header"><h3 class="h5 modal-title" id="cancelHoldLabel-@hold.HoldId">Hủy yêu cầu đặt giữ</h3><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button></div>
+                                                <div class="modal-body">
+                                                    <p class="mb-2">Bạn đọc: <strong>@hold.ReaderName</strong></p>
+                                                    <label for="cancelReason-@hold.HoldId" class="form-label">Lý do hủy <span class="text-danger">*</span></label>
+                                                    <textarea id="cancelReason-@hold.HoldId" name="reason" class="form-control hold-cancel-reason" rows="3" maxlength="1000" required></textarea>
+                                                    <div class="form-text">Lý do là bắt buộc và không được chỉ gồm khoảng trắng.</div>
+                                                </div>
+                                                <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-danger">Xác nhận hủy</button></div>
+                                            </form>
+                                        </div></div>
+                                    </div>
+                                }
+                            }
+                        </section>
+                    }
+
+                    <script>
+                        document.querySelectorAll('.hold-cancel-form').forEach(function (form) {
+                            form.addEventListener('submit', function (event) {
+                                var reason = form.querySelector('.hold-cancel-reason');
+                                reason.setCustomValidity(reason.value.trim() ? '' : 'Vui lòng nhập lý do hủy yêu cầu đặt giữ.');
+                                if (!form.reportValidity()) event.preventDefault();
+                            });
+                        });
+                    </script>
 
                     <div class="d-flex gap-2 border-top pt-3">
                         @if (Model.CanHold)

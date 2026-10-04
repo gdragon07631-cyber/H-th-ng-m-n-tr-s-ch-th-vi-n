@@ -1,0 +1,131 @@
+@model Project.Models.HoldPickupListViewModel
+@{
+    ViewData["Title"] = "Sách chờ nhận";
+}
+
+<div class="container-fluid py-3 px-4">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div>
+            <h1 class="h3 mb-1 text-primary fw-bold">Sách đang chờ người đến nhận</h1>
+            <p class="text-muted mb-0">
+                Danh sách các bản sao sách đã chuẩn bị sẵn, cần rút ra để riêng lên giá chờ cho bạn đọc đến nhận.
+            </p>
+        </div>
+        <div>
+            <span class="badge bg-primary fs-6 px-3 py-2 rounded-pill">
+                @Model.TotalCount bản sao chờ nhận
+            </span>
+        </div>
+    </div>
+
+    <!-- Alert / Notice -->
+    <div class="alert alert-info d-flex align-items-center mb-4" role="alert">
+        <span class="fs-5 me-2">ℹ️</span>
+        <div>
+            Danh sách được sắp xếp theo <strong>hạn nhận gần nhất</strong> lên đầu. Thủ thư ưu tiên chuẩn bị và kiểm tra các sách có hạn nhận sắp đến.
+        </div>
+    </div>
+
+    <!-- Card Danh Sách -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <h2 class="h5 mb-0 fw-semibold text-dark">
+                Bảng theo dõi giá chờ sách
+            </h2>
+            <small class="text-muted">Tự động sắp xếp theo hạn nhận tăng dần</small>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 60px;" class="text-center">STT</th>
+                        <th style="width: 170px;">Mã vạch bản sao</th>
+                        <th>Tên bạn đọc</th>
+                        <th style="width: 180px;">Hạn nhận</th>
+                        <th>Tên sách</th>
+                        <th style="width: 200px;">Vị trí kệ hiện tại</th>
+                        <th style="width: 110px;" class="text-center">Mã yêu cầu</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @if (Model.Items.Count == 0)
+                {
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-5">
+                            <div class="py-4">
+                                <span class="fs-1 d-block mb-2">📭</span>
+                                <h5 class="fw-normal text-secondary mb-1">Hiện không có sách nào đang chờ người đến nhận</h5>
+                                <p class="small text-muted mb-0">Khi có bạn đọc đặt giữ sách và có bản sao sẵn sàng, danh sách sẽ hiển thị tại đây.</p>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    var index = 1;
+                    foreach (var item in Model.Items)
+                    {
+                        var isUrgent = item.PickupDeadlineUtc.HasValue && item.PickupDeadlineUtc.Value <= DateTime.UtcNow.AddHours(24);
+                        <tr class="@(isUrgent ? "table-warning bg-opacity-25" : "")">
+                            <td class="text-center text-muted">@(index++)</td>
+                            <td>
+                                <span class="badge bg-dark font-monospace fs-6 px-2 py-1">@item.CopyBarcode</span>
+                            </td>
+                            <td>
+                                <strong class="text-dark d-block">@item.ReaderName</strong>
+                                @if (!string.IsNullOrWhiteSpace(item.ReaderPhone) || !string.IsNullOrWhiteSpace(item.ReaderEmail))
+                                {
+                                    <small class="text-muted d-block">
+                                        @(string.Join(" · ", new[] { item.ReaderPhone, item.ReaderEmail }.Where(s => !string.IsNullOrWhiteSpace(s))))
+                                    </small>
+                                }
+                            </td>
+                            <td>
+                                @if (item.PickupDeadlineUtc.HasValue)
+                                {
+                                    <span class="badge @(isUrgent ? "bg-danger" : "bg-primary") fs-6 font-monospace">
+                                        @item.PickupDeadlineText
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td>
+                                <a asp-controller="Book" asp-action="Details" asp-route-id="@item.BookId" class="fw-semibold text-primary text-decoration-none">@item.BookTitle</a>
+                                @if (!string.IsNullOrWhiteSpace(item.Isbn))
+                                {
+                                    <small class="text-muted">ISBN: @item.Isbn</small>
+                                }
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(item.CurrentShelf))
+                                {
+                                    <span class="badge bg-light text-dark border">
+                                        @item.CurrentShelf
+                                        @if (!string.IsNullOrWhiteSpace(item.CurrentWarehouse))
+                                        {
+                                            <text> (@item.CurrentWarehouse)</text>
+                                        }
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">Chưa xếp kệ</span>
+                                }
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-secondary font-monospace">#@item.HoldId</span>
+                            </td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+

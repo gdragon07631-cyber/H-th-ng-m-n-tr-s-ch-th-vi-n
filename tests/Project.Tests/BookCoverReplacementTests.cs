@@ -146,7 +146,7 @@ public sealed class BookCoverReplacementTests
 
             var httpContext = new DefaultHttpContext();
             httpContext.Request.Headers.Cookie = $"admin_refresh={RefreshCookie}";
-            Controller = new BookController(null!, null!, null!, null!, Db, null!, new BookCoverThumbnailService())
+            Controller = new BookController(null!, null!, null!, null!, null!, null!, null!, Db, null!, new BookCoverThumbnailService())
             {
                 ControllerContext = new ControllerContext { HttpContext = httpContext },
                 TempData = new TempDataDictionary(httpContext, new NoOpTempDataProvider())
