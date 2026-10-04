@@ -433,7 +433,11 @@ public sealed class ReaderRegistrationController(
         {
             isAllowed = true,
             status = "Success",
-            message = outcome.Message
+            message = outcome.Message,
+            requestStatus = outcome.IsReserved ? BookHoldStatus.Available : BookHoldStatus.Waiting,
+            copyBarcode = outcome.CopyCode,
+            pickupDeadlineUtc = outcome.PickupDeadlineUtc,
+            queuePosition = outcome.QueuePosition
         });
     }
 
@@ -469,6 +473,7 @@ public sealed class ReaderRegistrationController(
             queuePosition = hold.QueuePosition,
             pickupDeadlineUtc = hold.PickupDeadlineUtc,
             pickupDeadline = hold.PickupDeadlineText,
+            copyBarcode = hold.CopyBarcode,
             canCancel = hold.CanCancel
         }));
     }

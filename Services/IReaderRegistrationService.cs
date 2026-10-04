@@ -43,21 +43,42 @@ public sealed class DocumentHoldOutcome
 {
     public bool IsAllowed { get; }
     public string Message { get; }
+    public int? QueuePosition { get; }
+    public bool IsReserved { get; }
+    public string? CopyCode { get; }
+    public DateTime? PickupDeadlineUtc { get; }
 
-    private DocumentHoldOutcome(bool isAllowed, string message)
+    private DocumentHoldOutcome(bool isAllowed, string message, int? queuePosition = null,
+        bool isReserved = false, string? copyCode = null, DateTime? pickupDeadlineUtc = null)
     {
         IsAllowed = isAllowed;
         Message = message;
+        QueuePosition = queuePosition;
+        IsReserved = isReserved;
+        CopyCode = copyCode;
+        PickupDeadlineUtc = pickupDeadlineUtc;
     }
 
-    public static DocumentHoldOutcome Success(string message) => new(true, message);
+    public static DocumentHoldOutcome Success(int? queuePosition, BookHoldFulfillmentResult fulfillment)
+    {
+        if (fulfillment.IsAssigned)
+        {
+            var deadline = DateTime.SpecifyKind(fulfillment.PickupDeadlineUtc!.Value, DateTimeKind.Utc)
+                .ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+            var message = $"Đặt giữ thành công. Trạng thái yêu cầu: {BookHoldStatus.Available}; trạng thái bản sao: {BookCopyStatus.OnHold}. Mã bản sao: {fulfillment.CopyCode}. Hạn đến nhận: {deadline}.";
+            return new(true, message, queuePosition, true, fulfillment.CopyCode, fulfillment.PickupDeadlineUtc);
+        }
+
+        var waitingMessage = $"Đặt giữ thành công. Trạng thái: {BookHoldStatus.Waiting}. Vị trí hiện tại trong hàng đợi: {queuePosition}.";
+        return new(true, waitingMessage, queuePosition);
+    }
     public static DocumentHoldOutcome Rejected(string message) => new(false, message);
     public static DocumentHoldOutcome Failed(string message) => new(false, message);
 }
 
 public sealed record ReaderBookHoldItem(
     long Id, int BookId, string BookTitle, DateTime HeldAtUtc, string Status,
-    int? QueuePosition = null, DateTime? PickupDeadlineUtc = null)
+    int? QueuePosition = null, DateTime? PickupDeadlineUtc = null, string? CopyBarcode = null)
 {
     public bool CanCancel => Status == BookHoldStatus.Waiting;
 

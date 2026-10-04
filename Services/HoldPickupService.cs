@@ -6,13 +6,7 @@ namespace Project.Services;
 
 public sealed class HoldPickupService(ApplicationDbContext db) : IHoldPickupService
 {
-    public static readonly string[] WaitingPickupStatuses =
-    [
-        BookHoldStatus.Available, // "Đã có sách"
-        "Chờ nhận",
-        "Sẵn sàng nhận",
-        "WaitingPickup"
-    ];
+    public static readonly string[] WaitingPickupStatuses = BookHoldStatus.WaitingPickupStatuses;
 
     public async Task<IReadOnlyList<HoldPickupItemViewModel>> GetWaitingPickupHoldsAsync(CancellationToken cancellationToken = default)
     {

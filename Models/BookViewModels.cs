@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Project.Services;
 
 namespace Project.Models;
 
@@ -167,6 +168,8 @@ public sealed class BookDetailsViewModel
     public DateTime CreatedAtUtc { get; set; }
     public bool IsReaderSignedIn { get; set; }
     public bool CanHold { get; set; }
+    public string? HoldBlockedReason { get; set; }
+    public ReaderBookHoldItem? ExistingReaderHold { get; set; }
     public bool IsLibrarian { get; set; }
     public int AvailableCopies { get; set; }
     public int TotalCopies { get; set; }

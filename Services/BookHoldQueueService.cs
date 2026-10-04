@@ -7,14 +7,7 @@ namespace Project.Services;
 public sealed class BookHoldQueueService(ApplicationDbContext db) : IBookHoldQueueService
 {
     // Includes the current statuses and names used by earlier hold-pickup data.
-    private static readonly string[] ActiveStatuses =
-    [
-        BookHoldStatus.Waiting,
-        BookHoldStatus.Available,
-        "Chờ nhận",
-        "Sẵn sàng nhận",
-        "WaitingPickup"
-    ];
+    private static readonly string[] ActiveStatuses = BookHoldStatus.ActiveStatuses;
 
     public async Task<IReadOnlyList<BookHoldQueueItemViewModel>> GetActiveQueueForBookAsync(
         int bookId, CancellationToken cancellationToken = default)

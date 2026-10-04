@@ -6,6 +6,16 @@ public static class BookHoldStatus
     public const string Available = "Đã có sách";
     public const string Cancelled = "Đã hủy";
     public const string ConvertedToLoan = "Đã chuyển thành phiếu mượn";
+
+    public static readonly string[] WaitingPickupStatuses =
+    [
+        Available,
+        "Chờ nhận",
+        "Sẵn sàng nhận",
+        "WaitingPickup"
+    ];
+
+    public static readonly string[] ActiveStatuses = [Waiting, .. WaitingPickupStatuses];
 }
 
 public sealed class BookHold

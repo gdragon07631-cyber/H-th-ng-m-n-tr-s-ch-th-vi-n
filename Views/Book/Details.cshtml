@@ -252,7 +252,25 @@
                     </script>
 
                     <div class="d-flex gap-2 border-top pt-3">
-                        @if (Model.CanHold)
+                        @if (Model.ExistingReaderHold is { } existingHold)
+                        {
+                            <div class="alert alert-info mb-0 py-2" role="status">
+                                <strong>Đã đặt giữ</strong> · Trạng thái: @existingHold.Status.
+                                @if (existingHold.QueuePosition is { } position)
+                                {
+                                    <span>Vị trí hàng đợi: @position.</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(existingHold.CopyBarcode))
+                                {
+                                    <span>Bản sao đang giữ: @existingHold.CopyBarcode.</span>
+                                }
+                                @if (existingHold.PickupDeadlineText is { } pickupDeadline)
+                                {
+                                    <span>Hạn đến nhận: @pickupDeadline.</span>
+                                }
+                            </div>
+                        }
+                        else if (Model.CanHold)
                         {
                             <form asp-action="Hold" asp-route-id="@Model.Id" method="post">
                                 <button type="submit" class="btn btn-success">Đặt giữ</button>
@@ -260,7 +278,12 @@
                         }
                         else if (!Model.IsReaderSignedIn)
                         {
+                            <span class="small text-muted align-self-center">Bạn cần đăng nhập để đặt giữ sách.</span>
                             <a asp-controller="ReaderRegistration" asp-action="Login" asp-route-returnUrl="@Url.Action("Details", new { id = Model.Id })" class="btn btn-outline-success">Đăng nhập để đặt giữ</a>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(Model.HoldBlockedReason))
+                        {
+                            <span class="small text-danger align-self-center" role="status">@Model.HoldBlockedReason</span>
                         }
                         <a asp-action="Create" class="btn btn-primary">Biên mục sách mới</a>
                         <a asp-action="Index" class="btn btn-outline-secondary">Danh sách sách</a>

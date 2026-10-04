@@ -36,6 +36,7 @@
                                     <th>Tên sách</th>
                                     <th class="text-nowrap">Ngày đặt</th>
                                     <th>Trạng thái</th>
+                                    <th>Mã bản sao đang giữ</th>
                                     <th>Vị trí hàng đợi</th>
                                     <th>Hạn cuối nhận sách</th>
                                     <th class="text-end">Thao tác</th>
@@ -48,6 +49,7 @@
                                         <td>@hold.BookTitle</td>
                                         <td class="text-nowrap">@DateTime.SpecifyKind(hold.HeldAtUtc, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
                                         <td><span class="badge @StatusBadgeClass(hold.Status)" data-hold-status>@hold.Status</span></td>
+                                        <td data-hold-copy>@(hold.CopyBarcode ?? "—")</td>
                                         <td data-hold-queue>
                                             @if (hold.QueuePosition is { } position)
                                             {
@@ -119,6 +121,8 @@
 
     const queue = cell('', ...(hold.queuePosition != null ? labelled('Vị trí trong hàng đợi: ', hold.queuePosition) : []));
     queue.dataset.holdQueue = '';
+    const copy = cell('', hold.copyBarcode || '—');
+    copy.dataset.holdCopy = '';
     const actions = cell('text-end');
     actions.dataset.holdActions = '';
     if (hold.canCancel) {
@@ -135,6 +139,7 @@
       cell('', hold.bookTitle),
       cell('text-nowrap', hold.heldAt),
       cell('', badge),
+      copy,
       queue,
       cell('text-nowrap', ...(hold.pickupDeadline ? labelled('Hạn nhận sách: ', hold.pickupDeadline) : [])),
       actions);

@@ -221,7 +221,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
         modelBuilder.Entity<BookHold>(entity =>
         {
-            entity.HasIndex(hold => new { hold.ReaderAccountId, hold.BookId }).IsUnique();
+            entity.HasIndex(hold => new { hold.ReaderAccountId, hold.Status, hold.BookId });
             entity.Property(hold => hold.HeldAtUtc).HasColumnType("datetime2");
             entity.Property(hold => hold.Status).HasMaxLength(50).HasDefaultValue(BookHoldStatus.Waiting).IsRequired();
             entity.Property(hold => hold.PickupDeadlineUtc).HasColumnType("datetime2");

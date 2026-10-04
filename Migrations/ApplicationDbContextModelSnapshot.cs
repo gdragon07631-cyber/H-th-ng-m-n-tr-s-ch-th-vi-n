@@ -387,8 +387,7 @@ namespace Project.Migrations
 
                     b.HasIndex("BookId");
 
-                    b.HasIndex("ReaderAccountId", "BookId")
-                        .IsUnique();
+                    b.HasIndex("ReaderAccountId", "Status", "BookId");
 
                     b.ToTable("BookHolds");
                 });

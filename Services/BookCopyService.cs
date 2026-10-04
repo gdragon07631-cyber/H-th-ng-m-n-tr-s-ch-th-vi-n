@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.Data;
 using System.Globalization;
 using Project.Data;
 using Project.Models;
@@ -10,11 +11,14 @@ using ZXing.Common;
 
 namespace Project.Services;
 
-public sealed class BookCopyService(ApplicationDbContext dbContext, IOptions<BookCopyLabelPrintOptions>? labelOptions = null) : IBookCopyService
+public sealed class BookCopyService(ApplicationDbContext dbContext, IOptions<BookCopyLabelPrintOptions>? labelOptions = null,
+    IBookHoldFulfillmentService? holdFulfillmentService = null) : IBookCopyService
 {
     private const int BarcodeLength = 6;
     private const int MaximumBarcodeNumber = 999999;
     private readonly BookCopyLabelPrintOptions labelLayout = labelOptions?.Value ?? new();
+    private readonly IBookHoldFulfillmentService holdFulfillmentService = holdFulfillmentService ??
+        new BookHoldFulfillmentService(dbContext, new BookLoanService(dbContext, new WorkingScheduleService(dbContext)));
 
     public async Task<BookCopyIndexViewModel?> GetBookCopiesAsync(int bookId, CancellationToken cancellationToken = default)
     {
@@ -102,8 +106,11 @@ public sealed class BookCopyService(ApplicationDbContext dbContext, IOptions<Boo
             PhysicalCondition = model.PhysicalCondition,
             Note = string.IsNullOrWhiteSpace(model.Note) ? null : model.Note.Trim()
         };
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         dbContext.BookCopies.Add(copy);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await holdFulfillmentService.FulfillNextAsync(bookId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return new(BookCopyUpdateStatus.Success, Copy: copy);
     }
 
@@ -155,7 +162,13 @@ public sealed class BookCopyService(ApplicationDbContext dbContext, IOptions<Boo
             .Where(copy => createdIds.Contains(copy.Id))
             .OrderBy(copy => copy.CopyCode)
             .ToListAsync(cancellationToken);
+        await holdFulfillmentService.FulfillNextAsync(bookId, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        savedCopies = await dbContext.BookCopies.AsNoTracking()
+            .Include(copy => copy.Shelf).ThenInclude(shelf => shelf!.Warehouse)
+            .Where(copy => createdIds.Contains(copy.Id))
+            .OrderBy(copy => copy.CopyCode)
+            .ToListAsync(cancellationToken);
         return new(BookCopyBatchCreateStatus.Success, Copies: savedCopies, SkippedBarcodes: skippedBarcodes);
     }
 
@@ -268,6 +281,8 @@ public sealed class BookCopyService(ApplicationDbContext dbContext, IOptions<Boo
         copy.PhysicalCondition = model.PhysicalCondition;
         copy.Note = string.IsNullOrWhiteSpace(model.Note) ? null : model.Note.Trim();
         await dbContext.SaveChangesAsync(cancellationToken);
+        if (statusChanged && model.Status == BookCopyStatus.Available)
+            await holdFulfillmentService.FulfillNextAsync(copy.BookId, cancellationToken);
         return new(BookCopyUpdateStatus.Success, Copy: copy);
     }
 

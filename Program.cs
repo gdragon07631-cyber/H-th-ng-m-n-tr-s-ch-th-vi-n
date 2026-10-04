@@ -32,6 +32,7 @@ builder.Services.AddScoped<IStaffAccountService, StaffAccountService>();
 builder.Services.AddScoped<IBookCopyService, BookCopyService>();
 builder.Services.AddScoped<IHoldPickupService, HoldPickupService>();
 builder.Services.AddScoped<IBookHoldQueueService, BookHoldQueueService>();
+builder.Services.AddScoped<IBookHoldFulfillmentService, BookHoldFulfillmentService>();
 builder.Services.AddScoped<IStaffHoldCancellationService, StaffHoldCancellationService>();
 builder.Services.Configure<BookCopyLabelPrintOptions>(builder.Configuration.GetSection("BookCopyLabels"));
 builder.Services.AddDataProtection()
