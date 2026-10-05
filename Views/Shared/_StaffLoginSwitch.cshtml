@@ -1,18 +1,24 @@
 @model string
-@* Chọn cổng đăng nhập; Model là controller của trang hiện tại. *@
+@* Thanh chuyển đổi vai trò đăng nhập *@
 @{
     var options = new[]
     {
-        new { Controller = "Librarian", Icon = "✓", Name = "Thủ thư", Hint = "Duyệt hồ sơ bạn đọc" },
-        new { Controller = "Manager", Icon = "▤", Name = "Quản lý thư viện", Hint = "Tài liệu, kho, mượn trả" },
-        new { Controller = "Account", Icon = "⚙", Name = "Quản trị viên", Hint = "Quản trị hệ thống" },
-        new { Controller = "ReaderRegistration", Icon = "♙", Name = "Bạn đọc", Hint = "Đăng nhập thư viện" },
+        new { Controller = "Account", Icon = "bi-shield-lock", Name = "Quản trị" },
+        new { Controller = "Manager", Icon = "bi-briefcase", Name = "Quản lý" },
+        new { Controller = "Librarian", Icon = "bi-person-badge", Name = "Thủ thư" },
+        new { Controller = "ReaderRegistration", Icon = "bi-book", Name = "Bạn đọc" },
     };
 }
-<nav class="login-role-switch" aria-label="Chọn loại đăng nhập">
+<nav class="login-role-tabs" aria-label="Chọn cổng đăng nhập">
     @foreach (var option in options)
     {
-        var selected = option.Controller == Model;
-        <a class="@(selected ? "selected" : null)" aria-current="@(selected ? "page" : null)" asp-controller="@option.Controller" asp-action="Login"><span>@option.Icon</span><span><strong>@option.Name</strong><small>@option.Hint</small></span></a>
+        var isSelected = string.Equals(option.Controller, Model, StringComparison.OrdinalIgnoreCase);
+        <a class="login-role-tab @(isSelected ? "active" : "")" 
+           aria-current="@(isSelected ? "page" : null)" 
+           asp-controller="@option.Controller" 
+           asp-action="Login">
+            <i class="bi @option.Icon" aria-hidden="true"></i>
+            <span>@option.Name</span>
+        </a>
     }
 </nav>
