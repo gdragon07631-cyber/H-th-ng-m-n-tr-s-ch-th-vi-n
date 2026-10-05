@@ -136,6 +136,63 @@ public sealed class BookPublicCatalogTests : IDisposable
         Assert.Equal([shown.Id], model.Results.Select(book => book.Id));
     }
 
+    [Fact]
+    public async Task PublicSearchPagesResultsAndCapsPageSize()
+    {
+        for (var index = 1; index <= 21; index++)
+        {
+            var created = await service.CatalogBookAsync(new CatalogBookViewModel
+            {
+                Title = $"Pagination title {index:D2}", AuthorIds = [authorA.Id], CategoryId = category.Id
+            });
+            Assert.True(created.IsSuccess, created.ErrorMessage);
+            await AddCopyAsync(created.Book!.Id, $"PAGE-{index:D3}");
+        }
+
+        var firstPage = await service.SearchPublicCatalogPageAsync(null, 1, 20);
+        var secondPage = await service.SearchPublicCatalogPageAsync(null, 2, 20);
+        var cappedPage = await service.SearchPublicCatalogPageAsync(null, 1, 500);
+
+        Assert.Equal(21, firstPage.TotalItems);
+        Assert.Equal(2, firstPage.TotalPages);
+        Assert.Equal(20, firstPage.Items.Count);
+        Assert.Single(secondPage.Items);
+        Assert.DoesNotContain(firstPage.Items.Select(item => item.Id), id => secondPage.Items.Any(item => item.Id == id));
+        Assert.Equal(100, cappedPage.PageSize);
+    }
+
+    [Fact]
+    public async Task PublicSearchCombinesCategoryYearAndAvailableFilters()
+    {
+        var selected = await service.CatalogBookAsync(new CatalogBookViewModel
+        {
+            Title = "Kinh tế tài chính hiện đại", AuthorIds = [authorA.Id], CategoryId = category.Id, PublicationYear = 2022
+        });
+        Assert.True(selected.IsSuccess, selected.ErrorMessage);
+        await AddCopyAsync(selected.Book!.Id, "FILTER-AVAILABLE", BookCopyStatus.Available);
+
+        var unavailable = await service.CatalogBookAsync(new CatalogBookViewModel
+        {
+            Title = "Kinh tế tài chính cũ", AuthorIds = [authorA.Id], CategoryId = category.Id, PublicationYear = 2021
+        });
+        Assert.True(unavailable.IsSuccess, unavailable.ErrorMessage);
+        await AddCopyAsync(unavailable.Book!.Id, "FILTER-ON-LOAN", BookCopyStatus.OnLoan);
+
+        var wrongYear = await service.CatalogBookAsync(new CatalogBookViewModel
+        {
+            Title = "Kinh tế tài chính xưa", AuthorIds = [authorA.Id], CategoryId = category.Id, PublicationYear = 2019
+        });
+        Assert.True(wrongYear.IsSuccess, wrongYear.ErrorMessage);
+        await AddCopyAsync(wrongYear.Book!.Id, "FILTER-OLD", BookCopyStatus.Available);
+
+        var result = await service.SearchPublicCatalogPageAsync(
+            "kinh tế", 1, 20, [category.Name], 2020, 2023, availableOnly: true);
+
+        var book = Assert.Single(result.Items);
+        Assert.Equal(selected.Book.Id, book.Id);
+        Assert.Equal(1, result.TotalItems);
+    }
+
     private async Task<Book> CreateBookAsync(string title, int authorId, params int[] moreAuthorIds) =>
         await CreateBookAsync(title, [authorId, .. moreAuthorIds], "9786042000000");
 

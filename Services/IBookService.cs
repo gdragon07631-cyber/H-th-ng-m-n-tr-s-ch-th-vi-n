@@ -41,4 +41,9 @@ public interface IBookService
     Task<IReadOnlyList<Book>> GetAllBooksAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyDictionary<int, int>> GetCopyCountsAsync(IEnumerable<int> bookIds, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PublicCatalogBook>> SearchPublicCatalogAsync(string? keyword, CancellationToken cancellationToken = default);
+    Task<PublicCatalogPage> SearchPublicCatalogPageAsync(
+        string? keyword, int page, int pageSize, IReadOnlyCollection<string>? categories = null,
+        int? fromYear = null, int? toYear = null, bool availableOnly = false,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PublicCatalogCategory>> GetPublicCatalogCategoriesAsync(CancellationToken cancellationToken = default);
 }

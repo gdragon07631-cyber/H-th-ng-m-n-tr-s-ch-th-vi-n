@@ -358,7 +358,7 @@ public sealed class BookService(
         var query = dbContext.Books.AsNoTracking()
             .Where(b => dbContext.BookCopies.Any(copy => copy.BookId == b.Id));
 
-        var term = keyword?.Trim();
+        var term = string.IsNullOrWhiteSpace(keyword) ? null : string.Join(' ', keyword.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         if (!string.IsNullOrEmpty(term))
         {
             var lowered = term.ToLower();
@@ -405,6 +405,98 @@ public sealed class BookService(
                 copies[b.Id].Total))
             .ToList();
     }
+
+    public async Task<PublicCatalogPage> SearchPublicCatalogPageAsync(
+        string? keyword, int page, int pageSize, IReadOnlyCollection<string>? categories = null,
+        int? fromYear = null, int? toYear = null, bool availableOnly = false,
+        CancellationToken cancellationToken = default)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var query = dbContext.Books.AsNoTracking()
+            .Where(b => dbContext.BookCopies.Any(copy => copy.BookId == b.Id));
+        const string accentInsensitive = "Latin1_General_100_CI_AI";
+        var selectedCategories = categories?.Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? [];
+        if (selectedCategories.Count > 0)
+        {
+            if (dbContext.Database.IsSqlServer())
+            {
+                query = query.Where(b => b.Category != null &&
+                    (selectedCategories.Contains(EF.Functions.Collate(b.Category.Name, accentInsensitive)) ||
+                     (b.Category.Parent != null && selectedCategories.Contains(EF.Functions.Collate(b.Category.Parent.Name, accentInsensitive)))));
+            }
+            else
+            {
+                query = query.Where(b => b.Category != null &&
+                    (selectedCategories.Contains(b.Category.Name) ||
+                     (b.Category.Parent != null && selectedCategories.Contains(b.Category.Parent.Name))));
+            }
+        }
+        if (fromYear.HasValue) query = query.Where(b => b.PublicationYear >= fromYear.Value);
+        if (toYear.HasValue) query = query.Where(b => b.PublicationYear <= toYear.Value);
+        if (availableOnly)
+            query = query.Where(b => dbContext.BookCopies.Any(copy => copy.BookId == b.Id && copy.Status == BookCopyStatus.Available));
+        var term = string.IsNullOrWhiteSpace(keyword) ? null : string.Join(' ', keyword.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        if (!string.IsNullOrWhiteSpace(term))
+        {
+            // SQL Server's accent-insensitive collation lets an unaccented query match Vietnamese text.
+            var lowered = term.ToLowerInvariant();
+            if (dbContext.Database.IsSqlServer())
+            {
+                query = query.Where(b =>
+                    EF.Functions.Collate(b.Title, accentInsensitive).ToLower().Contains(lowered)
+                    || (b.Subtitle != null && EF.Functions.Collate(b.Subtitle, accentInsensitive).ToLower().Contains(lowered))
+                    || (b.Isbn != null && b.Isbn.Contains(term))
+                    || (b.Author != null && EF.Functions.Collate(b.Author.Name, accentInsensitive).ToLower().Contains(lowered))
+                    || b.BookAuthors.Any(link => link.Author != null && EF.Functions.Collate(link.Author.Name, accentInsensitive).ToLower().Contains(lowered)));
+            }
+            else
+            {
+                // SQLite test databases use their default collation; production SQL Server uses the accent-insensitive branch above.
+                query = query.Where(b => b.Title.ToLower().Contains(lowered)
+                    || (b.Subtitle != null && b.Subtitle.ToLower().Contains(lowered))
+                    || (b.Isbn != null && b.Isbn.Contains(term))
+                    || (b.Author != null && b.Author.Name.ToLower().Contains(lowered))
+                    || b.BookAuthors.Any(link => link.Author != null && link.Author.Name.ToLower().Contains(lowered)));
+            }
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+        var totalPages = total == 0 ? 0 : (int)Math.Ceiling(total / (double)pageSize);
+        page = totalPages == 0 ? 1 : Math.Min(page, totalPages);
+        var books = await query
+            .OrderByDescending(b => term != null && b.Isbn == term)
+            .ThenByDescending(b => term != null && b.Title.ToLower() == term.ToLower())
+            .ThenByDescending(b => b.PublicationYear)
+            .ThenBy(b => b.Title)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Include(b => b.Author)
+            .Include(b => b.BookAuthors).ThenInclude(link => link.Author)
+            .Include(b => b.Category).ThenInclude(c => c!.Parent)
+            .AsSplitQuery().ToListAsync(cancellationToken);
+
+        var ids = books.Select(b => b.Id).ToList();
+        var counts = await dbContext.BookCopies.AsNoTracking().Where(copy => ids.Contains(copy.BookId))
+            .GroupBy(copy => copy.BookId)
+            .Select(group => new { Id = group.Key, Total = group.Count(), Available = group.Count(copy => copy.Status == BookCopyStatus.Available) })
+            .ToDictionaryAsync(item => item.Id, cancellationToken);
+        var items = books.Select(b => new PublicCatalogBook(b.Id, b.Title, b.Subtitle,
+            BookAuthorList.For(b).Select(author => author.Name).ToList(),
+            b.Category == null ? "Chưa phân loại" : b.Category.Parent == null ? b.Category.Name : $"{b.Category.Parent.Name} > {b.Category.Name}",
+            b.Isbn, b.PublicationYear, BookCoverPresentation.ForList(b), counts[b.Id].Available, counts[b.Id].Total)).ToList();
+        return new PublicCatalogPage(items, page, pageSize, total);
+    }
+
+    public async Task<IReadOnlyList<PublicCatalogCategory>> GetPublicCatalogCategoriesAsync(CancellationToken cancellationToken = default) =>
+        await dbContext.Categories.AsNoTracking()
+            .Where(category => category.Status == CategoryStatus.Active &&
+                (category.ParentId == null || category.Parent!.Status == CategoryStatus.Active))
+            .OrderBy(category => category.Parent == null ? category.Name : category.Parent.Name)
+            .ThenBy(category => category.Name)
+            .Select(category => new PublicCatalogCategory(category.Id, category.Name, category.Parent == null ? null : category.Parent.Name))
+            .ToListAsync(cancellationToken);
+
 
     public async Task<IReadOnlyList<Book>> GetAllBooksAsync(CancellationToken cancellationToken = default)
     {

@@ -116,6 +116,22 @@ public sealed class PublicCatalogSearchViewModel
 {
     public string? Keyword { get; set; }
     public IReadOnlyList<PublicCatalogBook> Results { get; set; } = [];
+    public IReadOnlyList<PublicCatalogCategory> Categories { get; set; } = [];
+    public List<string> SelectedCategories { get; set; } = [];
+    public int? FromYear { get; set; }
+    public int? ToYear { get; set; }
+    public bool AvailableOnly { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+    public int TotalItems { get; set; }
+    public int TotalPages => TotalItems == 0 ? 0 : (int)Math.Ceiling(TotalItems / (double)PageSize);
+}
+
+public sealed record PublicCatalogCategory(int Id, string Name, string? ParentName);
+
+public sealed record PublicCatalogPage(IReadOnlyList<PublicCatalogBook> Items, int Page, int PageSize, int TotalItems)
+{
+    public int TotalPages => TotalItems == 0 ? 0 : (int)Math.Ceiling(TotalItems / (double)PageSize);
 }
 
 /// <summary>Một đầu sách đã có trùng nhan đề với đầu sách đang nhập.</summary>

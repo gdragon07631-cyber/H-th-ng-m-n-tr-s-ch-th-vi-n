@@ -10,28 +10,61 @@
         <p class="text-muted mb-0">Tìm sách theo nhan đề, tác giả hoặc ISBN trong kho sách của thư viện.</p>
     </div>
 
-    <form asp-action="Index" method="get" class="row g-2 mb-4" role="search" aria-label="Tra cứu sách">
-        <div class="col-12 col-md">
+    <form id="catalogSearchForm" asp-action="Index" method="get" class="row g-2 mb-4" role="search" aria-label="Tra cứu sách">
+        <input type="hidden" name="page" value="1" />
+        <div class="col-12 col-md-8">
             <label for="catalogKeyword" class="visually-hidden">Từ khóa</label>
             <input id="catalogKeyword" name="q" type="search" value="@Model.Keyword" class="form-control" placeholder="Nhập nhan đề, tác giả hoặc ISBN..." autocomplete="off" />
         </div>
-        <div class="col-12 col-md-auto d-flex gap-2">
-            <button type="submit" class="btn btn-primary flex-fill">Tra cứu</button>
-            @if (!string.IsNullOrEmpty(Model.Keyword))
+        <div class="col-12 col-md-4">
+            <button type="submit" class="btn btn-primary w-100">Tra cứu</button>
+        </div>
+        <div class="col-12 col-md-6">
+            <label for="catalogCategories" class="form-label">Thể loại</label>
+            <select id="catalogCategories" name="categories" class="form-select" multiple size="4" data-auto-submit>
+                @foreach (var category in Model.Categories)
+                {
+                    var label = category.ParentName is null ? category.Name : $"{category.ParentName} > {category.Name}";
+                    <option value="@category.Name" selected="@Model.SelectedCategories.Contains(category.Name)">@label</option>
+                }
+            </select>
+            <div class="form-text">Có thể chọn nhiều thể loại.</div>
+        </div>
+        <div class="col-6 col-md-3">
+            <label for="catalogFromYear" class="form-label">Từ năm</label>
+            <input id="catalogFromYear" name="fromYear" type="number" min="1" max="9999" value="@Model.FromYear" class="form-control" data-auto-submit />
+        </div>
+        <div class="col-6 col-md-3">
+            <label for="catalogToYear" class="form-label">Đến năm</label>
+            <input id="catalogToYear" name="toYear" type="number" min="1" max="9999" value="@Model.ToYear" class="form-control" data-auto-submit />
+        </div>
+        <div class="col-12 d-flex justify-content-between align-items-center">
+            <label class="form-check-label" for="catalogAvailableOnly">
+                <input id="catalogAvailableOnly" name="availableOnly" type="checkbox" value="true" class="form-check-input me-2" checked="@Model.AvailableOnly" data-auto-submit />
+                Chỉ hiện sách còn bản rảnh
+            </label>
+            @if (!string.IsNullOrEmpty(Model.Keyword) || Model.SelectedCategories.Count > 0 || Model.FromYear.HasValue || Model.ToYear.HasValue || Model.AvailableOnly)
             {
-                <a asp-action="Index" class="btn btn-outline-secondary flex-fill">Xóa lọc</a>
+                <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Xóa bộ lọc</a>
             }
         </div>
     </form>
 
     <p class="text-muted small mb-3" id="catalogResultCount">
-        @(string.IsNullOrEmpty(Model.Keyword) ? $"Có {Model.Results.Count} đầu sách." : $"Tìm thấy {Model.Results.Count} đầu sách cho \"{Model.Keyword}\".")
+        @(string.IsNullOrEmpty(Model.Keyword) ? $"Có {Model.TotalItems} đầu sách." : $"Tìm thấy {Model.TotalItems} đầu sách cho \"{Model.Keyword}\".")
     </p>
 
     @if (Model.Results.Count == 0)
     {
         <div class="card border-0 shadow-sm">
-            <div class="card-body text-center text-muted py-5">Không tìm thấy đầu sách phù hợp.</div>
+            <div class="card-body text-center py-5">
+                <h2 class="h4 mb-2">Không tìm thấy kết quả</h2>
+                <p class="text-muted mb-4">Hãy thử bỏ bớt bộ lọc hoặc kiểm tra lại từ khóa.</p>
+                <div class="d-flex justify-content-center gap-2 flex-wrap">
+                    <a asp-action="Index" asp-route-q="@Model.Keyword" class="btn btn-outline-primary">Xóa bộ lọc</a>
+                    <a asp-action="Index" class="btn btn-primary">Tìm kiếm mới</a>
+                </div>
+            </div>
         </div>
     }
     else
@@ -76,4 +109,63 @@
             }
         </div>
     }
+
+    @if (Model.TotalPages > 1)
+    {
+        <nav class="mt-4" aria-label="Phân trang kết quả tra cứu">
+            <ul class="pagination justify-content-center">
+                @if (Model.Page > 1)
+                {
+                    <li class="page-item">
+                        <form asp-action="Index" method="get" class="m-0">
+                            <input type="hidden" name="q" value="@Model.Keyword" />
+                            @foreach (var category in Model.SelectedCategories) { <input type="hidden" name="categories" value="@category" /> }
+                            <input type="hidden" name="fromYear" value="@Model.FromYear" /><input type="hidden" name="toYear" value="@Model.ToYear" />
+                            @if (Model.AvailableOnly) { <input type="hidden" name="availableOnly" value="true" /> }
+                            <input type="hidden" name="page" value="@(Model.Page - 1)" />
+                            <button type="submit" class="page-link" aria-label="Trang trước">‹</button>
+                        </form>
+                    </li>
+                }
+                @for (var page = 1; page <= Model.TotalPages; page++)
+                {
+                    <li class="page-item @(page == Model.Page ? "active" : "")">
+                        <form asp-action="Index" method="get" class="m-0">
+                            <input type="hidden" name="q" value="@Model.Keyword" />
+                            @foreach (var category in Model.SelectedCategories) { <input type="hidden" name="categories" value="@category" /> }
+                            <input type="hidden" name="fromYear" value="@Model.FromYear" />
+                            <input type="hidden" name="toYear" value="@Model.ToYear" />
+                            @if (Model.AvailableOnly) { <input type="hidden" name="availableOnly" value="true" /> }
+                            <input type="hidden" name="page" value="@page" />
+                            <button type="submit" class="page-link" aria-current="@(page == Model.Page ? "page" : null)">@page</button>
+                        </form>
+                    </li>
+                }
+                @if (Model.Page < Model.TotalPages)
+                {
+                    <li class="page-item">
+                        <form asp-action="Index" method="get" class="m-0">
+                            <input type="hidden" name="q" value="@Model.Keyword" />
+                            @foreach (var category in Model.SelectedCategories) { <input type="hidden" name="categories" value="@category" /> }
+                            <input type="hidden" name="fromYear" value="@Model.FromYear" /><input type="hidden" name="toYear" value="@Model.ToYear" />
+                            @if (Model.AvailableOnly) { <input type="hidden" name="availableOnly" value="true" /> }
+                            <input type="hidden" name="page" value="@(Model.Page + 1)" />
+                            <button type="submit" class="page-link" aria-label="Trang sau">›</button>
+                        </form>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
 </div>
+
+@section Scripts {
+    <script>
+        document.querySelectorAll('#catalogSearchForm [data-auto-submit]').forEach(function (control) {
+            control.addEventListener('change', function () {
+                document.querySelector('#catalogSearchForm input[name="page"]').value = '1';
+                document.getElementById('catalogSearchForm').requestSubmit();
+            });
+        });
+    </script>
+}
