@@ -1,3 +1,4 @@
+using Project.Filters;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Project.Data;
@@ -6,6 +7,7 @@ using Project.Services;
 
 namespace Project.Controllers;
 
+[StaffOnly(AccountRoles.SystemAdmin, AccountRoles.LibraryManager)]
 public sealed class AuthorController(
     IAuthorService authorService,
     ApplicationDbContext dbContext) : Controller
@@ -33,7 +35,7 @@ public sealed class AuthorController(
     {
         if (!Request.Cookies.TryGetValue("admin_refresh", out var token) || string.IsNullOrWhiteSpace(token)) return false;
         var hash = TokenService.HashRefreshToken(token);
-        return await dbContext.RefreshTokens.AnyAsync(item => item.TokenHash == hash && item.RevokedAtUtc == null && item.ExpiresAtUtc > DateTime.UtcNow && item.AdminAccount.IsActive && item.AdminAccount.Role == AccountRoles.SystemAdmin, ct);
+        return await dbContext.RefreshTokens.AnyAsync(item => item.TokenHash == hash && item.RevokedAtUtc == null && item.ExpiresAtUtc > DateTime.UtcNow && item.AdminAccount.IsActive && (item.AdminAccount.Role == AccountRoles.SystemAdmin || item.AdminAccount.Role == AccountRoles.LibraryManager), ct);
     }
 
     [HttpPost]

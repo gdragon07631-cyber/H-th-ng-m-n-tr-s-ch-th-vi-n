@@ -55,6 +55,54 @@ public sealed class DocumentHoldOutcome
     public static DocumentHoldOutcome Failed(string message) => new(false, message);
 }
 
+public sealed record ReaderBookHoldItem(
+    long Id, int BookId, string BookTitle, DateTime HeldAtUtc, string Status,
+    int? QueuePosition = null, DateTime? PickupDeadlineUtc = null)
+{
+    public bool CanCancel => Status == BookHoldStatus.Waiting;
+
+    /// <summary>Hạn nhận sách theo giờ địa phương, dạng "17:00 28/09/2026"; null khi không có hạn.</summary>
+    public string? PickupDeadlineText => PickupDeadlineUtc is { } deadline
+        ? DateTime.SpecifyKind(deadline, DateTimeKind.Utc).ToLocalTime().ToString("HH:mm dd/MM/yyyy")
+        : null;
+}
+
+public enum BookHoldCancelResult
+{
+    Success,
+    NotFound,
+    NotWaiting
+}
+
+public sealed class BookHoldCancelOutcome
+{
+    public BookHoldCancelResult Result { get; }
+    public string Message { get; }
+    public string? Status { get; }
+    /// <summary>Đơn của người kế tiếp được đôn lên "Đã có sách" (nếu có).</summary>
+    public long? PromotedHoldId { get; private init; }
+    /// <summary>Bản sao được trả về "Sẵn sàng" (nếu có).</summary>
+    public long? ReleasedCopyId { get; private init; }
+
+    private BookHoldCancelOutcome(BookHoldCancelResult result, string message, string? status)
+        => (Result, Message, Status) = (result, message, status);
+
+    public static BookHoldCancelOutcome Success(long? promotedHoldId = null, long? releasedCopyId = null) =>
+        new(BookHoldCancelResult.Success, "Hủy đơn đặt giữ thành công.", BookHoldStatus.Cancelled)
+        {
+            PromotedHoldId = promotedHoldId,
+            ReleasedCopyId = releasedCopyId
+        };
+    public static BookHoldCancelOutcome NotFound() =>
+        new(BookHoldCancelResult.NotFound, "Không tìm thấy đơn đặt giữ.", null);
+    public static BookHoldCancelOutcome NotWaiting(string status) =>
+        new(BookHoldCancelResult.NotWaiting,
+            status == BookHoldStatus.ConvertedToLoan
+                ? $"Không thể hủy vì đơn đặt giữ đã ở trạng thái \"{status}\"."
+                : $"Chỉ có thể hủy đơn đặt giữ đang ở trạng thái \"{BookHoldStatus.Waiting}\". Đơn này đang ở trạng thái \"{status}\".",
+            status);
+}
+
 public sealed class ReaderApprovalOutcome
 {
     public bool IsSuccess { get; }
@@ -90,6 +138,8 @@ public interface IReaderRegistrationService
         int id, string currentPassword, string newPassword, CancellationToken cancellationToken = default);
     Task<ReaderAccount?> AuthenticateReaderAsync(string email, string password, CancellationToken cancellationToken = default);
     Task<DocumentHoldOutcome> HoldDocumentAsync(int readerAccountId, int documentId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ReaderBookHoldItem>> GetReaderHoldsAsync(int readerAccountId, CancellationToken cancellationToken = default);
+    Task<BookHoldCancelOutcome> CancelReaderHoldAsync(int readerAccountId, long holdId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ReaderAccount>> GetPendingReadersAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ReaderAccount>> GetPendingReadersAsync(string? search, DateOnly? fromDate, DateOnly? toDate, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<LibraryCardType>> GetActiveCardTypesAsync(CancellationToken cancellationToken = default);

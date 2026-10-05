@@ -95,7 +95,13 @@ public sealed class BookService(
                 ? "Chưa phân loại"
                 : book.Category.Parent == null ? book.Category.Name : $"{book.Category.Parent.Name} > {book.Category.Name}",
             Description = book.Description,
-            CreatedAtUtc = book.CreatedAtUtc
+            CoverImagePath = book.CoverImagePath,
+            ThumbnailImagePath = book.ThumbnailImagePath,
+            CreatedAtUtc = book.CreatedAtUtc,
+            // Chỉ bản "Sẵn sàng" là bản rảnh; bản Đang sửa chữa/Đang mượn/Đang giữ không được tính.
+            AvailableCopies = await dbContext.BookCopies.CountAsync(
+                copy => copy.BookId == book.Id && copy.Status == BookCopyStatus.Available, cancellationToken),
+            TotalCopies = await dbContext.BookCopies.CountAsync(copy => copy.BookId == book.Id, cancellationToken)
         };
     }
 

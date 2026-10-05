@@ -40,8 +40,16 @@ public sealed class BookDetailsViewModel
     public string AuthorStatus { get; set; } = string.Empty;
     public string CategoryName { get; set; } = "Chưa phân loại";
     public string? Description { get; set; }
+    public string? CoverImagePath { get; set; }
+    public string? ThumbnailImagePath { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public bool IsReaderSignedIn { get; set; }
     public bool CanHold { get; set; }
+<<<<<<< HEAD
     public bool IsReaderPending { get; set; }
+=======
+    public bool IsLibrarian { get; set; }
+    public int AvailableCopies { get; set; }
+    public int TotalCopies { get; set; }
+>>>>>>> f35459820125c89e502a3445257167d80b397d91
 }

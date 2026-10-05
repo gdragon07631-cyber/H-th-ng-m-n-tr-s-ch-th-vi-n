@@ -23,12 +23,14 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<BookHold> BookHolds => Set<BookHold>();
     public DbSet<BookLoan> BookLoans => Set<BookLoan>();
     public DbSet<BookCopy> BookCopies => Set<BookCopy>();
+    public DbSet<BookCopyStatusHistory> BookCopyStatusHistories => Set<BookCopyStatusHistory>();
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
     public DbSet<Shelf> Shelves => Set<Shelf>();
     public DbSet<WeeklyWorkingSchedule> WeeklyWorkingSchedules => Set<WeeklyWorkingSchedule>();
     public DbSet<HolidayClosure> HolidayClosures => Set<HolidayClosure>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<LoanPolicy> LoanPolicies => Set<LoanPolicy>();
+    public DbSet<StaffPasswordSetupToken> StaffPasswordSetupTokens => Set<StaffPasswordSetupToken>();
 
     public const string AuditLogReadOnlyTrigger = "TR_AuditLogs_ReadOnly";
 
@@ -69,6 +71,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(b => b.Title).HasMaxLength(250).IsRequired();
             entity.Property(b => b.Isbn).HasMaxLength(50);
             entity.Property(b => b.Description).HasMaxLength(500);
+            entity.Property(b => b.CoverImagePath).HasMaxLength(500);
+            entity.Property(b => b.ThumbnailImagePath).HasMaxLength(500);
             entity.Property(b => b.CreatedAtUtc).HasColumnType("datetime2");
             entity.HasOne(b => b.Author)
                 .WithMany(a => a.Books)
@@ -100,8 +104,30 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(account => account.Role).HasMaxLength(30).HasDefaultValue(AccountRoles.SystemAdmin).IsRequired();
             entity.Property(account => account.IsActive).HasDefaultValue(true);
             entity.Property(account => account.FailedLoginAttempts).HasDefaultValue(0);
-            entity.ToTable(table => table.HasCheckConstraint(
-                "CK_AdminAccounts_FailedLoginAttempts_NonNegative", "[FailedLoginAttempts] >= 0"));
+            entity.Property(account => account.FullName).HasMaxLength(100).HasDefaultValue(string.Empty).IsRequired();
+            entity.Property(account => account.PhoneNumber).HasMaxLength(20);
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_AdminAccounts_FailedLoginAttempts_NonNegative", "[FailedLoginAttempts] >= 0");
+                table.HasCheckConstraint(
+                    "CK_AdminAccounts_Role_Valid",
+                    $"[Role] IN ('{AccountRoles.Librarian}', '{AccountRoles.LibraryManager}', '{AccountRoles.SystemAdmin}')");
+            });
+        });
+
+        modelBuilder.Entity<StaffPasswordSetupToken>(entity =>
+        {
+            entity.HasIndex(token => token.TokenHash).IsUnique();
+            entity.HasIndex(token => new { token.AdminAccountId, token.ExpiresAtUtc });
+            entity.Property(token => token.TokenHash).HasMaxLength(64).IsRequired();
+            entity.Property(token => token.CreatedAtUtc).HasColumnType("datetime2");
+            entity.Property(token => token.ExpiresAtUtc).HasColumnType("datetime2");
+            entity.Property(token => token.UsedAtUtc).HasColumnType("datetime2");
+            entity.HasOne(token => token.AdminAccount)
+                .WithMany()
+                .HasForeignKey(token => token.AdminAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<LoginLog>(entity =>
@@ -144,6 +170,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(reader => reader.RejectionReason).HasMaxLength(1000);
             entity.Property(reader => reader.CreatedAtUtc).HasColumnType("datetime2");
             entity.Property(reader => reader.UpdatedAtUtc).HasColumnType("datetime2");
+            entity.Property(reader => reader.OutstandingBalance).HasColumnType("decimal(18,2)").HasDefaultValue(0m);
         });
 
         modelBuilder.Entity<LibraryCardType>(entity =>
@@ -151,6 +178,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasIndex(type => type.Name).IsUnique();
             entity.Property(type => type.Name).HasMaxLength(100).IsRequired();
             entity.Property(type => type.IsActive).HasDefaultValue(true);
+            entity.Property(type => type.MaxRenewals).HasDefaultValue(LibraryCardType.DefaultMaxRenewals);
         });
 
         modelBuilder.Entity<ReaderPasswordHistory>(entity =>
@@ -178,10 +206,14 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         {
             entity.HasIndex(hold => new { hold.ReaderAccountId, hold.BookId }).IsUnique();
             entity.Property(hold => hold.HeldAtUtc).HasColumnType("datetime2");
+            entity.Property(hold => hold.Status).HasMaxLength(50).HasDefaultValue(BookHoldStatus.Waiting).IsRequired();
+            entity.Property(hold => hold.PickupDeadlineUtc).HasColumnType("datetime2");
             entity.HasOne(hold => hold.ReaderAccount).WithMany(reader => reader.BookHolds)
                 .HasForeignKey(hold => hold.ReaderAccountId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(hold => hold.Book).WithMany()
                 .HasForeignKey(hold => hold.BookId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(hold => hold.BookCopy).WithMany()
+                .HasForeignKey(hold => hold.BookCopyId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Warehouse>(entity =>
@@ -214,6 +246,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(loan => loan.LoanDate).HasColumnType("date");
             entity.Property(loan => loan.OriginalDueDate).HasColumnType("date");
             entity.Property(loan => loan.DueDate).HasColumnType("date");
+            entity.Property(loan => loan.RenewalCount).HasDefaultValue(0);
             entity.Property(loan => loan.CreatedAtUtc).HasColumnType("datetime2");
             entity.HasOne(loan => loan.Book).WithMany()
                 .HasForeignKey(loan => loan.BookId).OnDelete(DeleteBehavior.Restrict);
@@ -231,6 +264,20 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .HasForeignKey(copy => copy.BookId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(copy => copy.Shelf).WithMany()
                 .HasForeignKey(copy => copy.ShelfId).OnDelete(DeleteBehavior.Restrict);
+            entity.Property(copy => copy.PhysicalCondition).HasMaxLength(50).HasDefaultValue(BookCopyCondition.Good).IsRequired();
+            entity.Property(copy => copy.Note).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<BookCopyStatusHistory>(entity =>
+        {
+            entity.HasIndex(history => new { history.BookCopyId, history.ChangedAtUtc });
+            entity.Property(history => history.FromStatus).HasMaxLength(50).IsRequired();
+            entity.Property(history => history.ToStatus).HasMaxLength(50).IsRequired();
+            entity.Property(history => history.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(history => history.ChangedBy).HasMaxLength(256).IsRequired();
+            entity.Property(history => history.ChangedAtUtc).HasColumnType("datetime2");
+            entity.HasOne(history => history.BookCopy).WithMany()
+                .HasForeignKey(history => history.BookCopyId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<WeeklyWorkingSchedule>(entity =>

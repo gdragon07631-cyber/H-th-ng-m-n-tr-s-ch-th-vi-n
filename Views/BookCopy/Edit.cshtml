@@ -1,0 +1,143 @@
+@model Project.Models.BookCopyEditViewModel
+@using Project.Models
+@{
+    ViewData["Title"] = "Sửa bản sao " + Model.CopyCode;
+}
+<div class="container py-4">
+    <div class="mb-4">
+        <a asp-action="Index" asp-route-bookId="@Model.BookId" class="small text-decoration-none">← Bản sao của “@Model.BookTitle”</a>
+        <h1 class="h3 mt-2 mb-1 text-primary fw-bold">Sửa bản sao</h1>
+        <p class="text-muted mb-0">Đổi kho, kệ, tình trạng vật lý, ghi chú hoặc trạng thái. Mã vạch không sửa được.</p>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <form asp-action="Edit" asp-route-id="@Model.Id" method="post">
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label" for="copyCode">Mã vạch</label>
+                                <input id="copyCode" class="form-control font-monospace" value="@Model.CopyCode" readonly disabled />
+                                <div class="form-text">Mã vạch gắn với nhãn trên sách, không thể thay đổi.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="currentStatus">Trạng thái hiện tại</label>
+                                <input id="currentStatus" class="form-control" value="@Model.CurrentStatus" readonly disabled />
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="WarehouseId" class="form-label"></label>
+                                <select asp-for="WarehouseId" class="form-select" id="warehouseSelect" required>
+                                    <option value="">-- Chọn kho --</option>
+                                    @foreach (var warehouse in Model.Warehouses)
+                                    {
+                                        <option value="@warehouse.Id">@warehouse.Code – @warehouse.Name</option>
+                                    }
+                                </select>
+                                <span asp-validation-for="WarehouseId" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="ShelfId" class="form-label"></label>
+                                <select asp-for="ShelfId" class="form-select" id="shelfSelect" required>
+                                    <option value="">-- Chọn kệ --</option>
+                                    @foreach (var shelf in Model.Shelves)
+                                    {
+                                        <option value="@shelf.Id" data-warehouse="@shelf.WarehouseId">@shelf.Code – @shelf.Name</option>
+                                    }
+                                </select>
+                                <span asp-validation-for="ShelfId" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="PhysicalCondition" class="form-label"></label>
+                                <select asp-for="PhysicalCondition" class="form-select" asp-items="@(new SelectList(BookCopyCondition.All))"></select>
+                                <span asp-validation-for="PhysicalCondition" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="Status" class="form-label"></label>
+                                @if (Model.StatusLocked)
+                                {
+                                    <input type="hidden" asp-for="Status" />
+                                    <input class="form-control" value="@Model.CurrentStatus" readonly disabled />
+                                    <div class="form-text">
+                                        @(Model.CurrentStatus == BookCopyStatus.OnLoan
+                                            ? "Bản sao đang thuộc một phiếu mượn chưa trả nên không thể chuyển sang Đang sửa chữa."
+                                            : "Trạng thái này do nghiệp vụ mượn/đặt giữ quản lý.")
+                                    </div>
+                                }
+                                else
+                                {
+                                    <select asp-for="Status" class="form-select" id="statusSelect" asp-items="@(new SelectList(BookCopyStatus.Editable))" data-current="@Model.CurrentStatus"></select>
+                                }
+                                <span asp-validation-for="Status" class="text-danger small"></span>
+                            </div>
+                            <div class="col-12" id="reasonGroup">
+                                <label asp-for="Reason" class="form-label"></label>
+                                <textarea asp-for="Reason" class="form-control" rows="2" placeholder="Bắt buộc khi đổi trạng thái, VD: Gáy sách bị bong, gửi đóng lại"></textarea>
+                                <span asp-validation-for="Reason" class="text-danger small"></span>
+                            </div>
+                            <div class="col-12">
+                                <label asp-for="Note" class="form-label"></label>
+                                <textarea asp-for="Note" class="form-control" rows="2"></textarea>
+                                <span asp-validation-for="Note" class="text-danger small"></span>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+                            <a asp-action="Index" asp-route-bookId="@Model.BookId" class="btn btn-outline-secondary">Huỷ</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card shadow-sm border-0">
+                <div class="card-header"><h2 class="h5 mb-0">Lịch sử đổi trạng thái</h2></div>
+                <ul class="list-group list-group-flush">
+                    @if (Model.History.Count == 0)
+                    {
+                        <li class="list-group-item text-muted">Chưa có lần đổi trạng thái nào.</li>
+                    }
+                    @foreach (var history in Model.History)
+                    {
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between gap-2">
+                                <strong>@history.FromStatus → @history.ToStatus</strong>
+                                <small class="text-muted text-nowrap">@DateTime.SpecifyKind(history.ChangedAtUtc, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+                            </div>
+                            <div class="small">@history.Reason</div>
+                            <div class="small text-muted">Người thực hiện: @history.ChangedBy</div>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            // Chỉ hiện các kệ thuộc kho đang chọn; máy chủ vẫn kiểm tra lại.
+            const warehouse = document.getElementById("warehouseSelect");
+            const shelf = document.getElementById("shelfSelect");
+            const filterShelves = () => {
+                for (const option of shelf.options) {
+                    if (!option.value) continue;
+                    const matches = option.dataset.warehouse === warehouse.value;
+                    option.hidden = !matches;
+                    if (!matches && option.selected) shelf.value = "";
+                }
+            };
+            warehouse?.addEventListener("change", filterShelves);
+            filterShelves();
+
+            const status = document.getElementById("statusSelect");
+            const reason = document.getElementById("Reason");
+            const syncReason = () => { if (status && reason) reason.required = status.value !== status.dataset.current; };
+            status?.addEventListener("change", syncReason);
+            syncReason();
+        })();
+    </script>
+}

@@ -20,11 +20,8 @@
                 <div><h1>Đăng nhập thủ thư</h1><p>Dùng tài khoản được cấp riêng với vai trò Thủ thư.</p></div>
                 <span class="login-version"><i></i> NHÂN SỰ</span>
             </div>
-            <nav class="login-role-switch" aria-label="Chọn loại đăng nhập">
-                <a class="selected" aria-current="page" asp-controller="Librarian" asp-action="Login"><span>✓</span><span><strong>Thủ thư</strong><small>Duyệt hồ sơ bạn đọc</small></span></a>
-                <a asp-controller="Account" asp-action="Login"><span>⚙</span><span><strong>Quản trị viên</strong><small>Quản trị hệ thống</small></span></a>
-                <a asp-controller="ReaderRegistration" asp-action="Login"><span>♙</span><span><strong>Bạn đọc</strong><small>Đăng nhập thư viện</small></span></a>
-            </nav>
+            <partial name="_StaffLoginSwitch" model="@("Librarian")" />
+            @if (TempData["LogoutMessage"] is string logoutMessage) { <div class="login-notice" role="status">@logoutMessage</div> }
             <div asp-validation-summary="ModelOnly" class="login-validation" role="alert"></div>
             <form asp-action="Login" method="post">
                 <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />

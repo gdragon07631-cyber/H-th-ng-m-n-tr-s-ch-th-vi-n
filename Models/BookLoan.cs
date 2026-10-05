@@ -12,6 +12,7 @@ public sealed class BookLoan
     public DateOnly LoanDate { get; set; }
     public DateOnly OriginalDueDate { get; set; }
     public DateOnly DueDate { get; set; }
+    public int RenewalCount { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 }
 

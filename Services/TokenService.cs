@@ -15,6 +15,23 @@ public sealed class TokenService(ApplicationDbContext dbContext, IConfiguration 
     private static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(7);
 
+    public async Task<string?> RevokeAsync(string refreshToken, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(refreshToken)) return null;
+        var hash = HashRefreshToken(refreshToken);
+        var storedToken = await dbContext.RefreshTokens
+            .Include(item => item.AdminAccount)
+            .SingleOrDefaultAsync(item => item.TokenHash == hash, cancellationToken);
+        if (storedToken is null) return null;
+
+        if (storedToken.RevokedAtUtc is null)
+        {
+            storedToken.RevokedAtUtc = DateTime.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        return storedToken.AdminAccount.Role;
+    }
+
     public async Task<TokenPair> CreateTokenPairAsync(int adminAccountId, CancellationToken cancellationToken = default)
     {
         var account = await dbContext.AdminAccounts
@@ -51,7 +68,7 @@ public sealed class TokenService(ApplicationDbContext dbContext, IConfiguration 
             if (storedToken is null || storedToken.RevokedAtUtc.HasValue || storedToken.ExpiresAtUtc <= now ||
                 !storedToken.AdminAccount.IsActive)
             {
-                await transaction.RollbackAsync(cancellationToken);
+                await transaction.RollbackAsync(CancellationToken.None);
                 return null;
             }
 
@@ -81,7 +98,7 @@ public sealed class TokenService(ApplicationDbContext dbContext, IConfiguration 
         }
         catch
         {
-            await transaction.RollbackAsync(cancellationToken);
+            await transaction.RollbackAsync(CancellationToken.None);
             throw;
         }
     }

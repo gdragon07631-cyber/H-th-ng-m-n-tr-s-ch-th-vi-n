@@ -1,3 +1,4 @@
+using Project.Filters;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -7,14 +8,18 @@ using Project.Services;
 
 namespace Project.Controllers;
 
+[StaffOnly(AccountRoles.Librarian, AccountRoles.SystemAdmin, AccountRoles.LibraryManager)]
 public sealed class BookController(
     IBookService bookService,
     IAuthorService authorService,
     ICategoryService categoryService,
     IReaderRegistrationService registrationService,
     ApplicationDbContext dbContext,
-    IDataProtectionProvider dataProtectionProvider) : Controller
+    IDataProtectionProvider dataProtectionProvider,
+    IBookCoverThumbnailService thumbnailService) : Controller
 {
+    private const long MaxCoverBytes = 3 * 1024 * 1024;
+
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken = default)
     {
@@ -22,7 +27,43 @@ public sealed class BookController(
             return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Index)) });
 
         var books = await bookService.GetAllBooksAsync(cancellationToken);
+        await EnsureExistingBookThumbnailsAsync(books, cancellationToken);
         return View(books);
+    }
+
+    private async Task EnsureExistingBookThumbnailsAsync(IReadOnlyList<Book> books, CancellationToken cancellationToken)
+    {
+        var coverDirectory = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "book-covers");
+        var thumbnailDirectory = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "book-thumbnails");
+        var changed = false;
+
+        foreach (var book in books)
+        {
+            if (string.IsNullOrWhiteSpace(book.CoverImagePath) || !string.IsNullOrWhiteSpace(book.ThumbnailImagePath)) continue;
+            var fileName = Path.GetFileName(book.CoverImagePath);
+            if (!fileName.StartsWith($"{book.Id}-", StringComparison.Ordinal)) continue;
+            var extension = Path.GetExtension(fileName).ToLowerInvariant();
+            if (extension is not (".jpg" or ".jpeg" or ".png")) continue;
+
+            var sourcePath = Path.Combine(coverDirectory, fileName);
+            if (!System.IO.File.Exists(sourcePath)) continue;
+
+            Directory.CreateDirectory(thumbnailDirectory);
+            var thumbnailPath = Path.Combine(thumbnailDirectory, fileName);
+            try
+            {
+                await using var source = System.IO.File.OpenRead(sourcePath);
+                await thumbnailService.CreateAsync(source, thumbnailPath, cancellationToken);
+                book.ThumbnailImagePath = $"/uploads/book-thumbnails/{fileName}";
+                changed = true;
+            }
+            catch (SixLabors.ImageSharp.ImageFormatException)
+            {
+                // An unreadable legacy cover remains visible using the original image path.
+            }
+        }
+
+        if (changed) await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     [HttpGet]
@@ -45,7 +86,7 @@ public sealed class BookController(
     {
         if (!Request.Cookies.TryGetValue("admin_refresh", out var token) || string.IsNullOrWhiteSpace(token)) return false;
         var hash = TokenService.HashRefreshToken(token);
-        return await dbContext.RefreshTokens.AnyAsync(item => item.TokenHash == hash && item.RevokedAtUtc == null && item.ExpiresAtUtc > DateTime.UtcNow && item.AdminAccount.IsActive && item.AdminAccount.Role == AccountRoles.SystemAdmin, ct);
+        return await dbContext.RefreshTokens.AnyAsync(item => item.TokenHash == hash && item.RevokedAtUtc == null && item.ExpiresAtUtc > DateTime.UtcNow && item.AdminAccount.IsActive && (item.AdminAccount.Role == AccountRoles.Librarian || item.AdminAccount.Role == AccountRoles.SystemAdmin || item.AdminAccount.Role == AccountRoles.LibraryManager), ct);
     }
 
     [HttpPost]
@@ -75,6 +116,7 @@ public sealed class BookController(
     }
 
     [HttpGet]
+    [PublicAction]
     public async Task<IActionResult> Details(int id, CancellationToken cancellationToken = default)
     {
         var bookDetails = await bookService.GetBookDetailsAsync(id, cancellationToken);
@@ -84,6 +126,7 @@ public sealed class BookController(
         }
 
         var readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
+        bookDetails.IsLibrarian = await IsLibrarianSignedInAsync(cancellationToken);
         if (readerId > 0)
         {
             var reader = await registrationService.GetReaderByIdAsync(readerId, cancellationToken);
@@ -96,6 +139,127 @@ public sealed class BookController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [RequestSizeLimit(4 * 1024 * 1024)]
+    public async Task<IActionResult> UploadCover(int id, IFormFile? coverImage, CancellationToken cancellationToken = default)
+    {
+        if (!await IsLibrarianSignedInAsync(cancellationToken))
+            return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Details), new { id }) });
+
+        if (!await dbContext.Books.AnyAsync(book => book.Id == id, cancellationToken)) return NotFound();
+        if (coverImage == null || coverImage.Length == 0)
+            return CoverUploadError(id, "Vui lòng chọn ảnh bìa để tải lên.");
+        if (coverImage.Length > MaxCoverBytes)
+            return CoverUploadError(id, "Ảnh bìa vượt quá giới hạn 3MB.");
+
+        var extension = Path.GetExtension(coverImage.FileName).ToLowerInvariant();
+        if (extension is not (".jpg" or ".jpeg" or ".png"))
+            return CoverUploadError(id, "Sai định dạng ảnh. Chỉ chấp nhận JPG/JPEG hoặc PNG.");
+
+        var header = new byte[8];
+        await using (var input = coverImage.OpenReadStream())
+        {
+            var read = await input.ReadAsync(header, cancellationToken);
+            var isPng = read >= 8 && header.SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 });
+            var isJpeg = read >= 3 && header[0] == 0xff && header[1] == 0xd8 && header[2] == 0xff;
+            if (!(extension == ".png" && isPng) && !(extension is ".jpg" or ".jpeg" && isJpeg))
+                return CoverUploadError(id, "Nội dung ảnh không khớp định dạng JPG/JPEG hoặc PNG.");
+        }
+
+        var coverFileName = $"{id}-{Guid.NewGuid():N}{extension}";
+        var relativePath = $"/uploads/book-covers/{coverFileName}";
+        var thumbnailRelativePath = $"/uploads/book-thumbnails/{coverFileName}";
+        var directory = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "book-covers");
+        var thumbnailDirectory = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "book-thumbnails");
+        Directory.CreateDirectory(directory);
+        Directory.CreateDirectory(thumbnailDirectory);
+        var fullPath = Path.Combine(directory, Path.GetFileName(relativePath));
+        var thumbnailFullPath = Path.Combine(thumbnailDirectory, coverFileName);
+        try
+        {
+            await using (var output = System.IO.File.Create(fullPath))
+                await coverImage.CopyToAsync(output, cancellationToken);
+
+            await using var source = coverImage.OpenReadStream();
+            await thumbnailService.CreateAsync(source, thumbnailFullPath, cancellationToken);
+        }
+        catch (SixLabors.ImageSharp.InvalidImageContentException)
+        {
+            TryDeleteFile(fullPath);
+            TryDeleteFile(thumbnailFullPath);
+            return CoverUploadError(id, "Nội dung ảnh không hợp lệ hoặc vượt quá giới hạn xử lý.");
+        }
+        catch (SixLabors.ImageSharp.ImageFormatException)
+        {
+            TryDeleteFile(fullPath);
+            TryDeleteFile(thumbnailFullPath);
+            return CoverUploadError(id, "Nội dung tệp không phải ảnh JPG/JPEG hoặc PNG hợp lệ.");
+        }
+
+        var book = await dbContext.Books.FirstAsync(book => book.Id == id, cancellationToken);
+        var previousCoverPath = book.CoverImagePath;
+        var previousThumbnailPath = book.ThumbnailImagePath;
+        book.CoverImagePath = relativePath;
+        book.ThumbnailImagePath = thumbnailRelativePath;
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            book.CoverImagePath = previousCoverPath;
+            book.ThumbnailImagePath = previousThumbnailPath;
+            TryDeleteFile(fullPath);
+            TryDeleteFile(thumbnailFullPath);
+            throw;
+        }
+
+        DeleteSupersededBookImage(previousCoverPath, "book-covers", id, relativePath);
+        DeleteSupersededBookImage(previousThumbnailPath, "book-thumbnails", id, thumbnailRelativePath);
+        TempData["SuccessMessage"] = "Tải ảnh bìa thành công.";
+        if (!string.IsNullOrWhiteSpace(previousCoverPath))
+            TempData["SuccessMessage"] = "Thay ảnh bìa thành công.";
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    private static void DeleteSupersededBookImage(string? previousPath, string folder, int bookId, string currentPath)
+    {
+        if (string.IsNullOrWhiteSpace(previousPath) || string.Equals(previousPath, currentPath, StringComparison.Ordinal)) return;
+        var prefix = $"/uploads/{folder}/";
+        if (!previousPath.StartsWith(prefix, StringComparison.Ordinal)) return;
+        var fileName = previousPath[prefix.Length..];
+        if (fileName.Contains('/') || fileName.Contains('\\') || !fileName.StartsWith($"{bookId}-", StringComparison.Ordinal)) return;
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        if (extension is not (".jpg" or ".jpeg" or ".png")) return;
+
+        var directory = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", folder);
+        TryDeleteFile(Path.Combine(directory, fileName));
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            if (System.IO.File.Exists(path)) System.IO.File.Delete(path);
+        }
+        catch (IOException)
+        {
+            // A committed replacement remains valid if stale-file cleanup cannot complete.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // A committed replacement remains valid if stale-file cleanup cannot complete.
+        }
+    }
+
+    private IActionResult CoverUploadError(int id, string message)
+    {
+        TempData["CoverUploadError"] = message;
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [PublicAction]
     public async Task<IActionResult> Hold(int id, CancellationToken cancellationToken = default)
     {
         var readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
@@ -139,6 +303,7 @@ public sealed class BookController(
     }
 
     [HttpGet("api/books/{id}")]
+    [PublicAction]
     public async Task<IActionResult> GetBookDetailsApi(int id, CancellationToken cancellationToken = default)
     {
         var details = await bookService.GetBookDetailsAsync(id, cancellationToken);

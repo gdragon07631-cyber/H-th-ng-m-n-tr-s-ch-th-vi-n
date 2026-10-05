@@ -1,0 +1,13 @@
+@{
+    ViewData["Title"] = "Không có quyền truy cập";
+}
+<div class="container py-5">
+    <div class="card shadow-sm border-0 mx-auto" style="max-width: 36rem">
+        <div class="card-body p-4 p-md-5 text-center">
+            <div class="display-6 text-danger fw-bold mb-2">403</div>
+            <h1 class="h4 mb-3">Không có quyền truy cập</h1>
+            <p class="text-muted mb-4">Chỉ Quản trị hệ thống được quản lý tài khoản nhân sự.</p>
+            <a asp-controller="Account" asp-action="Login" class="btn btn-outline-primary">Đăng nhập bằng tài khoản Quản trị hệ thống</a>
+        </div>
+    </div>
+</div>

@@ -127,6 +127,27 @@ public sealed class AccountController(
         });
     }
 
+    /// <summary>Đăng xuất nhân sự: thu hồi phiên trong database rồi xoá cookie, đưa về đúng cổng đăng nhập.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Logout(CancellationToken cancellationToken = default)
+    {
+        string? role = null;
+        if (Request.Cookies.TryGetValue("admin_refresh", out var refreshToken))
+            role = await tokenService.RevokeAsync(refreshToken, cancellationToken);
+        DeleteRefreshTokenCookie();
+        Response.Headers.CacheControl = "no-store";
+        TempData["LogoutMessage"] = "Bạn đã đăng xuất.";
+
+        var loginController = role switch
+        {
+            AccountRoles.Librarian => "Librarian",
+            AccountRoles.LibraryManager => "Manager",
+            _ => "Account"
+        };
+        return RedirectToAction(nameof(Login), loginController);
+    }
+
     [HttpGet]
     public IActionResult LoginSuccess()
     {
