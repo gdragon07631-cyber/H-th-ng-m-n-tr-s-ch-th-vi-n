@@ -260,6 +260,9 @@ namespace Project.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<decimal?>("CoverPrice")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateOnly?>("ReceivedDate")
                         .HasColumnType("date");
 

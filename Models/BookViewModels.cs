@@ -189,6 +189,7 @@ public sealed class BookDetailsViewModel
     public bool IsLibrarian { get; set; }
     public int AvailableCopies { get; set; }
     public int TotalCopies { get; set; }
+    public IReadOnlyList<BookCopyDetailsItem> Copies { get; set; } = [];
     /// <summary>Only populated for staff viewing the title details; may be status-filtered.</summary>
     public IReadOnlyList<BookHoldQueueItemViewModel> ActiveHoldQueue { get; set; } = [];
     public string SelectedHoldQueueFilter { get; set; } = BookHoldQueueFilter.All;

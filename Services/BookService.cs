@@ -314,6 +314,17 @@ public sealed class BookService(
             return null;
         }
 
+        var copies = await dbContext.BookCopies.AsNoTracking()
+            .Where(copy => copy.BookId == book.Id)
+            .OrderBy(copy => copy.CopyCode).ThenBy(copy => copy.Id)
+            .Select(copy => new BookCopyDetailsItem(
+                copy.Id, copy.CopyCode,
+                copy.Shelf != null && copy.Shelf.Warehouse != null
+                    ? copy.Shelf.Warehouse.Code + " - " + copy.Shelf.Warehouse.Name : "Chưa có",
+                copy.Shelf != null ? copy.Shelf.Code + " - " + copy.Shelf.Name : "Chưa có",
+                copy.ReceivedDate, copy.CoverPrice, copy.PhysicalCondition, copy.Status))
+            .ToListAsync(cancellationToken);
+
         return new BookDetailsViewModel
         {
             Id = book.Id,
@@ -335,9 +346,9 @@ public sealed class BookService(
             ThumbnailImagePath = book.ThumbnailImagePath,
             CreatedAtUtc = book.CreatedAtUtc,
             // Chỉ bản "Sẵn sàng" là bản rảnh; bản Đang sửa chữa/Đang mượn/Đang giữ không được tính.
-            AvailableCopies = await dbContext.BookCopies.CountAsync(
-                copy => copy.BookId == book.Id && copy.Status == BookCopyStatus.Available, cancellationToken),
-            TotalCopies = await dbContext.BookCopies.CountAsync(copy => copy.BookId == book.Id, cancellationToken)
+            AvailableCopies = copies.Count(copy => copy.Status == BookCopyStatus.Available),
+            TotalCopies = copies.Count,
+            Copies = copies
         };
     }
 

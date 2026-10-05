@@ -12,6 +12,53 @@ public sealed class BookCopyController(
     IAuditLogService auditLogService) : Controller
 {
     [HttpGet]
+    public async Task<IActionResult> Add(int bookId, CancellationToken cancellationToken = default)
+    {
+        var model = new ManualBookCopyViewModel();
+        if (!await FillManualFormAsync(bookId, model, cancellationToken)) return NotFound("Không tìm thấy đầu sách.");
+        return View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Add(int bookId, ManualBookCopyViewModel model, CancellationToken cancellationToken = default)
+    {
+        if (!await FillManualFormAsync(bookId, model, cancellationToken)) return NotFound("Không tìm thấy đầu sách.");
+        if (ModelState.IsValid)
+        {
+            var result = await bookCopyService.AddManualAsync(bookId, model, cancellationToken);
+            if (result.Status == BookCopyUpdateStatus.NotFound) return NotFound(result.ErrorMessage);
+            if (result.IsSuccess)
+            {
+                TempData["SuccessMessage"] = model.GenerateBarcode
+                    ? $"Đã thêm bản sao thành công. Mã vạch vừa sinh: {result.Copy!.CopyCode}."
+                    : $"Đã thêm bản sao {result.Copy!.CopyCode} thành công.";
+                return RedirectToAction("Details", "Book", new { id = bookId });
+            }
+            var field = result.Status switch
+            {
+                BookCopyUpdateStatus.DuplicateCode => nameof(model.CopyCode),
+                BookCopyUpdateStatus.InvalidShelf => nameof(model.ShelfId),
+                BookCopyUpdateStatus.InvalidCondition => nameof(model.PhysicalCondition),
+                _ => string.Empty
+            };
+            ModelState.AddModelError(field, result.ErrorMessage ?? "Không thể thêm bản sao.");
+        }
+        return View(model);
+    }
+
+    private async Task<bool> FillManualFormAsync(int bookId, ManualBookCopyViewModel model, CancellationToken cancellationToken)
+    {
+        var page = await bookCopyService.GetBookCopiesAsync(bookId, cancellationToken);
+        if (page is null) return false;
+        model.BookId = bookId;
+        model.BookTitle = page.BookTitle;
+        model.Warehouses = page.Warehouses;
+        model.Shelves = page.Shelves;
+        return true;
+    }
+
+    [HttpGet]
     public async Task<IActionResult> Index(int bookId, CancellationToken cancellationToken = default)
     {
         var model = await bookCopyService.GetBookCopiesAsync(bookId, cancellationToken);

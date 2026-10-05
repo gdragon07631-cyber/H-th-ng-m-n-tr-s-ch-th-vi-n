@@ -315,4 +315,74 @@ public sealed class BookCopyService(ApplicationDbContext dbContext, IOptions<Boo
     }
 
     private static string FormatBarcode(int number) => number.ToString($"D{BarcodeLength}", CultureInfo.InvariantCulture);
+
+    public async Task<BookCopyUpdateResult> AddManualAsync(int bookId, ManualBookCopyViewModel model, CancellationToken cancellationToken = default)
+    {
+        var errors = new List<System.ComponentModel.DataAnnotations.ValidationResult>();
+        if (!System.ComponentModel.DataAnnotations.Validator.TryValidateObject(model, new(model), errors, true))
+            return new(BookCopyUpdateStatus.InvalidInput, string.Join(" ", errors.Select(error => error.ErrorMessage)));
+        if (!BookCopyCondition.All.Contains(model.PhysicalCondition))
+            return new(BookCopyUpdateStatus.InvalidCondition, "Tình trạng vật lý không hợp lệ.");
+        if (model.CoverPrice != decimal.Round(model.CoverPrice!.Value, 2))
+            return new(BookCopyUpdateStatus.InvalidInput, "Giá bìa chỉ được có tối đa 2 chữ số thập phân.");
+        if (!await dbContext.Books.AnyAsync(book => book.Id == bookId, cancellationToken))
+            return new(BookCopyUpdateStatus.NotFound, "Không tìm thấy đầu sách.");
+        if (!await IsActiveShelfAsync(model.ShelfId, model.WarehouseId, cancellationToken))
+            return new(BookCopyUpdateStatus.InvalidShelf, "Kệ đã chọn không thuộc kho đã chọn hoặc đã ngừng sử dụng.");
+
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            var code = model.GenerateBarcode ? await NextLibBarcodeAsync(cancellationToken) : model.CopyCode.Trim();
+            if (code is null)
+                return new(BookCopyUpdateStatus.InvalidInput, "Đã hết dãy mã vạch LIB gồm 6 chữ số (LIB999999).");
+            var duplicate = await FindDuplicateAsync(code, cancellationToken);
+            if (duplicate is not null)
+            {
+                if (model.GenerateBarcode) continue;
+                return duplicate;
+            }
+            var copy = new BookCopy
+            {
+                BookId = bookId, CopyCode = code, ShelfId = model.ShelfId,
+                ReceivedDate = model.ReceivedDate, CoverPrice = model.CoverPrice,
+                PhysicalCondition = model.PhysicalCondition, Status = BookCopyStatus.Available
+            };
+            dbContext.BookCopies.Add(copy);
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                return new(BookCopyUpdateStatus.Success, Copy: copy);
+            }
+            catch (DbUpdateException)
+            {
+                // The unique index guards concurrent allocation, including manual LIB entries.
+                dbContext.Entry(copy).State = EntityState.Detached;
+                duplicate = await FindDuplicateAsync(code, cancellationToken);
+                if (duplicate is null) throw;
+                if (!model.GenerateBarcode) return duplicate;
+            }
+        }
+        return new(BookCopyUpdateStatus.InvalidInput, "Chưa thể cấp mã vạch do có nhiều yêu cầu đồng thời. Vui lòng thử lại.");
+    }
+
+    private async Task<string?> NextLibBarcodeAsync(CancellationToken cancellationToken)
+    {
+        var codes = await dbContext.BookCopies.AsNoTracking()
+            .Where(copy => copy.CopyCode.Length == 9)
+            .Select(copy => copy.CopyCode).ToListAsync(cancellationToken);
+        var largest = codes.Where(code =>
+                code.StartsWith("LIB", StringComparison.OrdinalIgnoreCase) &&
+                code.AsSpan(3).ToArray().All(character => character is >= '0' and <= '9'))
+            .Select(code => int.Parse(code.AsSpan(3), CultureInfo.InvariantCulture))
+            .DefaultIfEmpty(0).Max();
+        return largest >= MaximumBarcodeNumber ? null : "LIB" + FormatBarcode(largest + 1);
+    }
+
+    private async Task<BookCopyUpdateResult?> FindDuplicateAsync(string code, CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.BookCopies.AsNoTracking().Include(copy => copy.Book)
+            .FirstOrDefaultAsync(copy => copy.CopyCode == code, cancellationToken);
+        return existing is null ? null : new(BookCopyUpdateStatus.DuplicateCode,
+            $"Mã vạch {code} đang được bản sao #{existing.Id} của đầu sách \"{existing.Book?.Title}\" (#{existing.BookId}) sử dụng.", existing);
+    }
 }

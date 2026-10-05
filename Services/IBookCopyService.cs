@@ -12,7 +12,8 @@ public enum BookCopyUpdateStatus
     OnActiveLoan,
     StatusManagedByHold,
     ReasonRequired,
-    DuplicateCode
+    DuplicateCode,
+    InvalidInput
 }
 
 public enum BookCopyBatchCreateStatus
@@ -48,6 +49,7 @@ public sealed record BookCopyUpdateResult(BookCopyUpdateStatus Status, string? E
 
 public interface IBookCopyService
 {
+    Task<BookCopyUpdateResult> AddManualAsync(int bookId, ManualBookCopyViewModel model, CancellationToken cancellationToken = default);
     Task<BookCopyIndexViewModel?> GetBookCopiesAsync(int bookId, CancellationToken cancellationToken = default);
     Task<BookCopyEditViewModel?> GetForEditAsync(long copyId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Warehouse>> GetActiveWarehousesAsync(CancellationToken cancellationToken = default);

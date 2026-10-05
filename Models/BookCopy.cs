@@ -10,6 +10,7 @@ public static class BookCopyStatus
     public const string OnHold = "Đang giữ";
     /// <summary>Bản sao đang sửa chữa: không cho mượn và không tính vào số bản rảnh.</summary>
     public const string UnderRepair = "Đang sửa chữa";
+    public const string Removed = "Đã loại khỏi kho";
 
     /// <summary>Trạng thái thủ thư được chọn trực tiếp; "Đang mượn"/"Đang giữ" do nghiệp vụ mượn và đặt giữ quản lý.</summary>
     public static readonly IReadOnlyList<string> Editable = [Available, UnderRepair];
@@ -59,6 +60,8 @@ public sealed class BookCopy
     public string CopyCode { get; set; } = string.Empty;
 
     public DateOnly? ReceivedDate { get; set; }
+
+    public decimal? CoverPrice { get; set; }
 
     [MaxLength(50)]
     public string Status { get; set; } = "Sẵn sàng";
