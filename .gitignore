@@ -6,3 +6,6 @@ artifacts/
 Data/Keys/
 *.user
 *.suo
+
+# Ảnh người dùng tải lên khi chạy app (mỗi máy một bộ khác nhau, không đưa lên Git)
+wwwroot/uploads/
