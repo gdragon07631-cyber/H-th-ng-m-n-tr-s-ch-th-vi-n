@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.DataProtection;
 using Project.Models;
 using Project.Services;
 
@@ -6,7 +7,10 @@ namespace Project.Controllers;
 
 public sealed class ReaderRegistrationController(
     IReaderRegistrationService registrationService,
-    ReaderRegistrationIpRateLimiter ipRateLimiter) : Controller
+    ReaderRegistrationIpRateLimiter ipRateLimiter,
+    IReaderPasswordResetService passwordResetService,
+    IDataProtectionProvider dataProtectionProvider,
+    IAuditLogService auditLogService) : Controller
 {
     [HttpGet]
     public IActionResult Register()
@@ -71,16 +75,24 @@ public sealed class ReaderRegistrationController(
             return View(model);
         }
 
+<<<<<<< HEAD
+=======
+        registrationLease.Commit();
+
+        var account = outcome.Account!;
+        var staff = await auditLogService.GetSignedInStaffAsync(Request, cancellationToken);
+        await auditLogService.WriteAsync(
+            staff?.Email ?? account.Email,
+            AuditActions.CreateAccount,
+            $"Tài khoản bạn đọc #{account.Id} ({account.Email})",
+            AuditLogService.ClientIp(HttpContext),
+            cancellationToken);
+
+>>>>>>> 87c4de25a9de43cd89e3bc45226a2d217dd84bb7
         // 7 & 8. Đăng ký thành công, thông báo hiển thị rõ trạng thái "Chờ duyệt"
         TempData["SuccessMessage"] = "Đăng ký tài khoản thành công!";
         TempData["AccountStatus"] = "Chờ duyệt";
         return RedirectToAction(nameof(RegisterSuccess));
-    }
-
-    [HttpGet]
-    public IActionResult ForgotPassword()
-    {
-        return View();
     }
 
     [HttpGet]
@@ -100,7 +112,7 @@ public sealed class ReaderRegistrationController(
     [HttpGet]
     public async Task<IActionResult> Profile(int? id, CancellationToken cancellationToken = default)
     {
-        int targetId = GetCurrentLoggedInReaderId();
+        int targetId = id ?? await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (targetId <= 0)
         {
             return RedirectToAction(nameof(Login));
@@ -124,7 +136,7 @@ public sealed class ReaderRegistrationController(
     public async Task<IActionResult> Profile(
         ReaderProfileViewModel model, CancellationToken cancellationToken = default)
     {
-        int readerId = GetCurrentLoggedInReaderId();
+        int readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (readerId <= 0) return RedirectToAction(nameof(Login));
 
         var current = await registrationService.GetReaderByIdAsync(readerId, cancellationToken);
@@ -160,6 +172,15 @@ public sealed class ReaderRegistrationController(
             ModelState.SetModelValue(nameof(model.CurrentPassword), string.Empty, string.Empty);
             return View(model);
         }
+
+        await auditLogService.WriteAsync(
+            current.Email,
+            AuditActions.UpdateAccount,
+            emailChanged
+                ? $"Tài khoản bạn đọc #{readerId} (đổi email {current.Email} → {model.Email.Trim()})"
+                : $"Tài khoản bạn đọc #{readerId} ({current.Email})",
+            AuditLogService.ClientIp(HttpContext),
+            cancellationToken);
 
         TempData["ProfileSuccessMessage"] = emailChanged
             ? "Đổi email thành công."
@@ -203,7 +224,7 @@ public sealed class ReaderRegistrationController(
     public async Task<IActionResult> ChangePassword(
         ReaderChangePasswordViewModel model, CancellationToken cancellationToken = default)
     {
-        int readerId = GetCurrentLoggedInReaderId();
+        int readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (readerId <= 0) return RedirectToAction(nameof(Login));
 
         if (!ModelState.IsValid)
@@ -239,7 +260,7 @@ public sealed class ReaderRegistrationController(
     [HttpGet("api/reader/profile")]
     public async Task<IActionResult> GetProfileApi(CancellationToken cancellationToken = default)
     {
-        var readerId = GetCurrentLoggedInReaderId();
+        var readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (readerId <= 0)
             return Unauthorized(new { message = "Vui lòng đăng nhập trước khi xem thông tin cá nhân." });
 
@@ -264,6 +285,47 @@ public sealed class ReaderRegistrationController(
         return View();
     }
 
+    [HttpGet]
+    public IActionResult ForgotPassword() => View(new ForgotPasswordViewModel());
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordViewModel model, CancellationToken cancellationToken = default)
+    {
+        if (!ModelState.IsValid) return View(model);
+        var resetUrl = Url.Action(nameof(ResetPassword), "ReaderRegistration", null, Request.Scheme);
+        var requestAccepted = await passwordResetService.RequestAsync(model.Email, resetUrl!, cancellationToken);
+        ViewBag.Message = requestAccepted
+            ? "Nếu email đã đăng ký, hướng dẫn đặt lại mật khẩu sẽ được gửi đến hộp thư của bạn."
+            : "Bạn đã gửi quá nhiều yêu cầu trong thời gian ngắn. Vui lòng thử lại sau.";
+        return View(new ForgotPasswordViewModel());
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ResetPassword(string? token, CancellationToken cancellationToken = default)
+    {
+        if (!await passwordResetService.IsTokenValidAsync(token ?? string.Empty, cancellationToken))
+        {
+            ViewBag.InvalidToken = true;
+            return View(new ResetPasswordViewModel());
+        }
+        return View(new ResetPasswordViewModel { Token = token! });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model, CancellationToken cancellationToken = default)
+    {
+        if (!ModelState.IsValid) return View(model);
+        if (!await passwordResetService.ResetAsync(model.Token, model.Password, cancellationToken))
+        {
+            ViewBag.InvalidToken = true;
+            return View(model);
+        }
+        ViewBag.Success = "Mật khẩu đã được cập nhật thành công.";
+        return View(new ResetPasswordViewModel());
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Login(string email, string password, string? returnUrl = null, CancellationToken cancellationToken = default)
@@ -283,13 +345,13 @@ public sealed class ReaderRegistrationController(
             return View();
         }
 
-        Response.Cookies.Append("reader_id", reader.Id.ToString(), new CookieOptions
-        {
-            HttpOnly = true,
-            SameSite = SameSiteMode.Strict,
-            Secure = Request.IsHttps,
-            Expires = DateTimeOffset.UtcNow.AddDays(7)
-        });
+        SetReaderSessionCookies(reader);
+        await auditLogService.WriteAsync(
+            reader.Email,
+            AuditActions.Login,
+            $"Tài khoản bạn đọc #{reader.Id} ({reader.Email})",
+            AuditLogService.ClientIp(HttpContext),
+            cancellationToken);
 
         if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
         {
@@ -303,7 +365,7 @@ public sealed class ReaderRegistrationController(
     [ValidateAntiForgeryToken]
     public IActionResult Logout()
     {
-        Response.Cookies.Delete("reader_id");
+        ReaderSessionCookies.Clear(Response);
         return RedirectToAction(nameof(Login));
     }
 
@@ -314,7 +376,7 @@ public sealed class ReaderRegistrationController(
         int? readerId = null,
         CancellationToken cancellationToken = default)
     {
-        int targetId = GetCurrentLoggedInReaderId();
+        int targetId = readerId ?? await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (targetId <= 0)
         {
             return RedirectToAction(nameof(Login));
@@ -339,7 +401,7 @@ public sealed class ReaderRegistrationController(
         [FromQuery] int? readerId = null,
         CancellationToken cancellationToken = default)
     {
-        int targetId = GetCurrentLoggedInReaderId();
+        int targetId = readerId ?? await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (targetId <= 0)
         {
             return Unauthorized(new { message = "Vui lòng đăng nhập trước khi thực hiện đặt giữ tài liệu." });
@@ -364,12 +426,9 @@ public sealed class ReaderRegistrationController(
         });
     }
 
-    private int GetCurrentLoggedInReaderId()
-    {
-        if (Request.Cookies.TryGetValue("reader_id", out var idStr) && int.TryParse(idStr, out var id))
-        {
-            return id;
-        }
-        return 0;
-    }
+    private void SetReaderSessionCookies(ReaderAccount reader) =>
+        ReaderSessionCookies.Append(HttpContext, dataProtectionProvider, reader);
+
+    private Task<int> GetCurrentLoggedInReaderIdAsync(CancellationToken cancellationToken) =>
+        ReaderSessionCookies.GetReaderIdAsync(HttpContext, dataProtectionProvider, registrationService.GetReaderByIdAsync, cancellationToken);
 }

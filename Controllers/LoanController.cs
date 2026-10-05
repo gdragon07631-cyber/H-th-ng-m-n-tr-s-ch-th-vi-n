@@ -9,7 +9,18 @@ namespace Project.Controllers;
 public sealed class LoanController(IBookLoanService loans, ApplicationDbContext db) : Controller
 {
     [HttpGet]
-    public async Task<IActionResult> Index(CancellationToken ct = default) => View(await BuildModel(ct));
+    public async Task<IActionResult> Index(CancellationToken ct = default)
+    {
+        if (!await IsLibrarianSignedInAsync(ct)) return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Index)) });
+        return View(await BuildModel(ct));
+    }
+
+    private async Task<bool> IsLibrarianSignedInAsync(CancellationToken ct)
+    {
+        if (!Request.Cookies.TryGetValue("admin_refresh", out var token) || string.IsNullOrWhiteSpace(token)) return false;
+        var hash = TokenService.HashRefreshToken(token);
+        return await db.RefreshTokens.AnyAsync(item => item.TokenHash == hash && item.RevokedAtUtc == null && item.ExpiresAtUtc > DateTime.UtcNow && item.AdminAccount.IsActive && item.AdminAccount.Role == AccountRoles.SystemAdmin, ct);
+    }
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(CreateBookLoanViewModel model, CancellationToken ct = default)

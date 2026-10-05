@@ -37,6 +37,8 @@ public sealed class ReaderAccount
 
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 
+    public int SessionVersion { get; set; }
+
     public LibraryCard? LibraryCard { get; set; }
     public ICollection<BookHold> BookHolds { get; set; } = [];
     public ICollection<ReaderPasswordHistory> PasswordHistories { get; set; } = [];

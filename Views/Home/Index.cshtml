@@ -1,8 +1,51 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+@{
+    ViewData["Title"] = "Tổng quan";
+    var modules = new[]
+    {
+        new { Group = "Bộ sưu tập", Name = "Sách", Description = "Tra cứu danh mục và biên mục sách mới.", Controller = "Book", Action = "Index", Icon = "01" },
+        new { Group = "Bộ sưu tập", Name = "Tác giả", Description = "Quản lý thông tin tác giả.", Controller = "Author", Action = "Index", Icon = "02" },
+        new { Group = "Bộ sưu tập", Name = "Thể loại", Description = "Sắp xếp và quản lý thể loại sách.", Controller = "Category", Action = "Index", Icon = "03" },
+        new { Group = "Vận hành", Name = "Kho sách", Description = "Theo dõi các kho trong thư viện.", Controller = "Warehouse", Action = "Index", Icon = "04" },
+        new { Group = "Vận hành", Name = "Kệ sách", Description = "Quản lý vị trí và kệ lưu trữ.", Controller = "Shelf", Action = "Index", Icon = "05" },
+        new { Group = "Vận hành", Name = "Mượn trả", Description = "Lập và theo dõi phiếu mượn.", Controller = "Loan", Action = "Index", Icon = "06" },
+        new { Group = "Vận hành", Name = "Lịch làm việc", Description = "Cập nhật lịch tuần và ngày nghỉ.", Controller = "WorkingSchedule", Action = "Index", Icon = "07" },
+        new { Group = "Bạn đọc", Name = "Hồ sơ chờ duyệt", Description = "Xem và duyệt đăng ký bạn đọc.", Controller = "ReaderApproval", Action = "Index", Icon = "08" },
+        new { Group = "Bạn đọc", Name = "Đăng ký bạn đọc", Description = "Tạo hồ sơ bạn đọc mới.", Controller = "ReaderRegistration", Action = "Register", Icon = "09" },
+        new { Group = "Hệ thống", Name = "Chính sách mượn", Description = "Thiết lập số ngày mượn.", Controller = "LoanPolicy", Action = "Index", Icon = "10" },
+        new { Group = "Hệ thống", Name = "Nhật ký hoạt động", Description = "Tra ai đã thao tác gì, lúc nào, từ IP nào.", Controller = "AuditLog", Action = "Index", Icon = "11" },
+    };
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div class="dashboard">
+    <section class="dashboard-hero">
+        <div>
+            <div class="eyebrow">THƯ VIỆN · BẢNG ĐIỀU KHIỂN</div>
+            <h1>Chào mừng trở lại</h1>
+            <p>Chọn một chức năng để bắt đầu công việc hôm nay.</p>
+        </div>
+        <a class="hero-action" asp-controller="Book" asp-action="Create"><span>＋</span> Biên mục sách mới</a>
+    </section>
+
+    <div class="dashboard-heading">
+        <div><h2>Chức năng</h2><p>Lối tắt đến các khu vực quản lý thư viện</p></div>
+        <span class="module-count">@modules.Length.ToString("00") khu vực</span>
+    </div>
+
+    @foreach (var group in modules.GroupBy(x => x.Group))
+    {
+        <section class="module-section">
+            <h3>@group.Key</h3>
+            <div class="module-grid">
+                @foreach (var module in group)
+                {
+                    <a class="module-card" asp-controller="@module.Controller" asp-action="@module.Action">
+                        <span class="module-icon">@module.Icon</span>
+                        <span class="module-arrow" aria-hidden="true">↗</span>
+                        <span class="module-name">@module.Name</span>
+                        <span class="module-description">@module.Description</span>
+                    </a>
+                }
+            </div>
+        </section>
+    }
 </div>

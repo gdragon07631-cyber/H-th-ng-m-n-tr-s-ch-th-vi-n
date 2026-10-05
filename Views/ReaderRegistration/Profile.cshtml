@@ -1,6 +1,9 @@
 @model Project.Models.ReaderProfileViewModel
 @{
+    Layout = "_ReaderLayout";
     ViewData["Title"] = "Thông tin tài khoản Bạn đọc";
+    // Viết qua biến vì "@@" bên trong thuộc tính của tag helper bị Razor sinh sai HTML.
+    const string EmailPattern = @"[^@\s]+@[^@\s]+\.[^@\s]+";
 }
 
 <div class="row justify-content-center py-4">
@@ -100,30 +103,30 @@
                     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
                     <div class="row g-3">
                         <div class="col-sm-6">
-                            <label class="form-label">H? v� t�n</label>
+                            <label class="form-label">Họ và tên</label>
                             <input class="form-control" value="@Model.FullName" readonly />
                         </div>
                         <div class="col-sm-6">
-                            <label class="form-label">Ng�y sinh</label>
+                            <label class="form-label">Ngày sinh</label>
                             <input class="form-control" value="@Model.DateOfBirth.ToString("dd/MM/yyyy")" readonly />
                         </div>
                         <div class="col-sm-6">
-                            <label class="form-label">M� th?</label>
+                            <label class="form-label">Mã thẻ</label>
                             <input class="form-control" value="@Model.CardCode" readonly />
                         </div>
                         <div class="col-sm-6">
-                            <label asp-for="PhoneNumber" class="form-label"></label>
+                            <label asp-for="PhoneNumber" class="form-label">Số điện thoại</label>
                             <input asp-for="PhoneNumber" class="form-control" />
                             <span asp-validation-for="PhoneNumber" class="text-danger"></span>
                         </div>
                         <div class="col-12">
-                            <label asp-for="Address" class="form-label"></label>
+                            <label asp-for="Address" class="form-label">Địa chỉ</label>
                             <input asp-for="Address" class="form-control" />
                             <span asp-validation-for="Address" class="text-danger"></span>
                         </div>
                         <div class="col-12">
                             <label asp-for="Email" class="form-label"></label>
-                            <input asp-for="Email" type="email" pattern="[^@@\s]+@@[^@@\s]+\.[^@@\s]+" class="form-control" data-initial-email="@Model.Email" />
+                            <input asp-for="Email" type="email" pattern="@EmailPattern" class="form-control" data-initial-email="@Model.Email" />
                             <span asp-validation-for="Email" class="text-danger"></span>
                         </div>
                         <div class="col-12" id="currentPasswordContainer" hidden>
@@ -132,15 +135,15 @@
                             <span asp-validation-for="CurrentPassword" class="text-danger"></span>
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-primary mt-3">L?u thay d?i</button>
+                    <button type="submit" class="btn btn-primary mt-3">Lưu thay đổi</button>
                 </form>
 
                 @if (Model.CardCode != null)
                 {
                     <div class="row g-3 mb-4">
-                        <div class="col-sm-6"><label class="text-muted small">Card type</label><div class="fw-bold">@Model.CardType</div></div>
-                        <div class="col-sm-6"><label class="text-muted small">Card expiry</label><div class="fw-bold">@Model.CardExpiresOn?.ToString("dd/MM/yyyy")</div></div>
-                        <div class="col-sm-6"><label class="text-muted small">Card status</label><div class="fw-bold">@Model.CardStatus</div></div>
+                        <div class="col-sm-6"><label class="text-muted small">Loại thẻ</label><div class="fw-bold">@Model.CardType</div></div>
+                        <div class="col-sm-6"><label class="text-muted small">Ngày hết hạn thẻ</label><div class="fw-bold">@Model.CardExpiresOn?.ToString("dd/MM/yyyy")</div></div>
+                        <div class="col-sm-6"><label class="text-muted small">Trạng thái thẻ</label><div class="fw-bold">@Model.CardStatus</div></div>
                     </div>
                 }
 

@@ -1,4 +1,7 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Project.Data;
 using Project.Models;
 using Project.Services;
 
@@ -8,11 +11,16 @@ public sealed class BookController(
     IBookService bookService,
     IAuthorService authorService,
     ICategoryService categoryService,
-    IReaderRegistrationService registrationService) : Controller
+    IReaderRegistrationService registrationService,
+    ApplicationDbContext dbContext,
+    IDataProtectionProvider dataProtectionProvider) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken = default)
     {
+        if (!await IsLibrarianSignedInAsync(cancellationToken))
+            return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Index)) });
+
         var books = await bookService.GetAllBooksAsync(cancellationToken);
         return View(books);
     }
@@ -20,6 +28,9 @@ public sealed class BookController(
     [HttpGet]
     public async Task<IActionResult> Create(CancellationToken cancellationToken = default)
     {
+        if (!await IsLibrarianSignedInAsync(cancellationToken))
+            return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Create)) });
+
         var activeAuthors = await authorService.GetActiveAuthorsAsync(cancellationToken);
         var activeCategories = await categoryService.GetActiveAsync(cancellationToken);
         var viewModel = new CatalogBookViewModel
@@ -28,6 +39,13 @@ public sealed class BookController(
             ActiveCategories = activeCategories
         };
         return View(viewModel);
+    }
+
+    private async Task<bool> IsLibrarianSignedInAsync(CancellationToken ct)
+    {
+        if (!Request.Cookies.TryGetValue("admin_refresh", out var token) || string.IsNullOrWhiteSpace(token)) return false;
+        var hash = TokenService.HashRefreshToken(token);
+        return await dbContext.RefreshTokens.AnyAsync(item => item.TokenHash == hash && item.RevokedAtUtc == null && item.ExpiresAtUtc > DateTime.UtcNow && item.AdminAccount.IsActive && item.AdminAccount.Role == AccountRoles.SystemAdmin, ct);
     }
 
     [HttpPost]
@@ -65,7 +83,7 @@ public sealed class BookController(
             return NotFound("Không tìm thấy thông tin sách.");
         }
 
-        var readerId = GetCurrentLoggedInReaderId();
+        var readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (readerId > 0)
         {
             var reader = await registrationService.GetReaderByIdAsync(readerId, cancellationToken);
@@ -80,7 +98,7 @@ public sealed class BookController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Hold(int id, CancellationToken cancellationToken = default)
     {
-        var readerId = GetCurrentLoggedInReaderId();
+        var readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
         if (readerId <= 0)
             return RedirectToAction("Login", "ReaderRegistration", new { returnUrl = Url.Action(nameof(Details), new { id }) });
 
@@ -132,6 +150,6 @@ public sealed class BookController(
         return Ok(details);
     }
 
-    private int GetCurrentLoggedInReaderId() =>
-        Request.Cookies.TryGetValue("reader_id", out var idText) && int.TryParse(idText, out var id) ? id : 0;
+    private Task<int> GetCurrentLoggedInReaderIdAsync(CancellationToken cancellationToken) =>
+        ReaderSessionCookies.GetReaderIdAsync(HttpContext, dataProtectionProvider, registrationService.GetReaderByIdAsync, cancellationToken);
 }

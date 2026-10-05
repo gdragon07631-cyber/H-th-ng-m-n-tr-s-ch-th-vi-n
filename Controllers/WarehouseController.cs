@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Project.Data;
 using Project.Models;
 using Project.Services;
 
@@ -7,7 +9,8 @@ namespace Project.Controllers;
 
 public sealed class WarehouseController(
     IWarehouseService warehouseService,
-    IShelfService shelfService) : Controller
+    IShelfService shelfService,
+    ApplicationDbContext dbContext) : Controller
 {
     // ==========================================
     // MVC VIEW ACTIONS
@@ -16,12 +19,22 @@ public sealed class WarehouseController(
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken ct = default)
     {
+        if (!await IsLibrarianSignedInAsync(ct))
+            return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Index)) });
+
         var warehouses = await warehouseService.GetAllAsync(ct);
         return View(new WarehouseIndexViewModel
         {
             Warehouses = warehouses,
             NewWarehouse = new CreateWarehouseViewModel()
         });
+    }
+
+    private async Task<bool> IsLibrarianSignedInAsync(CancellationToken ct)
+    {
+        if (!Request.Cookies.TryGetValue("admin_refresh", out var token) || string.IsNullOrWhiteSpace(token)) return false;
+        var hash = TokenService.HashRefreshToken(token);
+        return await dbContext.RefreshTokens.AnyAsync(item => item.TokenHash == hash && item.RevokedAtUtc == null && item.ExpiresAtUtc > DateTime.UtcNow && item.AdminAccount.IsActive && item.AdminAccount.Role == AccountRoles.SystemAdmin, ct);
     }
 
     [HttpPost, ValidateAntiForgeryToken]
