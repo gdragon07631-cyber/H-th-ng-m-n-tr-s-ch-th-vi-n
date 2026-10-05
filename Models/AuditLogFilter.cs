@@ -19,8 +19,14 @@ public sealed class AuditLogFilter
     [Display(Name = "Loại hành động")]
     public string? Action { get; set; }
 
+    /// <summary>Tìm trong người thực hiện và đối tượng, ví dụ email bạn đọc, mã thẻ, tên sách.</summary>
+    [Display(Name = "Từ khoá")]
+    [MaxLength(200)]
+    public string? Keyword { get; set; }
+
     public bool IsEmpty =>
-        FromDate is null && ToDate is null && string.IsNullOrWhiteSpace(Actor) && string.IsNullOrWhiteSpace(Action);
+        FromDate is null && ToDate is null && string.IsNullOrWhiteSpace(Actor) && string.IsNullOrWhiteSpace(Action) &&
+        string.IsNullOrWhiteSpace(Keyword);
 }
 
 public sealed class AuditLogIndexViewModel

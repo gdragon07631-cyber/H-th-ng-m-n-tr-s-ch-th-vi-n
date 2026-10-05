@@ -34,6 +34,12 @@
         <form asp-action="Login" method="post">
             <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
             <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 small mb-3" role="alert"></div>
+            @if (ViewBag.UnconfirmedEmail is string unconfirmedEmail)
+            {
+                <a asp-action="ResendConfirmation" asp-route-email="@unconfirmedEmail" class="btn btn-sm btn-outline-primary w-100 mb-3" id="resendConfirmationLink">
+                    <i class="bi bi-envelope-arrow-up me-1"></i> Gửi lại email xác nhận
+                </a>
+            }
 
             <div class="mb-3">
                 <label for="email" class="form-label">Email tài khoản</label>

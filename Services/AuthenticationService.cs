@@ -86,6 +86,22 @@ public sealed class AuthenticationService(
                 }
             }
 
+            // Ghi rõ tài khoản nhân sự nào đăng nhập thất bại (chỉ với email có thật để nhật ký không bị rác).
+            if (result != LoginResult.LoginSuccess && account is not null)
+            {
+                var reason = result == LoginResult.AccountLocked
+                    ? "tài khoản đang bị tạm khoá do nhập sai mật khẩu nhiều lần"
+                    : !account.IsActive ? "tài khoản đã bị khoá"
+                    : requiredRole is not null && !string.Equals(account.Role, requiredRole, StringComparison.Ordinal)
+                        ? "đăng nhập sai cổng vai trò"
+                        : $"sai mật khẩu (lần {account.FailedLoginAttempts}/5)";
+                dbContext.AuditLogs.Add(AuditLogService.Create(
+                    account.Email,
+                    AuditActions.LoginFailed,
+                    $"Tài khoản {AuditLogService.DescribeRole(account.Role)} #{account.Id} ({account.Email}) – {reason}",
+                    ipAddress));
+            }
+
             dbContext.LoginLogs.Add(new LoginLog
             {
                 Email = email.Trim(),

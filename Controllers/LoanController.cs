@@ -34,6 +34,9 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
         }
 
         var result = await loans.CreateAsync(model.BookId, model.ReaderAccountId, model.LoanDate.Value, ct);
+        await LogLoanAsync(AuditActions.CreateLoan, model.BookId, model.ReaderAccountId, result.IsSuccess
+            ? $"lập phiếu mượn #{result.Loan!.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {result.Loan!.DueDate:dd/MM/yyyy}"
+            : $"lập phiếu mượn thất bại: {result.ErrorMessage}", ct);
         TempData[result.IsSuccess ? "SuccessMessage" : "ErrorMessage"] = result.IsSuccess
             ? $"Đã tạo phiếu mượn. Hạn trả: {result.Loan!.DueDate:dd/MM/yyyy}."
             : result.ErrorMessage;
@@ -44,6 +47,7 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
     public async Task<IActionResult> Renew(long id, CancellationToken ct = default)
     {
         var result = await loans.RenewAsync(id, DateOnly.FromDateTime(DateTime.Today), ct);
+        await LogRenewAsync(id, result, ct);
         TempData[result.IsSuccess ? "SuccessMessage" : "ErrorMessage"] = result.IsSuccess
             ? $"Đã gia hạn phiếu mượn. Hạn trả mới: {result.Loan!.DueDate:dd/MM/yyyy}. Số lần gia hạn: {result.Loan.RenewalCount} / {result.Loan.ReaderAccount!.LibraryCard!.LibraryCardType!.MaxRenewals}."
             : result.ErrorMessage;
@@ -60,6 +64,9 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
         if (model?.LoanDate == null || !TryValidateModel(model))
             return BadRequest(new { message = "Dữ liệu phiếu mượn không hợp lệ." });
         var result = await loans.CreateAsync(model.BookId, model.ReaderAccountId, model.LoanDate.Value, ct);
+        await LogLoanAsync(AuditActions.CreateLoan, model.BookId, model.ReaderAccountId, result.IsSuccess
+            ? $"lập phiếu mượn #{result.Loan!.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {result.Loan!.DueDate:dd/MM/yyyy}"
+            : $"lập phiếu mượn thất bại: {result.ErrorMessage}", ct);
         if (!result.IsSuccess) return BadRequest(new { message = result.ErrorMessage });
         return Created($"/api/loans/{result.Loan!.Id}", ToApiModel(result.Loan));
     }
@@ -68,6 +75,7 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
     public async Task<IActionResult> RenewApi(long id, CancellationToken ct = default)
     {
         var result = await loans.RenewAsync(id, DateOnly.FromDateTime(DateTime.Today), ct);
+        await LogRenewAsync(id, result, ct);
         if (!result.IsSuccess) return BadRequest(new { success = false, message = result.ErrorMessage, reason = result.ReasonCode });
         return Ok(new
         {
@@ -106,6 +114,32 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
             .Where(reader => reader.Status == "Đang hoạt động").OrderBy(reader => reader.FullName).ToListAsync(ct),
         NewLoan = new CreateBookLoanViewModel { LoanDate = DateOnly.FromDateTime(DateTime.Today) }
     };
+
+    private async Task LogLoanAsync(string action, int bookId, int readerId, string detail, CancellationToken ct)
+    {
+        var audit = HttpContext?.RequestServices?.GetService<IAuditLogService>();
+        if (audit is null) return;
+        var staff = await audit.GetSignedInStaffAsync(Request, ct);
+        var title = await db.Books.AsNoTracking().Where(book => book.Id == bookId).Select(book => book.Title).SingleOrDefaultAsync(ct);
+        var reader = await db.ReaderAccounts.AsNoTracking().Where(item => item.Id == readerId)
+            .Select(item => new { item.FullName, item.Email }).SingleOrDefaultAsync(ct);
+        await audit.WriteAsync(
+            staff?.Email ?? "Không xác định",
+            action,
+            $"Sách \"{title}\" (#{bookId}) – bạn đọc #{readerId} {reader?.FullName} ({reader?.Email}) – {detail}",
+            AuditLogService.ClientIp(HttpContext!),
+            ct);
+    }
+
+    private async Task LogRenewAsync(long loanId, RenewBookLoanOutcome result, CancellationToken ct)
+    {
+        var loan = await db.BookLoans.AsNoTracking().Where(item => item.Id == loanId)
+            .Select(item => new { item.BookId, item.ReaderAccountId }).SingleOrDefaultAsync(ct);
+        if (loan is null) return;
+        await LogLoanAsync(AuditActions.RenewLoan, loan.BookId, loan.ReaderAccountId, result.IsSuccess
+            ? $"gia hạn phiếu mượn #{loanId}: hạn trả {result.OldDueDate:dd/MM/yyyy} → {result.Loan!.DueDate:dd/MM/yyyy}, lần gia hạn thứ {result.Loan.RenewalCount}"
+            : $"gia hạn phiếu mượn #{loanId} thất bại: {result.ErrorMessage}", ct);
+    }
 
     private static object ToApiModel(BookLoan loan) => new
     {

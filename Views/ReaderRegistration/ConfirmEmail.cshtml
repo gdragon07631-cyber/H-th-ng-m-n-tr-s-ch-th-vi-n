@@ -1,0 +1,61 @@
+@using Project.Services
+@{
+    Layout = "_ReaderLayout";
+    ViewData["Title"] = "Xác nhận email";
+    var result = (EmailConfirmationResult)ViewBag.Result;
+}
+<div class="rd-narrow" style="width: min(560px, 100%)">
+    <div class="rd-card">
+        <div class="rd-card-body rd-status">
+            @if (result == EmailConfirmationResult.Confirmed)
+            {
+                <div class="rd-status-icon is-success"><i class="bi bi-patch-check-fill"></i></div>
+                <h1>Xác nhận email thành công</h1>
+                <p class="rd-lead">Tài khoản của bạn đã được kích hoạt. Bạn có thể đăng nhập, tra cứu và đặt giữ sách ngay.</p>
+                @if (ViewBag.IssuedCard is Project.Models.LibraryCard card)
+                {
+                    <div class="library-card text-start mb-4" id="issuedCard">
+                        <div class="library-card-top">
+                            <div class="library-card-brand">Thư Viện<small>Thẻ thư viện đã được cấp</small></div>
+                            <div class="library-card-chip" aria-hidden="true"></div>
+                        </div>
+                        <div class="library-card-code">@card.CardCode</div>
+                        <div class="library-card-bottom">
+                            <div><span>Ngày cấp</span><strong>@card.IssuedOn.ToString("dd/MM/yyyy")</strong></div>
+                            <div><span>Hiệu lực đến</span><strong>@card.ExpiresOn.ToString("dd/MM/yyyy")</strong></div>
+                        </div>
+                    </div>
+                }
+                <a asp-action="Login" class="btn btn-primary"><i class="bi bi-box-arrow-in-right"></i> Đăng nhập</a>
+            }
+            else if (result == EmailConfirmationResult.AlreadyConfirmed)
+            {
+                <div class="rd-status-icon"><i class="bi bi-info-circle-fill"></i></div>
+                <h1>Email đã được xác nhận trước đó</h1>
+                <p class="rd-lead">Tài khoản này đã xác nhận email. Bạn có thể đăng nhập ngay.</p>
+                <a asp-action="Login" class="btn btn-primary"><i class="bi bi-box-arrow-in-right"></i> Đăng nhập</a>
+            }
+            else if (result == EmailConfirmationResult.EmailChanged)
+            {
+                <div class="rd-status-icon is-success" id="emailChanged"><i class="bi bi-envelope-check-fill"></i></div>
+                <h1>Đổi email thành công</h1>
+                <p class="rd-lead">Từ bây giờ bạn đăng nhập và nhận thông báo bằng email <strong>@ViewBag.NewEmail</strong>.</p>
+                <a asp-action="Profile" class="btn btn-primary"><i class="bi bi-person-circle"></i> Về trang hồ sơ</a>
+            }
+            else if (result == EmailConfirmationResult.EmailInUse)
+            {
+                <div class="rd-status-icon is-danger"><i class="bi bi-x-octagon-fill"></i></div>
+                <h1>Không thể đổi email</h1>
+                <p class="rd-lead">Email mới đã được một tài khoản khác sử dụng. Email đăng nhập của bạn được giữ nguyên.</p>
+                <a asp-action="Profile" class="btn btn-primary"><i class="bi bi-person-circle"></i> Về trang hồ sơ</a>
+            }
+            else
+            {
+                <div class="rd-status-icon is-danger"><i class="bi bi-link-45deg"></i></div>
+                <h1>Liên kết không hợp lệ</h1>
+                <p class="rd-lead">Liên kết xác nhận không đúng, đã hết hạn (sau 24 giờ) hoặc đã được thay bằng liên kết mới hơn.</p>
+                <a asp-action="ResendConfirmation" class="btn btn-primary"><i class="bi bi-envelope-arrow-up"></i> Gửi lại email xác nhận</a>
+            }
+        </div>
+    </div>
+</div>

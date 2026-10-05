@@ -4,75 +4,117 @@
     ViewData["Title"] = "Đăng ký tài khoản Bạn đọc";
 }
 
-<div class="row justify-content-center py-4">
-    <div class="col-12 col-md-8 col-lg-6">
-        <div class="card shadow-sm border-0">
-            <div class="card-body p-4 p-md-5">
-                <h1 class="h3 mb-3 text-center text-primary font-weight-bold">Đăng ký tài khoản Bạn đọc</h1>
-                <p class="text-muted text-center mb-4">Điền đầy đủ các thông tin dưới đây để đăng ký tài khoản thư viện</p>
-
-                <form asp-action="Register" method="post" id="readerRegisterForm" novalidate>
-                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
-
-                    <div class="mb-3">
-                        <label asp-for="FullName" class="form-label fw-semibold">Họ và tên <span class="text-danger">*</span></label>
-                        <input asp-for="FullName" class="form-control" placeholder="Nguyễn Văn A" autofocus />
-                        <span asp-validation-for="FullName" class="text-danger small"></span>
-                    </div>
-
-                    <div class="mb-3">
-                        <label asp-for="DateOfBirth" class="form-label fw-semibold">Ngày sinh <span class="text-danger">*</span></label>
-                        <input asp-for="DateOfBirth" type="date" class="form-control" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
-                        <span asp-validation-for="DateOfBirth" class="text-danger small"></span>
-                    </div>
-
-                    <div class="mb-3">
-                        <label asp-for="Email" class="form-label fw-semibold">Email <span class="text-danger">*</span></label>
-                        <input asp-for="Email" type="email" class="form-control" placeholder="bandoc@example.com" />
-                        <span asp-validation-for="Email" class="text-danger small"></span>
-                        @if (ViewBag.ShowForgotPasswordSuggestion == true)
-                        {
-                            <div class="alert alert-info mt-2 py-2 px-3 small border-0 bg-info-subtle text-info-emphasis" role="alert">
-                                <strong>Gợi ý:</strong> Nếu đây là tài khoản của bạn, hãy sử dụng chức năng <a asp-action="ForgotPassword" class="alert-link">Quên mật khẩu</a>.
-                            </div>
-                        }
-                    </div>
-
-                    <div class="mb-3">
-                        <label asp-for="PhoneNumber" class="form-label fw-semibold">Số điện thoại <span class="text-danger">*</span></label>
-                        <input asp-for="PhoneNumber" type="tel" inputmode="numeric" class="form-control" placeholder="0901234567" />
-                        <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
-                    </div>
-
-                    <div class="mb-3">
-                        <label asp-for="StudentOrStaffCode" class="form-label fw-semibold">Mã sinh viên hoặc mã cán bộ <span class="text-danger">*</span></label>
-                        <input asp-for="StudentOrStaffCode" class="form-control" placeholder="SV2026001 hoặc CB001" />
-                        <span asp-validation-for="StudentOrStaffCode" class="text-danger small"></span>
-                        @if (ViewBag.ShowCodeForgotPasswordSuggestion == true)
-                        {
-                            <div class="alert alert-info mt-2 py-2 px-3 small border-0 bg-info-subtle text-info-emphasis" role="alert">
-                                <strong>Gợi ý:</strong> Nếu đây là tài khoản của bạn, hãy sử dụng chức năng <a asp-action="ForgotPassword" class="alert-link">Quên mật khẩu</a>.
-                            </div>
-                        }
-                    </div>
-
-                    <div class="mb-3">
-                        <label asp-for="Password" class="form-label fw-semibold">Mật khẩu <span class="text-danger">*</span></label>
-                        <input asp-for="Password" type="password" class="form-control" placeholder="Tối thiểu 8 ký tự, gồm cả chữ và số" />
-                        <span asp-validation-for="Password" class="text-danger small"></span>
-                    </div>
-
-                    <div class="mb-4">
-                        <label asp-for="ConfirmPassword" class="form-label fw-semibold">Nhập lại mật khẩu <span class="text-danger">*</span></label>
-                        <input asp-for="ConfirmPassword" type="password" class="form-control" placeholder="Nhập lại mật khẩu phía trên" />
-                        <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary w-100 py-2 fs-5">Đăng ký tài khoản</button>
-                </form>
-            </div>
+<div class="reader-auth is-register">
+    <section class="reader-auth-hero" aria-hidden="true">
+        <div>
+            <div class="eyebrow"><i class="bi bi-stars me-1"></i> THẺ BẠN ĐỌC · MIỄN PHÍ</div>
+            <h1>Một tấm thẻ,<br /><em>cả kho tri thức</em></h1>
+            <p>Đăng ký trong một phút. Không cần chờ thư viện duyệt — xác nhận email là dùng được ngay.</p>
         </div>
-    </div>
+        <ol class="rd-steps mt-4">
+            <li><strong>Điền thông tin</strong><span>Họ tên, email, mã sinh viên / cán bộ và loại thẻ.</span></li>
+            <li><strong>Xác nhận email</strong><span>Bấm liên kết chúng tôi gửi tới hộp thư của bạn.</span></li>
+            <li><strong>Nhận thẻ &amp; mượn sách</strong><span>Thẻ được cấp tự động, hạn 1 năm, đặt giữ sách ngay.</span></li>
+        </ol>
+    </section>
+
+    <section class="reader-auth-form">
+        <header class="reader-auth-header">
+            <h2>Đăng ký tài khoản Bạn đọc</h2>
+            <p class="reader-auth-lead">Các mục có dấu <span class="rd-required">*</span> là bắt buộc.</p>
+        </header>
+
+        <form asp-action="Register" method="post" id="readerRegisterForm" class="rd-form" novalidate>
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 small" role="alert"></div>
+
+            <div class="rd-section-label">Thông tin cá nhân</div>
+            <div class="row g-3">
+                <div class="col-sm-7">
+                    <label asp-for="FullName" class="form-label">Họ và tên <span class="rd-required">*</span></label>
+                    <input asp-for="FullName" class="form-control" placeholder="Nguyễn Văn A" autocomplete="name" autofocus />
+                    <span asp-validation-for="FullName" class="text-danger small"></span>
+                </div>
+                <div class="col-sm-5">
+                    <label asp-for="DateOfBirth" class="form-label">Ngày sinh <span class="rd-required">*</span></label>
+                    <input asp-for="DateOfBirth" type="date" class="form-control" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                    <span asp-validation-for="DateOfBirth" class="text-danger small"></span>
+                </div>
+                <div class="col-sm-7">
+                    <label asp-for="Email" class="form-label">Email <span class="rd-required">*</span></label>
+                    <input asp-for="Email" type="email" class="form-control" placeholder="bandoc@example.com" autocomplete="email" />
+                    <span asp-validation-for="Email" class="text-danger small"></span>
+                    @if (ViewBag.ShowForgotPasswordSuggestion == true)
+                    {
+                        <div class="alert alert-info mt-2 py-2 px-3 small" role="alert">
+                            <strong>Gợi ý:</strong> Nếu đây là tài khoản của bạn, hãy sử dụng chức năng <a asp-action="ForgotPassword" class="alert-link">Quên mật khẩu</a>.
+                        </div>
+                    }
+                </div>
+                <div class="col-sm-5">
+                    <label asp-for="PhoneNumber" class="form-label">Số điện thoại <span class="rd-required">*</span></label>
+                    <input asp-for="PhoneNumber" type="tel" inputmode="numeric" class="form-control" placeholder="0901234567" autocomplete="tel" />
+                    <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+                </div>
+            </div>
+
+            <div class="rd-section-label">Thẻ thư viện</div>
+            <div class="row g-3">
+                <div class="col-sm-6">
+                    <label asp-for="StudentOrStaffCode" class="form-label">Mã sinh viên / mã cán bộ <span class="rd-required">*</span></label>
+                    <input asp-for="StudentOrStaffCode" class="form-control" placeholder="SV2026001 hoặc CB001" />
+                    <span asp-validation-for="StudentOrStaffCode" class="text-danger small"></span>
+                    @if (ViewBag.ShowCodeForgotPasswordSuggestion == true)
+                    {
+                        <div class="alert alert-info mt-2 py-2 px-3 small" role="alert">
+                            <strong>Gợi ý:</strong> Nếu đây là tài khoản của bạn, hãy sử dụng chức năng <a asp-action="ForgotPassword" class="alert-link">Quên mật khẩu</a>.
+                        </div>
+                    }
+                </div>
+                <div class="col-sm-6">
+                    <label asp-for="LibraryCardTypeId" class="form-label">Loại thẻ thư viện <span class="rd-required">*</span></label>
+                    <select asp-for="LibraryCardTypeId" class="form-select" required>
+                        <option value="">-- Chọn loại thẻ --</option>
+                        @foreach (var cardType in Model.CardTypes)
+                        {
+                            <option value="@cardType.Id">@cardType.Name</option>
+                        }
+                    </select>
+                    <span asp-validation-for="LibraryCardTypeId" class="text-danger small"></span>
+                </div>
+                <div class="col-12">
+                    <div class="form-text mt-0"><i class="bi bi-info-circle me-1"></i>Thẻ được cấp tự động, hạn 1 năm, ngay khi bạn xác nhận email.</div>
+                </div>
+            </div>
+
+            <div class="rd-section-label">Bảo mật</div>
+            <div class="row g-3">
+                <div class="col-sm-6">
+                    <label asp-for="Password" class="form-label">Mật khẩu <span class="rd-required">*</span></label>
+                    <div class="login-input-group">
+                        <i class="bi bi-lock login-input-icon" aria-hidden="true"></i>
+                        <input asp-for="Password" type="password" class="form-control" placeholder="Ít nhất 8 ký tự, có chữ và số" autocomplete="new-password" />
+                        <button type="button" class="login-password-toggle" data-password-toggle="Password" aria-label="Hiện mật khẩu" aria-pressed="false" tabindex="-1"><i class="bi bi-eye"></i></button>
+                    </div>
+                    <span asp-validation-for="Password" class="text-danger small"></span>
+                </div>
+                <div class="col-sm-6">
+                    <label asp-for="ConfirmPassword" class="form-label">Nhập lại mật khẩu <span class="rd-required">*</span></label>
+                    <div class="login-input-group">
+                        <i class="bi bi-shield-check login-input-icon" aria-hidden="true"></i>
+                        <input asp-for="ConfirmPassword" type="password" class="form-control" placeholder="Nhập lại mật khẩu" autocomplete="new-password" />
+                        <button type="button" class="login-password-toggle" data-password-toggle="ConfirmPassword" aria-label="Hiện mật khẩu" aria-pressed="false" tabindex="-1"><i class="bi bi-eye"></i></button>
+                    </div>
+                    <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
+                </div>
+            </div>
+
+            <button type="submit" class="login-submit mt-4">
+                <span>Đăng ký tài khoản</span>
+                <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+            <p class="text-center text-muted small mt-3 mb-0">Đã có tài khoản? <a asp-action="Login" class="fw-semibold">Đăng nhập</a></p>
+        </form>
+    </section>
 </div>
 
 @section Scripts {

@@ -4,49 +4,53 @@
     Layout = "_ReaderLayout";
 }
 
-<div class="container py-4">
-    <div class="mb-4">
-        <h1 class="h3 mb-1 text-primary fw-bold">Tra cứu sách</h1>
-        <p class="text-muted mb-0">Tìm sách theo nhan đề, tác giả hoặc ISBN trong kho sách của thư viện.</p>
-    </div>
-
-    <form id="catalogSearchForm" asp-action="Index" method="get" class="row g-2 mb-4" role="search" aria-label="Tra cứu sách">
+<div>
+    <form id="catalogSearchForm" asp-action="Index" method="get" role="search" aria-label="Tra cứu sách">
         <input type="hidden" name="page" value="1" />
-        <div class="col-12 col-md-8">
-            <label for="catalogKeyword" class="visually-hidden">Từ khóa</label>
-            <input id="catalogKeyword" name="q" type="search" value="@Model.Keyword" class="form-control" placeholder="Nhập nhan đề, tác giả hoặc ISBN..." autocomplete="off" />
-        </div>
-        <div class="col-12 col-md-4">
-            <button type="submit" class="btn btn-primary w-100">Tra cứu</button>
-        </div>
-        <div class="col-12 col-md-6">
-            <label for="catalogCategories" class="form-label">Thể loại</label>
-            <select id="catalogCategories" name="categories" class="form-select" multiple size="4" data-auto-submit>
-                @foreach (var category in Model.Categories)
-                {
-                    var label = category.ParentName is null ? category.Name : $"{category.ParentName} > {category.Name}";
-                    <option value="@category.Name" selected="@Model.SelectedCategories.Contains(category.Name)">@label</option>
-                }
-            </select>
-            <div class="form-text">Có thể chọn nhiều thể loại.</div>
-        </div>
-        <div class="col-6 col-md-3">
-            <label for="catalogFromYear" class="form-label">Từ năm</label>
-            <input id="catalogFromYear" name="fromYear" type="number" min="1" max="9999" value="@Model.FromYear" class="form-control" data-auto-submit />
-        </div>
-        <div class="col-6 col-md-3">
-            <label for="catalogToYear" class="form-label">Đến năm</label>
-            <input id="catalogToYear" name="toYear" type="number" min="1" max="9999" value="@Model.ToYear" class="form-control" data-auto-submit />
-        </div>
-        <div class="col-12 d-flex justify-content-between align-items-center">
-            <label class="form-check-label" for="catalogAvailableOnly">
-                <input id="catalogAvailableOnly" name="availableOnly" type="checkbox" value="true" class="form-check-input me-2" checked="@Model.AvailableOnly" data-auto-submit />
-                Chỉ hiện sách còn bản rảnh
-            </label>
-            @if (!string.IsNullOrEmpty(Model.Keyword) || Model.SelectedCategories.Count > 0 || Model.FromYear.HasValue || Model.ToYear.HasValue || Model.AvailableOnly)
-            {
-                <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Xóa bộ lọc</a>
-            }
+        <section class="rd-hero">
+            <div class="rd-eyebrow">Thư viện · Tra cứu</div>
+            <h1>Tra cứu sách</h1>
+            <p>Tìm sách theo nhan đề, tác giả hoặc ISBN trong kho sách của thư viện.</p>
+            <div class="rd-search mt-3">
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <label for="catalogKeyword" class="visually-hidden">Từ khóa</label>
+                <input id="catalogKeyword" name="q" type="search" value="@Model.Keyword" class="form-control" placeholder="Nhập nhan đề, tác giả hoặc ISBN..." autocomplete="off" />
+                <button type="submit" class="btn btn-primary">Tra cứu</button>
+            </div>
+        </section>
+
+        <div class="rd-card mb-4">
+            <div class="rd-card-body py-3 row g-3 align-items-end">
+                <div class="col-12 col-md-5">
+                    <label for="catalogCategories" class="form-label small fw-semibold"><i class="bi bi-tags me-1"></i>Thể loại</label>
+                    <select id="catalogCategories" name="categories" class="form-select" multiple size="3" data-auto-submit>
+                        @foreach (var category in Model.Categories)
+                        {
+                            var label = category.ParentName is null ? category.Name : $"{category.ParentName} > {category.Name}";
+                            <option value="@category.Name" selected="@Model.SelectedCategories.Contains(category.Name)">@label</option>
+                        }
+                    </select>
+                    <div class="form-text">Giữ Ctrl để chọn nhiều thể loại.</div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label for="catalogFromYear" class="form-label small fw-semibold"><i class="bi bi-calendar3 me-1"></i>Từ năm</label>
+                    <input id="catalogFromYear" name="fromYear" type="number" min="1" max="9999" value="@Model.FromYear" class="form-control" data-auto-submit />
+                </div>
+                <div class="col-6 col-md-2">
+                    <label for="catalogToYear" class="form-label small fw-semibold">Đến năm</label>
+                    <input id="catalogToYear" name="toYear" type="number" min="1" max="9999" value="@Model.ToYear" class="form-control" data-auto-submit />
+                </div>
+                <div class="col-12 col-md-3 d-flex flex-column gap-2">
+                    <label class="form-check-label" for="catalogAvailableOnly">
+                        <input id="catalogAvailableOnly" name="availableOnly" type="checkbox" value="true" class="form-check-input me-2" checked="@Model.AvailableOnly" data-auto-submit />
+                        Chỉ hiện sách còn bản rảnh
+                    </label>
+                    @if (!string.IsNullOrEmpty(Model.Keyword) || Model.SelectedCategories.Count > 0 || Model.FromYear.HasValue || Model.ToYear.HasValue || Model.AvailableOnly)
+                    {
+                        <a asp-action="Index" class="btn btn-sm btn-outline-secondary align-self-start"><i class="bi bi-x-circle"></i> Xóa bộ lọc</a>
+                    }
+                </div>
+            </div>
         </div>
     </form>
 
@@ -56,10 +60,11 @@
 
     @if (Model.Results.Count == 0)
     {
-        <div class="card border-0 shadow-sm">
-            <div class="card-body text-center py-5">
-                <h2 class="h4 mb-2">Không tìm thấy kết quả</h2>
-                <p class="text-muted mb-4">Hãy thử bỏ bớt bộ lọc hoặc kiểm tra lại từ khóa.</p>
+        <div class="rd-card">
+            <div class="rd-empty">
+                <div class="rd-status-icon is-gold"><i class="bi bi-journal-x"></i></div>
+                <h2>Không tìm thấy kết quả</h2>
+                <p>Hãy thử bỏ bớt bộ lọc hoặc kiểm tra lại từ khóa.</p>
                 <div class="d-flex justify-content-center gap-2 flex-wrap">
                     <a asp-action="Index" asp-route-q="@Model.Keyword" class="btn btn-outline-primary">Xóa bộ lọc</a>
                     <a asp-action="Index" class="btn btn-primary">Tìm kiếm mới</a>
@@ -73,36 +78,34 @@
             @foreach (var book in Model.Results)
             {
                 <div class="col-12 col-lg-6">
-                    <article class="card border-0 shadow-sm h-100" data-book-id="@book.Id">
-                        <div class="card-body d-flex gap-3">
-                            <a asp-controller="Book" asp-action="Details" asp-route-id="@book.Id" class="flex-shrink-0" aria-label="Xem chi tiết @book.Title">
-                                <img src="@book.CoverImageUrl" alt="Bìa sách @book.Title" class="book-cover-thumbnail" loading="lazy" />
-                            </a>
-                            <div style="min-width: 0;">
-                                <h2 class="h5 mb-1">
-                                    <a asp-controller="Book" asp-action="Details" asp-route-id="@book.Id" class="text-decoration-none catalog-title">@book.Title</a>
-                                </h2>
-                                @if (!string.IsNullOrWhiteSpace(book.Subtitle))
-                                {
-                                    <div class="text-muted small mb-2">@book.Subtitle</div>
-                                }
-                                <div class="small mb-1"><span class="text-secondary">Tác giả:</span> <span class="fw-semibold catalog-authors">@string.Join(", ", book.Authors)</span></div>
-                                <div class="small mb-1"><span class="text-secondary">Thể loại:</span> <span class="catalog-category">@book.CategoryName</span></div>
+                    <article class="rd-book-card" data-book-id="@book.Id">
+                        <a asp-controller="Book" asp-action="Details" asp-route-id="@book.Id" class="flex-shrink-0" aria-label="Xem chi tiết @book.Title">
+                            <img src="@book.CoverImageUrl" alt="Bìa sách @book.Title" class="book-cover-thumbnail" loading="lazy" />
+                        </a>
+                        <div style="min-width: 0;">
+                            <h2 class="mb-1">
+                                <a asp-controller="Book" asp-action="Details" asp-route-id="@book.Id" class="text-decoration-none catalog-title">@book.Title</a>
+                            </h2>
+                            @if (!string.IsNullOrWhiteSpace(book.Subtitle))
+                            {
+                                <div class="text-muted small mb-2">@book.Subtitle</div>
+                            }
+                            <div class="rd-book-meta">
+                                <div><i class="bi bi-person"></i> Tác giả: <strong class="catalog-authors">@string.Join(", ", book.Authors)</strong></div>
+                                <div><i class="bi bi-tag"></i> Thể loại: <span class="catalog-category">@book.CategoryName</span></div>
                                 @if (book.PublicationYear is int year)
                                 {
-                                    <div class="small mb-1"><span class="text-secondary">Năm xuất bản:</span> @year</div>
+                                    <div><i class="bi bi-calendar3"></i> Năm xuất bản: @year</div>
                                 }
-                                <div class="mt-2">
-                                    @if (book.AvailableCopies > 0)
-                                    {
-                                        <span class="badge bg-success-subtle text-success-emphasis">@book.AvailableCopies / @book.TotalCopies bản sẵn sàng</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-secondary-subtle text-secondary-emphasis">Hiện không còn bản rảnh</span>
-                                    }
-                                </div>
                             </div>
+                            @if (book.AvailableCopies > 0)
+                            {
+                                <span class="rd-availability is-available">@book.AvailableCopies / @book.TotalCopies bản sẵn sàng</span>
+                            }
+                            else
+                            {
+                                <span class="rd-availability is-unavailable">Hiện không còn bản rảnh</span>
+                            }
                         </div>
                     </article>
                 </div>

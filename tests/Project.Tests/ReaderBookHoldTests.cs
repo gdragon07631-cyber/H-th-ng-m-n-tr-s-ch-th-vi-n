@@ -567,7 +567,7 @@ public sealed class ReaderBookHoldTests : IDisposable
         var controller = new ReaderRegistrationController(service, new ReaderRegistrationIpRateLimiter(),
             new ReaderPasswordResetService(db, new PasswordHasher<ReaderAccount>(), new NoEmailSender(),
                 NullLogger<ReaderPasswordResetService>.Instance),
-            dataProtection, new AuditLogService(db, NullLogger<AuditLogService>.Instance));
+            dataProtection, new AuditLogService(db, NullLogger<AuditLogService>.Instance), new NoOpEmailVerificationService());
         var context = new DefaultHttpContext();
         if (cookieHeader is not null) context.Request.Headers.Cookie = cookieHeader;
         controller.ControllerContext = new ControllerContext { HttpContext = context };

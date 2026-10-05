@@ -241,6 +241,7 @@ public sealed class BookController(
         if (staff == null) return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Details), new { id = bookId, status }) });
 
         var outcome = await staffHoldCancellationService.CancelAsync(holdId, reason, staff.Id, cancellationToken);
+        await LogStaffHoldCancelAsync(staff, holdId, reason, outcome, cancellationToken);
         TempData[outcome.IsSuccess ? "SuccessMessage" : "HoldCancelErrorMessage"] = outcome.Message;
         return RedirectToAction(nameof(Details), new { id = bookId, status });
     }
@@ -253,6 +254,7 @@ public sealed class BookController(
         var staff = await auditLogService.GetSignedInStaffAsync(Request, cancellationToken);
         if (staff == null) return Unauthorized(new { message = "Vui lòng đăng nhập bằng tài khoản nhân sự." });
         var outcome = await staffHoldCancellationService.CancelAsync(holdId, request?.Reason, staff.Id, cancellationToken);
+        await LogStaffHoldCancelAsync(staff, holdId, request?.Reason, outcome, cancellationToken);
         if (!outcome.IsSuccess)
         {
             var statusCode = outcome.Result is StaffHoldCancellationResult.AlreadyCancelled or StaffHoldCancellationResult.ConvertedToLoan
@@ -394,6 +396,7 @@ public sealed class BookController(
             return RedirectToAction("Login", "ReaderRegistration", new { returnUrl = Url.Action(nameof(Details), new { id }) });
 
         var outcome = await registrationService.HoldDocumentAsync(readerId, id, cancellationToken);
+        await LogReaderHoldAsync(readerId, id, outcome, cancellationToken);
         TempData[outcome.IsAllowed ? "HoldSuccessMessage" : "HoldErrorMessage"] = outcome.Message;
         return RedirectToAction(nameof(Details), new { id });
     }
@@ -480,6 +483,39 @@ public sealed class BookController(
             cancellationReason = item.CancellationReason,
             cancelledAtUtc = item.CancelledAtUtc
         }));
+    }
+
+    private async Task LogStaffHoldCancelAsync(AdminAccount staff, long holdId, string? reason,
+        StaffHoldCancellationOutcome outcome, CancellationToken cancellationToken)
+    {
+        if (!outcome.IsSuccess) return;
+        var hold = await dbContext.BookHolds.AsNoTracking()
+            .Include(item => item.Book).Include(item => item.ReaderAccount)
+            .SingleOrDefaultAsync(item => item.Id == holdId, cancellationToken);
+        if (hold is null) return;
+        await auditLogService.WriteAsync(
+            staff.Email,
+            AuditActions.CancelHold,
+            $"Đơn đặt giữ #{hold.Id} \"{hold.Book?.Title}\" (sách #{hold.BookId}) của bạn đọc #{hold.ReaderAccountId} " +
+                $"({hold.ReaderAccount?.Email}) – nhân sự hủy, lý do: {reason?.Trim()}",
+            AuditLogService.ClientIp(HttpContext),
+            cancellationToken);
+    }
+
+    private async Task LogReaderHoldAsync(int readerId, int bookId, DocumentHoldOutcome outcome, CancellationToken cancellationToken)
+    {
+        var reader = await registrationService.GetReaderByIdAsync(readerId, cancellationToken);
+        var title = await dbContext.Books.AsNoTracking().Where(book => book.Id == bookId)
+            .Select(book => book.Title).SingleOrDefaultAsync(cancellationToken);
+        var book = $"\"{title}\" (sách #{bookId})";
+        var detail = !outcome.IsAllowed
+            ? $"đặt giữ {book} bị từ chối: {outcome.Message}"
+            : outcome.IsReserved
+                ? $"đặt giữ {book} – đã có sách, giữ bản sao {outcome.CopyCode}"
+                : $"đặt giữ {book} – xếp hàng chờ" + (outcome.QueuePosition is { } position ? $", vị trí {position}" : string.Empty);
+        var email = reader?.Email ?? $"Bạn đọc #{readerId}";
+        await auditLogService.WriteAsync(email, AuditActions.PlaceHold, $"Tài khoản bạn đọc #{readerId} ({email}) – {detail}",
+            AuditLogService.ClientIp(HttpContext), cancellationToken);
     }
 
     private Task<int> GetCurrentLoggedInReaderIdAsync(CancellationToken cancellationToken) =>

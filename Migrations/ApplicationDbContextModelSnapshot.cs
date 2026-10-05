@@ -263,9 +263,6 @@ namespace Project.Migrations
                     b.Property<decimal?>("CoverPrice")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<DateOnly?>("ReceivedDate")
-                        .HasColumnType("date");
-
                     b.Property<string>("Note")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -276,6 +273,9 @@ namespace Project.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)")
                         .HasDefaultValue("Tốt");
+
+                    b.Property<DateOnly?>("ReceivedDate")
+                        .HasColumnType("date");
 
                     b.Property<int>("ShelfId")
                         .HasColumnType("int");
@@ -355,17 +355,17 @@ namespace Project.Migrations
                     b.Property<long?>("BookCopyId")
                         .HasColumnType("bigint");
 
-                    b.Property<DateTime?>("CancelledAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("CancelledByAdminAccountId")
+                    b.Property<int>("BookId")
                         .HasColumnType("int");
 
                     b.Property<string>("CancellationReason")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
-                    b.Property<int>("BookId")
+                    b.Property<DateTime?>("CancelledAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CancelledByAdminAccountId")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("HeldAtUtc")
@@ -661,10 +661,20 @@ namespace Project.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<bool>("EmailConfirmed")
+                        .HasColumnType("bit");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LockReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<decimal>("OutstandingBalance")
                         .ValueGeneratedOnAdd()
@@ -676,6 +686,10 @@ namespace Project.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");
 
+                    b.Property<string>("PendingEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
                     b.Property<string>("PhoneNumber")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -684,6 +698,9 @@ namespace Project.Migrations
                     b.Property<string>("RejectionReason")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int?>("RequestedLibraryCardTypeId")
+                        .HasColumnType("int");
 
                     b.Property<int>("SessionVersion")
                         .ValueGeneratedOnAdd()
@@ -712,6 +729,45 @@ namespace Project.Migrations
                     b.HasIndex("StudentOrStaffCode");
 
                     b.ToTable("ReaderAccounts");
+                });
+
+            modelBuilder.Entity("Project.Models.ReaderEmailVerificationToken", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("NewEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<int>("ReaderAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("UsedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("ReaderAccountId", "CreatedAtUtc");
+
+                    b.ToTable("ReaderEmailVerificationTokens");
                 });
 
             modelBuilder.Entity("Project.Models.ReaderPasswordHistory", b =>
@@ -1136,6 +1192,17 @@ namespace Project.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("AdminAccount");
+                });
+
+            modelBuilder.Entity("Project.Models.ReaderEmailVerificationToken", b =>
+                {
+                    b.HasOne("Project.Models.ReaderAccount", "ReaderAccount")
+                        .WithMany()
+                        .HasForeignKey("ReaderAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ReaderAccount");
                 });
 
             modelBuilder.Entity("Project.Models.ReaderPasswordHistory", b =>

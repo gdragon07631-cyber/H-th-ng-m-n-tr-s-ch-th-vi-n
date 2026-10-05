@@ -56,6 +56,11 @@ public sealed class AuditLogService(
             var action = filter.Action.Trim();
             query = query.Where(log => log.Action == action);
         }
+        if (!string.IsNullOrWhiteSpace(filter.Keyword))
+        {
+            var keyword = filter.Keyword.Trim();
+            query = query.Where(log => log.Target.Contains(keyword) || log.Actor.Contains(keyword));
+        }
 
         return await query
             .OrderByDescending(log => log.OccurredAtUtc).ThenByDescending(log => log.Id)

@@ -109,6 +109,17 @@ public sealed class ReaderPasswordResetService(
         return true;
     }
 
+    public async Task<int?> GetReaderIdForTokenAsync(string token, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return null;
+        var hash = HashToken(token);
+        var now = DateTime.UtcNow;
+        return await dbContext.ReaderPasswordResetTokens.AsNoTracking()
+            .Where(item => item.TokenHash == hash && item.UsedAtUtc == null && item.ExpiresAtUtc > now)
+            .Select(item => (int?)item.ReaderAccountId)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
     private static string HashToken(string token) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 }

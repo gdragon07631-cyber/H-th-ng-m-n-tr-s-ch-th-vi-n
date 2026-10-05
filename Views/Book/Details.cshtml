@@ -1,11 +1,13 @@
 @model Project.Models.BookDetailsViewModel
 @{
     ViewData["Title"] = "Chi tiết sách - " + Model.Title;
+    // Bạn đọc và khách xem bằng giao diện cổng Bạn đọc; nhân sự vẫn dùng giao diện quản trị.
+    Layout = Model.IsLibrarian ? "_Layout" : "_ReaderLayout";
 }
 
 <div class="container py-4">
     <div class="row justify-content-center">
-        <div class="col-12 col-md-8 col-lg-7">
+        <div class="@(Model.IsLibrarian ? "col-12 col-md-8 col-lg-7" : "col-12 col-xl-10")">
             @if (TempData["SuccessMessage"] != null)
             {
                 <div class="alert alert-success alert-dismissible fade show" role="alert">

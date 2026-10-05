@@ -64,7 +64,10 @@ public sealed class ReaderRegistrationService(
             PhoneNumber = model.PhoneNumber.Trim(),
             StudentOrStaffCode = model.StudentOrStaffCode.Trim(),
             Status = "Chờ duyệt",
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = DateTime.UtcNow,
+            // Phải xác nhận qua liên kết gửi về email trước khi đăng nhập.
+            EmailConfirmed = false,
+            RequestedLibraryCardTypeId = model.LibraryCardTypeId
         };
 
         readerAccount.PasswordHash = passwordHasher.HashPassword(readerAccount, model.Password);
@@ -99,15 +102,24 @@ public sealed class ReaderRegistrationService(
             return ReaderContactUpdateResult.InvalidCurrentPassword;
         }
 
+        if (emailChanged)
+        {
+            var normalized = email.Trim().ToUpperInvariant();
+            var taken = await dbContext.ReaderAccounts
+                .AnyAsync(account => account.Id != id && account.Email.ToUpper() == normalized, cancellationToken);
+            if (taken) return ReaderContactUpdateResult.EmailInUse;
+        }
+
         reader.PhoneNumber = phoneNumber.Trim();
         reader.Address = address.Trim();
         if (emailChanged)
         {
-            reader.Email = email.Trim();
+            // Không đổi ngay: email mới phải được chủ địa chỉ xác nhận, tránh đổi sang email giả hoặc gõ nhầm.
+            reader.PendingEmail = email.Trim();
         }
         reader.UpdatedAtUtc = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
-        return ReaderContactUpdateResult.Success;
+        return emailChanged ? ReaderContactUpdateResult.EmailChangePending : ReaderContactUpdateResult.Success;
     }
 
     public async Task<ReaderPasswordChangeResult> ChangeReaderPasswordAsync(

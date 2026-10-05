@@ -57,7 +57,18 @@
                 {
                     <tr>
                         <td><div class="fw-semibold">@reader.FullName</div><small class="text-muted">@reader.StudentOrStaffCode</small></td>
-                        <td>@reader.Email<br /><small class="text-muted">@reader.PhoneNumber</small></td>
+                        <td>
+                            @reader.Email
+                            @if (reader.EmailConfirmed)
+                            {
+                                <span class="badge bg-success-subtle text-success-emphasis ms-1">Đã xác nhận email</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning-subtle text-warning-emphasis ms-1">Chưa xác nhận email</span>
+                            }
+                            <br /><small class="text-muted">@reader.PhoneNumber</small>
+                        </td>
                         <td>@reader.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
                         <td><span class="badge bg-warning text-dark">@reader.Status</span></td>
                         <td>
@@ -169,7 +180,11 @@ function renderReaders(readers) {
     const name = document.createElement('div'); name.className = 'fw-semibold'; name.textContent = reader.fullName;
     const code = document.createElement('small'); code.className = 'text-muted'; code.textContent = reader.studentOrStaffCode;
     readerCell.append(name, code); row.appendChild(readerCell);
-    const contactCell = document.createElement('td'); contactCell.append(reader.email, document.createElement('br'));
+    const contactCell = document.createElement('td'); contactCell.append(reader.email, ' ');
+    const emailBadge = document.createElement('span');
+    emailBadge.className = reader.emailConfirmed ? 'badge bg-success-subtle text-success-emphasis ms-1' : 'badge bg-warning-subtle text-warning-emphasis ms-1';
+    emailBadge.textContent = reader.emailConfirmed ? 'Đã xác nhận email' : 'Chưa xác nhận email';
+    contactCell.append(emailBadge, document.createElement('br'));
     const phone = document.createElement('small'); phone.className = 'text-muted'; phone.textContent = reader.phoneNumber; contactCell.appendChild(phone); row.appendChild(contactCell);
     appendTextCell(row, new Date(reader.createdAtUtc).toLocaleString('vi-VN'));
     const statusCell = document.createElement('td'); const status = document.createElement('span'); status.className = 'badge bg-warning text-dark'; status.textContent = reader.status; statusCell.appendChild(status); row.appendChild(statusCell);

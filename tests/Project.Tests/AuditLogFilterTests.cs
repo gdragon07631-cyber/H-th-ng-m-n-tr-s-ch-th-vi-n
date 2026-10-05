@@ -119,7 +119,11 @@ public sealed class AuditLogFilterTests : IDisposable
     public void EveryActionTypeIsOfferedInTheFilter()
     {
         Assert.Equal(
-            [AuditActions.Login, AuditActions.CreateAccount, AuditActions.UpdateAccount, AuditActions.IssueCard, AuditActions.UpdateLoanPolicy],
+            [
+                AuditActions.Login, AuditActions.LoginFailed, AuditActions.Logout, AuditActions.CreateAccount, AuditActions.UpdateAccount,
+                AuditActions.ChangePassword, AuditActions.ResetPassword, AuditActions.IssueCard, AuditActions.CreateLoan,
+                AuditActions.RenewLoan, AuditActions.PlaceHold, AuditActions.CancelHold, AuditActions.UpdateLoanPolicy
+            ],
             new AuditLogIndexViewModel().Actions);
     }
 

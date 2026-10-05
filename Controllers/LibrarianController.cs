@@ -61,7 +61,7 @@ public sealed class LibrarianController(
 
         var destination = !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl)
             ? returnUrl
-            : Url.Action("Index", "ReaderApproval")!;
+            : Url.Action("Index", "Book")!;
         return LocalRedirect(destination);
     }
 }

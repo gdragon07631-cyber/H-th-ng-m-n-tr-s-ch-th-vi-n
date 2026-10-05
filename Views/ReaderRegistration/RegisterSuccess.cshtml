@@ -3,38 +3,58 @@
     ViewData["Title"] = "Đăng ký thành công";
 }
 
-<div class="row justify-content-center py-5">
-    <div class="col-12 col-md-8 col-lg-6">
-        <div class="card shadow-sm border-0 text-center p-4 p-md-5">
-            <div class="mb-4">
-                <div class="display-3 text-success mb-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-check-circle-fill text-success" viewBox="0 0 16 16">
-                        <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
-                    </svg>
+<div class="rd-narrow" style="width: min(600px, 100%)">
+    <div class="rd-card">
+        <div class="rd-card-body rd-status">
+            <div class="rd-status-icon is-success"><i class="bi bi-check2-circle"></i></div>
+            <h1>@(ViewBag.SuccessMessage ?? "Đăng ký thành công")</h1>
+            <p class="rd-lead">
+                Trạng thái tài khoản: <span class="rd-pill is-pending"><i class="bi bi-hourglass-split"></i> @ViewBag.AccountStatus</span>
+            </p>
+
+            @if (ViewBag.VerificationEmail is string verificationEmail)
+            {
+                <div class="text-start" id="verifyEmailNotice" role="status">
+                    @if (ViewBag.VerificationEmailSent is true)
+                    {
+                        <div class="alert alert-info d-flex gap-2 align-items-start">
+                            <i class="bi bi-envelope-check fs-5"></i>
+                            <div>Chúng tôi đã gửi liên kết xác nhận tới <strong>@verificationEmail</strong>. Hãy mở email và bấm <strong>"Xác nhận email"</strong> trong vòng 24 giờ. Bạn chỉ đăng nhập được sau khi đã xác nhận.</div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning d-flex gap-2 align-items-start">
+                            <i class="bi bi-exclamation-triangle fs-5"></i>
+                            <div>Hệ thống chưa gửi được email xác nhận tới <strong>@verificationEmail</strong>. Bạn có thể thử gửi lại sau ít phút.</div>
+                        </div>
+                    }
+                    @if (ViewBag.DevConfirmLink is string devLink)
+                    {
+                        <div class="rd-dev-link"><strong>Môi trường phát triển (chưa cấu hình SMTP):</strong> <a href="@devLink">@devLink</a></div>
+                    }
                 </div>
-                <h1 class="h3 text-success fw-bold">Đăng ký thành công</h1>
+            }
+
+            <ol class="rd-steps my-4">
+                <li class="is-done"><strong>Đã tạo tài khoản</strong><span>Thông tin của bạn đã được lưu.</span></li>
+                <li><strong>Xác nhận email</strong><span>Mở hộp thư và bấm liên kết xác nhận.</span></li>
+                <li><strong>Nhận thẻ &amp; bắt đầu mượn sách</strong><span>@ViewBag.Instruction</span></li>
+            </ol>
+
+            <div class="d-flex flex-wrap justify-content-center gap-2">
+                <a asp-action="Login" class="btn btn-primary"><i class="bi bi-box-arrow-in-right"></i> Đăng nhập bạn đọc</a>
+                <a asp-controller="Catalog" asp-action="Index" class="btn btn-outline-primary"><i class="bi bi-search"></i> Tra cứu sách</a>
             </div>
 
-            <div class="alert alert-success py-3 px-4 mb-3 text-start" role="alert">
-                <p class="mb-2 fs-5">@ViewBag.SuccessMessage</p>
-                <div class="d-flex align-items-center mt-3 pt-2 border-top border-success-subtle">
-                    <span class="me-2 fw-semibold">Trạng thái tài khoản:</span>
-                    <span class="badge bg-warning text-dark px-3 py-2 fs-6">@ViewBag.AccountStatus</span>
+            @if (ViewBag.VerificationEmail is string emailForResend)
+            {
+                <div class="rd-note">
+                    <i class="bi bi-lightbulb me-1"></i> Không thấy email? Kiểm tra mục <strong>Thư rác / Quảng cáo</strong> hoặc
+                    <a asp-action="ResendConfirmation" asp-route-email="@emailForResend">gửi lại email xác nhận</a>.
+                    Muốn đăng ký thêm? <a asp-action="Register">Đăng ký tài khoản khác</a>.
                 </div>
-            </div>
-
-            <div class="alert alert-warning py-3 px-4 mb-4 text-start border-start border-4 border-warning" role="alert">
-                <h5 class="alert-heading fw-bold text-dark mb-2">Bước tiếp theo: Hướng dẫn duyệt tài khoản</h5>
-                <p class="mb-0 text-dark">
-                    @ViewBag.Instruction
-                </p>
-            </div>
-
-            <div class="mt-3">
-                <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary me-2">Về trang chủ</a>
-                <a asp-action="Login" class="btn btn-outline-primary me-2">Đăng nhập bạn đọc</a>
-                <a asp-action="Register" class="btn btn-primary">Đăng ký tài khoản khác</a>
-            </div>
+            }
         </div>
     </div>
 </div>

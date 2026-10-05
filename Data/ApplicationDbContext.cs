@@ -14,6 +14,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<ReaderAccount> ReaderAccounts => Set<ReaderAccount>();
     public DbSet<ReaderPasswordHistory> ReaderPasswordHistories => Set<ReaderPasswordHistory>();
     public DbSet<ReaderPasswordResetToken> ReaderPasswordResetTokens => Set<ReaderPasswordResetToken>();
+    public DbSet<ReaderEmailVerificationToken> ReaderEmailVerificationTokens => Set<ReaderEmailVerificationToken>();
     public DbSet<ReaderPasswordResetRequest> ReaderPasswordResetRequests => Set<ReaderPasswordResetRequest>();
     public DbSet<Author> Authors => Set<Author>();
     public DbSet<Book> Books => Set<Book>();
@@ -316,6 +317,21 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(holiday => holiday.HolidayDate).HasColumnType("date").IsRequired();
             entity.Property(holiday => holiday.Reason).HasMaxLength(150).IsRequired();
             entity.Property(holiday => holiday.Note).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<ReaderEmailVerificationToken>(entity =>
+        {
+            entity.HasIndex(token => token.TokenHash).IsUnique();
+            entity.HasIndex(token => new { token.ReaderAccountId, token.CreatedAtUtc });
+            entity.Property(token => token.TokenHash).HasMaxLength(64).IsRequired();
+            entity.Property(token => token.NewEmail).HasMaxLength(256);
+            entity.Property(token => token.CreatedAtUtc).HasColumnType("datetime2");
+            entity.Property(token => token.ExpiresAtUtc).HasColumnType("datetime2");
+            entity.Property(token => token.UsedAtUtc).HasColumnType("datetime2");
+            entity.HasOne(token => token.ReaderAccount)
+                .WithMany()
+                .HasForeignKey(token => token.ReaderAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ReaderPasswordResetToken>(entity =>

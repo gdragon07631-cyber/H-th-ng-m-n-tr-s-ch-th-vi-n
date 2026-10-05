@@ -66,7 +66,7 @@ public static class ReaderSessionCookies
         }
 
         var reader = await findReader(id, cancellationToken);
-        if (reader is null || reader.SessionVersion != sessionVersion)
+        if (reader is null || reader.IsLocked || reader.SessionVersion != sessionVersion)
         {
             Clear(context.Response);
             return -1;

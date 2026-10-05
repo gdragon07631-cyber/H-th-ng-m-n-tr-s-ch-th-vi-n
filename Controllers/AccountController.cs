@@ -133,6 +133,13 @@ public sealed class AccountController(
     public async Task<IActionResult> Logout(CancellationToken cancellationToken = default)
     {
         string? role = null;
+        var audit = HttpContext.RequestServices?.GetService<IAuditLogService>();
+        if (audit is not null && await audit.GetSignedInStaffAsync(Request, cancellationToken) is { } staff)
+        {
+            await audit.WriteAsync(staff.Email, AuditActions.Logout,
+                $"Tài khoản {AuditLogService.DescribeRole(staff.Role)} #{staff.Id} ({staff.Email}) – đăng xuất",
+                AuditLogService.ClientIp(HttpContext), cancellationToken);
+        }
         if (Request.Cookies.TryGetValue("admin_refresh", out var refreshToken))
             role = await tokenService.RevokeAsync(refreshToken, cancellationToken);
         DeleteRefreshTokenCookie();

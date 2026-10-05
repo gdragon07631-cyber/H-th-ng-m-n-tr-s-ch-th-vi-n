@@ -16,6 +16,7 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IPasswordHasher<AdminAccount>, PasswordHasher<AdminAccount>>();
 builder.Services.AddScoped<IReaderRegistrationService, ReaderRegistrationService>();
 builder.Services.AddScoped<IReaderPasswordResetService, ReaderPasswordResetService>();
+builder.Services.AddScoped<IReaderEmailVerificationService, ReaderEmailVerificationService>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddSingleton<ReaderRegistrationIpRateLimiter>();
 builder.Services.AddScoped<IPasswordHasher<ReaderAccount>, PasswordHasher<ReaderAccount>>();
@@ -34,6 +35,9 @@ builder.Services.AddScoped<IHoldPickupService, HoldPickupService>();
 builder.Services.AddScoped<IBookHoldQueueService, BookHoldQueueService>();
 builder.Services.AddScoped<IBookHoldFulfillmentService, BookHoldFulfillmentService>();
 builder.Services.AddScoped<IStaffHoldCancellationService, StaffHoldCancellationService>();
+builder.Services.AddScoped<IHoldPickupExpiryService, HoldPickupExpiryService>();
+builder.Services.AddScoped<IReaderAccountAdminService, ReaderAccountAdminService>();
+builder.Services.AddHostedService<HoldPickupExpiryWorker>();
 builder.Services.Configure<BookCopyLabelPrintOptions>(builder.Configuration.GetSection("BookCopyLabels"));
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, "Data", "Keys")));

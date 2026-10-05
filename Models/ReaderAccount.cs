@@ -39,6 +39,25 @@ public sealed class ReaderAccount
 
     public int SessionVersion { get; set; }
 
+    /// <summary>
+    /// Email đã được xác nhận qua liên kết gửi về hộp thư. Tài khoản tự đăng ký mới bắt đầu ở false;
+    /// tài khoản có từ trước khi có chức năng này được coi là đã xác nhận.
+    /// </summary>
+    public bool EmailConfirmed { get; set; } = true;
+
+    /// <summary>Loại thẻ bạn đọc chọn khi tự đăng ký; dùng để cấp thẻ tự động lúc xác nhận email.</summary>
+    public int? RequestedLibraryCardTypeId { get; set; }
+
+    /// <summary>Email mới bạn đọc yêu cầu đổi sang; chỉ thay cho <see cref="Email"/> khi được xác nhận qua liên kết.</summary>
+    [MaxLength(256)]
+    public string? PendingEmail { get; set; }
+
+    /// <summary>Quản trị hệ thống khoá tài khoản: không đăng nhập được, mọi phiên đang mở bị thu hồi.</summary>
+    public bool IsLocked { get; set; }
+
+    [MaxLength(500)]
+    public string? LockReason { get; set; }
+
     public decimal OutstandingBalance { get; set; }
 
     public LibraryCard? LibraryCard { get; set; }

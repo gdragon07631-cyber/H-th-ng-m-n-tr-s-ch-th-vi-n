@@ -28,7 +28,11 @@ public enum ReaderContactUpdateResult
 {
     Success,
     NotFound,
-    InvalidCurrentPassword
+    InvalidCurrentPassword,
+    /// <summary>Đã lưu email mới ở trạng thái chờ; email chỉ đổi khi bạn đọc xác nhận qua liên kết gửi tới địa chỉ mới.</summary>
+    EmailChangePending,
+    /// <summary>Email mới đã được tài khoản khác sử dụng.</summary>
+    EmailInUse
 }
 
 public enum ReaderPasswordChangeResult

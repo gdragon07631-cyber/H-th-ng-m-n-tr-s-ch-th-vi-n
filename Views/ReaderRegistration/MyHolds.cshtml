@@ -13,72 +13,79 @@
     };
 }
 
-<div class="row justify-content-center py-4">
-    <div class="col-12 col-lg-10">
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-primary text-white py-3">
-                <h4 class="mb-0 fs-5"><i class="bi bi-bookmark me-2"></i>Đơn đặt giữ của tôi</h4>
-            </div>
-            <div class="card-body p-4">
-                @Html.AntiForgeryToken()
-                <div id="holdFeedback" class="d-none" role="alert"></div>
-
-                @if (Model.Count == 0)
-                {
-                    <p class="text-muted mb-0" id="noHoldsMessage">Bạn chưa có đơn đặt giữ nào.</p>
-                }
-                else
-                {
-                    <div class="table-responsive">
-                        <table class="table align-middle mb-0" id="holdsTable">
-                            <thead>
-                                <tr>
-                                    <th>Tên sách</th>
-                                    <th class="text-nowrap">Ngày đặt</th>
-                                    <th>Trạng thái</th>
-                                    <th>Mã bản sao đang giữ</th>
-                                    <th>Vị trí hàng đợi</th>
-                                    <th>Hạn cuối nhận sách</th>
-                                    <th class="text-end">Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var hold in Model)
-                                {
-                                    <tr data-hold-id="@hold.Id">
-                                        <td>@hold.BookTitle</td>
-                                        <td class="text-nowrap">@DateTime.SpecifyKind(hold.HeldAtUtc, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
-                                        <td><span class="badge @StatusBadgeClass(hold.Status)" data-hold-status>@hold.Status</span></td>
-                                        <td data-hold-copy>@(hold.CopyBarcode ?? "—")</td>
-                                        <td data-hold-queue>
-                                            @if (hold.QueuePosition is { } position)
-                                            {
-                                                <text>Vị trí trong hàng đợi: <strong>@position</strong></text>
-                                            }
-                                        </td>
-                                        <td class="text-nowrap">
-                                            @if (hold.PickupDeadlineText is { } deadline)
-                                            {
-                                                <text>Hạn nhận sách: <strong>@deadline</strong></text>
-                                            }
-                                        </td>
-                                        <td class="text-end" data-hold-actions>
-                                            @if (hold.CanCancel)
-                                            {
-                                                <button type="button" class="btn btn-outline-danger btn-sm" data-cancel-hold="@hold.Id"
-                                                        data-book-title="@hold.BookTitle">Hủy đơn</button>
-                                            }
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </div>
-        </div>
+<section class="rd-hero">
+    <div class="rd-eyebrow">Bạn đọc · Đặt giữ</div>
+    <h1>Đơn đặt giữ của tôi</h1>
+    <p>Theo dõi vị trí trong hàng đợi, hạn đến nhận sách và hủy những đơn không còn cần để nhường lượt cho người sau.</p>
+    <div class="rd-hero-actions">
+        <a asp-controller="Catalog" asp-action="Index" class="btn btn-light"><i class="bi bi-search"></i> Tìm sách để đặt giữ</a>
+        <a asp-action="Profile" class="btn btn-outline-light"><i class="bi bi-person-circle"></i> Tài khoản của tôi</a>
     </div>
+</section>
+
+@Html.AntiForgeryToken()
+<div id="holdFeedback" class="d-none" role="alert"></div>
+<div class="rd-card">
+
+    @if (Model.Count == 0)
+    {
+        <div class="rd-empty" id="noHoldsMessage">
+            <div class="rd-status-icon is-gold"><i class="bi bi-bookmark"></i></div>
+            <h2>Bạn chưa có đơn đặt giữ nào.</h2>
+            <p>Tìm cuốn sách bạn cần trên trang tra cứu và bấm "Đặt giữ" — chúng tôi sẽ để dành sách cho bạn.</p>
+            <a asp-controller="Catalog" asp-action="Index" class="btn btn-primary"><i class="bi bi-search"></i> Tra cứu sách</a>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table rd-table align-middle mb-0" id="holdsTable">
+                <thead>
+                    <tr>
+                        <th>Tên sách</th>
+                        <th class="text-nowrap">Ngày đặt</th>
+                        <th>Trạng thái</th>
+                        <th>Mã bản sao đang giữ</th>
+                        <th>Vị trí hàng đợi</th>
+                        <th>Hạn cuối nhận sách</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var hold in Model)
+                    {
+                        <tr data-hold-id="@hold.Id">
+                            <td>@hold.BookTitle</td>
+                            <td class="text-nowrap">@DateTime.SpecifyKind(hold.HeldAtUtc, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                            <td><span class="badge @StatusBadgeClass(hold.Status)" data-hold-status>@hold.Status</span></td>
+                            <td data-hold-copy>@(hold.CopyBarcode ?? "—")</td>
+                            <td data-hold-queue>
+                                @if (hold.QueuePosition is { } position)
+                                {
+                                    <text>Vị trí trong hàng đợi: <strong>@position</strong></text>
+                                }
+                            </td>
+                            <td class="text-nowrap">
+                                @if (hold.PickupDeadlineText is { } deadline)
+                                {
+                                    <text>Hạn nhận sách: <strong>@deadline</strong></text>
+                                }
+                            </td>
+                            <td class="text-end" data-hold-actions>
+                                @if (hold.CanCancel)
+                                {
+                                    <button type="button" class="btn btn-outline-danger btn-sm" data-cancel-hold="@hold.Id"
+                                            data-book-title="@hold.BookTitle">Hủy đơn</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
 </div>
+<p class="text-muted small mt-3"><i class="bi bi-info-circle me-1"></i>Mỗi bạn đọc có tối đa 3 đơn đặt giữ đang hiệu lực. Đơn "Đã có sách" quá hạn nhận sẽ được hệ thống tự hủy để nhường cho người kế tiếp.</p>
 
 @section Scripts {
 <script>

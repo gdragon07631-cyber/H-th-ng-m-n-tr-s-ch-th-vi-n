@@ -1,0 +1,40 @@
+using Project.Models;
+
+namespace Project.Services;
+
+public enum ReaderAccountAdminStatus
+{
+    Success,
+    NotFound,
+    DuplicateEmail,
+    DuplicateCode,
+    MissingReason,
+    NoChange
+}
+
+/// <summary>Kết quả thao tác của quản trị; <see cref="Changes"/> mô tả các trường đã đổi để ghi nhật ký.</summary>
+public sealed record ReaderAccountAdminResult(
+    ReaderAccountAdminStatus Status,
+    string? ErrorMessage = null,
+    ReaderAccount? Reader = null,
+    IReadOnlyList<string>? Changes = null)
+{
+    public bool IsSuccess => Status == ReaderAccountAdminStatus.Success;
+}
+
+public interface IReaderAccountAdminService
+{
+    /// <summary>Tìm bạn đọc theo tên, email, số điện thoại, mã SV/CB hoặc mã thẻ; lọc theo trạng thái.</summary>
+    Task<IReadOnlyList<ReaderAccount>> SearchAsync(string? keyword, string? status, int limit, CancellationToken cancellationToken = default);
+
+    Task<ReaderAccountAdminDetailsViewModel?> GetDetailsAsync(int id, CancellationToken cancellationToken = default);
+
+    /// <summary>Sửa thông tin bạn đọc. Email do quản trị đặt được coi là đã xác nhận và huỷ yêu cầu đổi email đang chờ.</summary>
+    Task<ReaderAccountAdminResult> UpdateAsync(int id, ReaderAccountAdminFormViewModel model, CancellationToken cancellationToken = default);
+
+    /// <summary>Khoá (bắt buộc có lý do, thu hồi mọi phiên đăng nhập) hoặc mở khoá tài khoản bạn đọc.</summary>
+    Task<ReaderAccountAdminResult> SetLockedAsync(int id, bool locked, string? reason, CancellationToken cancellationToken = default);
+
+    /// <summary>Đăng xuất bạn đọc khỏi mọi thiết bị (ví dụ khi nghi bị lộ mật khẩu).</summary>
+    Task<ReaderAccountAdminResult> RevokeSessionsAsync(int id, CancellationToken cancellationToken = default);
+}

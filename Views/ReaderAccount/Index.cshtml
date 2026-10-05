@@ -1,0 +1,104 @@
+@model IReadOnlyList<Project.Models.ReaderAccount>
+@using Project.Services
+@{
+    ViewData["Title"] = "Tài khoản bạn đọc";
+    var query = ViewBag.Query as string;
+    var status = ViewBag.Status as string;
+    var limit = (int)ViewBag.Limit;
+    var filters = new (string Value, string Label)[]
+    {
+        ("", "Tất cả"),
+        ("Đang hoạt động", "Đang hoạt động"),
+        ("Chờ duyệt", "Chờ duyệt"),
+        ("Từ chối", "Từ chối"),
+        (ReaderAccountFilters.UnconfirmedEmail, "Chưa xác nhận email"),
+        (ReaderAccountFilters.PendingEmailChange, "Đang chờ đổi email"),
+        (ReaderAccountFilters.Locked, "Đã khoá")
+    };
+}
+<div class="container py-4">
+    <div class="mb-4">
+        <h1 class="h3 mb-1 text-primary fw-bold">Tài khoản bạn đọc</h1>
+        <p class="text-muted mb-0">Tra cứu mọi tài khoản bạn đọc để hỗ trợ khi bạn đọc gặp sự cố: sửa thông tin, xác nhận email, gửi liên kết đặt lại mật khẩu, khoá hoặc mở khoá.</p>
+    </div>
+
+    <form method="get" class="card shadow-sm border-0 mb-4" id="readerSearchForm">
+        <div class="card-body row g-2 align-items-end">
+            <div class="col-md-6">
+                <label for="q" class="form-label small text-muted mb-1">Tìm kiếm</label>
+                <input type="search" id="q" name="q" value="@query" class="form-control" placeholder="Họ tên, email, số điện thoại, mã SV/CB hoặc mã thẻ" />
+            </div>
+            <div class="col-md-4">
+                <label for="status" class="form-label small text-muted mb-1">Trạng thái</label>
+                <select id="status" name="status" class="form-select">
+                    @foreach (var filter in filters)
+                    {
+                        <option value="@filter.Value" selected="@(string.Equals(filter.Value, status ?? "", StringComparison.Ordinal))">@filter.Label</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2 d-grid">
+                <button type="submit" class="btn btn-primary">Tìm</button>
+            </div>
+        </div>
+    </form>
+
+    <div class="card shadow-sm border-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="readerTable">
+                <thead class="table-light">
+                    <tr><th>#</th><th>Họ và tên</th><th>Email</th><th>Số điện thoại</th><th>Mã SV/CB</th><th>Thẻ</th><th>Trạng thái</th><th class="text-end"></th></tr>
+                </thead>
+                <tbody>
+                    @if (Model.Count == 0)
+                    {
+                        <tr><td colspan="8" class="text-center text-muted py-4">Không tìm thấy tài khoản bạn đọc nào.</td></tr>
+                    }
+                    @foreach (var reader in Model)
+                    {
+                        <tr>
+                            <td class="text-muted">@reader.Id</td>
+                            <td class="fw-semibold">@reader.FullName</td>
+                            <td>
+                                @reader.Email
+                                @if (!reader.EmailConfirmed)
+                                {
+                                    <span class="badge bg-warning-subtle text-warning-emphasis ms-1">Chưa xác nhận</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(reader.PendingEmail))
+                                {
+                                    <div class="small text-muted">Chờ đổi sang: @reader.PendingEmail</div>
+                                }
+                            </td>
+                            <td>@reader.PhoneNumber</td>
+                            <td>@reader.StudentOrStaffCode</td>
+                            <td>
+                                @if (reader.LibraryCard is { } card)
+                                {
+                                    <span class="font-monospace">@card.CardCode</span>
+                                    <div class="small text-muted">@card.LibraryCardType?.Name · hết hạn @card.ExpiresOn.ToString("dd/MM/yyyy")</div>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge @(reader.Status == "Đang hoạt động" ? "bg-success-subtle text-success-emphasis" : reader.Status == "Từ chối" ? "bg-danger-subtle text-danger-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">@reader.Status</span>
+                                @if (reader.IsLocked)
+                                {
+                                    <span class="badge bg-danger ms-1">Đã khoá</span>
+                                }
+                            </td>
+                            <td class="text-end"><a asp-action="Details" asp-route-id="@reader.Id" class="btn btn-sm btn-outline-primary">Xem / sửa</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (Model.Count >= limit)
+        {
+            <div class="card-footer small text-muted">Chỉ hiển thị @limit tài khoản mới nhất. Hãy nhập từ khoá để thu hẹp kết quả.</div>
+        }
+    </div>
+</div>

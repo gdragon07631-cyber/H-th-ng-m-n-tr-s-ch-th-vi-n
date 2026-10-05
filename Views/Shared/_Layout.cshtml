@@ -48,10 +48,6 @@
                 <a class="side-link @Active("HoldPickup")" aria-current="@Current("HoldPickup")" asp-controller="HoldPickup" asp-action="Index"><span>⏳</span> Sách chờ nhận</a>
             }
             <div class="side-label">BẠN ĐỌC</div>
-            @if (isLibrarian)
-            {
-                <a class="side-link @Active("ReaderApproval")" aria-current="@Current("ReaderApproval")" asp-controller="ReaderApproval" asp-action="Index"><span>✓</span> Hồ sơ chờ duyệt</a>
-            }
             <a class="side-link" asp-controller="ReaderRegistration" asp-action="Register"><span>＋</span> Đăng ký bạn đọc</a>
             @if (canManageLibrary)
             {
@@ -61,6 +57,7 @@
             @if (isAdmin)
             {
                 <a class="side-link @Active("StaffAccount")" aria-current="@Current("StaffAccount")" asp-controller="StaffAccount" asp-action="Index"><span>☺</span> Tài khoản nhân sự</a>
+                <a class="side-link @Active("ReaderAccount")" aria-current="@Current("ReaderAccount")" asp-controller="ReaderAccount" asp-action="Index"><span>☻</span> Tài khoản bạn đọc</a>
             }
             @if (canViewAuditLogs)
             {

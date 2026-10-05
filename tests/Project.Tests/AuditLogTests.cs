@@ -65,7 +65,7 @@ public sealed class AuditLogTests : IDisposable
     }
 
     [Fact]
-    public async Task FailedStaffLoginWritesNoLog()
+    public async Task FailedStaffLoginIsLoggedSeparatelyFromSuccessfulLogins()
     {
         await AddStaffAsync(AdminEmail, AccountRoles.SystemAdmin, "admin-password");
         var authentication = new AuthenticationService(db, new PasswordHasher<AdminAccount>(),
@@ -73,7 +73,11 @@ public sealed class AuditLogTests : IDisposable
 
         await authentication.LoginAsync(AdminEmail, "wrong-password", ClientIp, default, AccountRoles.SystemAdmin);
 
-        Assert.Empty(await db.AuditLogs.ToListAsync());
+        // Không tạo bản ghi "Đăng nhập" (chỉ dành cho đăng nhập thành công) mà ghi riêng "Đăng nhập thất bại".
+        var log = Assert.Single(await db.AuditLogs.ToListAsync());
+        Assert.Equal(AuditActions.LoginFailed, log.Action);
+        Assert.Equal(AdminEmail, log.Actor);
+        Assert.Contains("sai mật khẩu (lần 1/5)", log.Target);
     }
 
     [Fact]
@@ -322,7 +326,7 @@ public sealed class AuditLogTests : IDisposable
         var controller = new ReaderRegistrationController(registrationService, new ReaderRegistrationIpRateLimiter(),
             new ReaderPasswordResetService(db, new PasswordHasher<ReaderAccount>(), new NoEmailSender(),
                 NullLogger<ReaderPasswordResetService>.Instance),
-            dataProtection, auditLogService);
+            dataProtection, auditLogService, new NoOpEmailVerificationService());
         Attach(controller, cookieHeader);
         return controller;
     }

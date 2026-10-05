@@ -260,7 +260,7 @@ public sealed class SecurityFixTests : IDisposable
         var registration = new ReaderRegistrationService(db, new PasswordHasher<ReaderAccount>(), NullLogger<ReaderRegistrationService>.Instance);
         var controller = new ReaderRegistrationController(registration, new ReaderRegistrationIpRateLimiter(),
             new ReaderPasswordResetService(db, new PasswordHasher<ReaderAccount>(), new NoEmailSender(), NullLogger<ReaderPasswordResetService>.Instance),
-            dataProtection, auditLogService);
+            dataProtection, auditLogService, new NoOpEmailVerificationService());
         var context = new DefaultHttpContext();
         if (cookie is not null) context.Request.Headers.Cookie = cookie;
         controller.ControllerContext = new ControllerContext { HttpContext = context };
