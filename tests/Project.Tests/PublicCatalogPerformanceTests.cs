@@ -39,7 +39,7 @@ public sealed class PublicCatalogPerformanceTests
 
         var books = Enumerable.Range(1, 5000).Select(index => new Book
         {
-            Title = index % 5 switch
+            Title = (index % 5) switch
             {
                 0 => $"Lập trình Java database {index:D5}",
                 1 => $"Kinh tế tài chính {index:D5}",

@@ -136,8 +136,8 @@
                             <input type="hidden" name="fromYear" value="@Model.FromYear" />
                             <input type="hidden" name="toYear" value="@Model.ToYear" />
                             @if (Model.AvailableOnly) { <input type="hidden" name="availableOnly" value="true" /> }
-                            <input type="hidden" name="page" value="@page" />
-                            <button type="submit" class="page-link" aria-current="@(page == Model.Page ? "page" : null)">@page</button>
+                            <input type="hidden" name="page" value="@(page)" />
+                            <button type="submit" class="page-link" aria-current="@(page == Model.Page ? "page" : null)">@(page)</button>
                         </form>
                     </li>
                 }
