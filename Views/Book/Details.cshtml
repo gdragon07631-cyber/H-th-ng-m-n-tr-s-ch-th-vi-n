@@ -274,6 +274,14 @@
                                     <span>Hạn đến nhận: @pickupDeadline.</span>
                                 }
                             </div>
+                            @if (existingHold.CanCancel)
+                            {
+                                <form asp-action="CancelMyHold" asp-route-id="@Model.Id" method="post" class="align-self-center" id="cancelMyHoldForm"
+                                      onsubmit="return confirm('Bạn có chắc muốn hủy đơn đặt giữ sách này? Lượt của bạn sẽ được nhường cho người xếp sau.');">
+                                    <input type="hidden" name="holdId" value="@existingHold.Id" />
+                                    <button type="submit" class="btn btn-outline-danger" id="cancelMyHoldButton"><i class="bi bi-x-circle"></i> Hủy đơn đặt giữ</button>
+                                </form>
+                            }
                         }
                         else if (Model.CanHold)
                         {

@@ -401,6 +401,38 @@ public sealed class BookController(
         return RedirectToAction(nameof(Details), new { id });
     }
 
+    /// <summary>
+    /// Bạn đọc hủy đơn đặt giữ của chính mình ngay trên trang chi tiết sách.
+    /// Dùng lại nghiệp vụ hủy của trang "Đơn đặt giữ": chỉ hủy được đơn "Đang chờ" và chỉ đơn của tài khoản đang đăng nhập.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [PublicAction]
+    public async Task<IActionResult> CancelMyHold(int id, long holdId, CancellationToken cancellationToken = default)
+    {
+        var readerId = await GetCurrentLoggedInReaderIdAsync(cancellationToken);
+        if (readerId <= 0)
+            return RedirectToAction("Login", "ReaderRegistration", new { returnUrl = Url.Action(nameof(Details), new { id }) });
+
+        var outcome = await registrationService.CancelReaderHoldAsync(readerId, holdId, cancellationToken);
+        if (outcome.Result != BookHoldCancelResult.NotFound)
+        {
+            var reader = await registrationService.GetReaderByIdAsync(readerId, cancellationToken);
+            var title = await dbContext.Books.AsNoTracking().Where(book => book.Id == id)
+                .Select(book => book.Title).SingleOrDefaultAsync(cancellationToken);
+            var email = reader?.Email ?? $"Bạn đọc #{readerId}";
+            var book = $"\"{title}\" (sách #{id})";
+            await auditLogService.WriteAsync(email, AuditActions.CancelHold,
+                $"Tài khoản bạn đọc #{readerId} ({email}) – " + (outcome.Result == BookHoldCancelResult.Success
+                    ? $"bạn đọc tự hủy đơn đặt giữ #{holdId} {book} trên trang chi tiết sách"
+                    : $"hủy đơn đặt giữ #{holdId} {book} thất bại: {outcome.Message}"),
+                AuditLogService.ClientIp(HttpContext), cancellationToken);
+        }
+
+        TempData[outcome.Result == BookHoldCancelResult.Success ? "HoldSuccessMessage" : "HoldErrorMessage"] = outcome.Message;
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
     // ==========================================
     // REST APIs
     // ==========================================

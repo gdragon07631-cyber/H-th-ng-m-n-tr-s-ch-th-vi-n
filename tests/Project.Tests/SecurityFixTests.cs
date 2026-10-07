@@ -125,7 +125,7 @@ public sealed class SecurityFixTests : IDisposable
             .Where(method => method.GetCustomAttribute<PublicActionAttribute>() is not null)
             .Select(method => method.Name).Order();
 
-        Assert.Equal(["Details", "GetBookDetailsApi", "Hold"], publicActions);
+        Assert.Equal(["CancelMyHold", "Details", "GetBookDetailsApi", "Hold"], publicActions);
     }
 
     [Fact]
