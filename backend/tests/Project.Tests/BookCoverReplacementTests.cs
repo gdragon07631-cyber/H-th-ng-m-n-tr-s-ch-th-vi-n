@@ -154,7 +154,7 @@ public sealed class BookCoverReplacementTests
         }
 
         public string PhysicalPath(string relativePath) => Path.Combine(
-            Directory.GetCurrentDirectory(), "wwwroot", relativePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+            FrontendPaths.WebRoot(Directory.GetCurrentDirectory()), relativePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
 
         public void Dispose()
         {

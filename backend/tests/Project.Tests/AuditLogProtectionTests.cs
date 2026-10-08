@@ -136,7 +136,7 @@ public sealed class AuditLogProtectionTests : IDisposable
     [Fact]
     public void LogScreenHasNoEditOrDeleteControls()
     {
-        var view = File.ReadAllText(FindRepoFile("Views", "AuditLog", "Index.cshtml"));
+        var view = File.ReadAllText(FindRepoFile("frontend", "Views", "AuditLog", "Index.cshtml"));
 
         Assert.DoesNotMatch(new Regex("method=\"post\"", RegexOptions.IgnoreCase), view);
         Assert.DoesNotMatch(new Regex(@"asp-action=""(Edit|Delete|Update|Remove)""", RegexOptions.IgnoreCase), view);

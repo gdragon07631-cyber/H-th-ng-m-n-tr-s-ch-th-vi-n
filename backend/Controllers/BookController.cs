@@ -37,8 +37,8 @@ public sealed class BookController(
 
     private async Task EnsureExistingBookThumbnailsAsync(IReadOnlyList<Book> books, CancellationToken cancellationToken)
     {
-        var coverDirectory = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "book-covers");
-        var thumbnailDirectory = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "book-thumbnails");
+        var coverDirectory = Path.Combine(FrontendPaths.WebRoot(Directory.GetCurrentDirectory()), "uploads", "book-covers");
+        var thumbnailDirectory = Path.Combine(FrontendPaths.WebRoot(Directory.GetCurrentDirectory()), "uploads", "book-thumbnails");
         var changed = false;
 
         foreach (var book in books)
@@ -297,8 +297,8 @@ public sealed class BookController(
         var coverFileName = $"{id}-{Guid.NewGuid():N}{extension}";
         var relativePath = $"/uploads/book-covers/{coverFileName}";
         var thumbnailRelativePath = $"/uploads/book-thumbnails/{coverFileName}";
-        var directory = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "book-covers");
-        var thumbnailDirectory = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "book-thumbnails");
+        var directory = Path.Combine(FrontendPaths.WebRoot(Directory.GetCurrentDirectory()), "uploads", "book-covers");
+        var thumbnailDirectory = Path.Combine(FrontendPaths.WebRoot(Directory.GetCurrentDirectory()), "uploads", "book-thumbnails");
         Directory.CreateDirectory(directory);
         Directory.CreateDirectory(thumbnailDirectory);
         var fullPath = Path.Combine(directory, Path.GetFileName(relativePath));
@@ -360,7 +360,7 @@ public sealed class BookController(
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
         if (extension is not (".jpg" or ".jpeg" or ".png")) return;
 
-        var directory = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", folder);
+        var directory = Path.Combine(FrontendPaths.WebRoot(Directory.GetCurrentDirectory()), "uploads", folder);
         TryDeleteFile(Path.Combine(directory, fileName));
     }
 

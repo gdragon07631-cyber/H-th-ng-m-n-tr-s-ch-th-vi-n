@@ -10,7 +10,7 @@ test('switching barcode modes hides and disables manual input while preserving t
         GenerateBarcode: { value: 'false', addEventListener: (name, callback) => { assert.equal(name, 'change'); change = callback; } },
         CopyCode: { value: 'MANUAL-123' }, manualBarcodeField: {}, automaticBarcodeHelp: {}
     };
-    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../wwwroot/js/book-copy-barcode-mode.js'), 'utf8'), {
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../frontend/wwwroot/js/book-copy-barcode-mode.js'), 'utf8'), {
         document: { getElementById: id => elements[id] }
     });
     for (const automatic of [false, true, false, true, false]) {

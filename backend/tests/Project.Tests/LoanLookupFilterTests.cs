@@ -438,7 +438,7 @@ public sealed class LoanLookupFilterTests : IDisposable
     [Fact]
     public void ViewCarriesTheAppliedFiltersInPagingAndKeepsSearchAsTheDefaultButton()
     {
-        var view = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "Views", "LoanLookup", "Index.cshtml"));
+        var view = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "..", "frontend", "Views", "LoanLookup", "Index.cshtml"));
 
         foreach (var text in new[] { "Từ ngày", "Đến ngày", "Trạng thái", "Tất cả trạng thái", ">Áp dụng bộ lọc</button>", ">Xóa bộ lọc</button>",
                      "type=\"date\" name=\"from\"", "type=\"date\" name=\"to\"", "name=\"status\"",

@@ -22,7 +22,7 @@ function setup() {
         loanLookupFrom: element(), loanLookupTo: element(), loanLookupStatus: element(),
         loanLookupApply: element(), loanLookupFilterError: element()
     };
-    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../wwwroot/js/loan-lookup-filters.js'), 'utf8'), {
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../frontend/wwwroot/js/loan-lookup-filters.js'), 'utf8'), {
         document: { getElementById: id => elements[id] }
     });
     const submit = submitter => {

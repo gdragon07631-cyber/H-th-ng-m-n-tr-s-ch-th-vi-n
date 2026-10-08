@@ -1,3 +1,4 @@
+using Project;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -5,7 +6,11 @@ using Project.Data;
 using Project.Models;
 using Project.Services;
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    WebRootPath = FrontendPaths.WebRoot(Directory.GetCurrentDirectory())
+});
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 

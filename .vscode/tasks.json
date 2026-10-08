@@ -5,7 +5,7 @@
             "label": "build",
             "type": "process",
             "command": "dotnet",
-            "args": ["build", "${workspaceFolder}/Project.csproj", "/property:GenerateFullPaths=true", "/consoleloggerparameters:NoSummary"],
+            "args": ["build", "${workspaceFolder}/backend/Project.csproj", "/property:GenerateFullPaths=true", "/consoleloggerparameters:NoSummary"],
             "group": { "kind": "build", "isDefault": true },
             "problemMatcher": "$msCompile"
         }

@@ -25,4 +25,11 @@
     <None Remove="tests\**" />
   </ItemGroup>
 
+  <!-- Giao diện nằm ở ../frontend: Views được biên dịch như thể nằm trong Views/ của project. -->
+  <ItemGroup>
+    <Content Include="..\frontend\Views\**\*.cshtml" Link="Views\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- wwwroot được phục vụ trực tiếp từ ../frontend/wwwroot (xem FrontendPaths); chỉ copy vào bản publish. -->
+    <None Include="..\frontend\wwwroot\**" Exclude="..\frontend\wwwroot\uploads\**" Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

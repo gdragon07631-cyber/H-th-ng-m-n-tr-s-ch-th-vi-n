@@ -298,7 +298,7 @@ public sealed class LoanLookupTests : IDisposable
     [Fact]
     public void PagerLinksAndSearchFormCarryTheExpectedParameters()
     {
-        var view = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "Views", "LoanLookup", "Index.cshtml"));
+        var view = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "..", "frontend", "Views", "LoanLookup", "Index.cshtml"));
 
         Assert.Contains("method=\"get\"", view);
         Assert.Contains("name=\"q\"", view);

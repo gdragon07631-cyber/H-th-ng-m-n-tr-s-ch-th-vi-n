@@ -271,7 +271,7 @@ public sealed class LoanLookupEmptyReasonTests : IDisposable
     [Fact]
     public void ViewShowsTheAgreedSuggestionsAndReusesClearFilters()
     {
-        var view = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "Views", "LoanLookup", "Index.cshtml"));
+        var view = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "..", "frontend", "Views", "LoanLookup", "Index.cshtml"));
 
         foreach (var text in new[]
                  {

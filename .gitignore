@@ -3,9 +3,9 @@ obj/
 artifacts/
 .vs/
 .vscode/*.local.json
-Data/Keys/
+backend/Data/Keys/
 *.user
 *.suo
 
 # Ảnh người dùng tải lên khi chạy app (mỗi máy một bộ khác nhau, không đưa lên Git)
-wwwroot/uploads/
+frontend/wwwroot/uploads/
