@@ -17,6 +17,28 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
         return View(await BuildModel(ct));
     }
 
+    public static bool HasOverridePermission(string? role) =>
+        role is AccountRoles.LibraryManager or AccountRoles.SystemAdmin;
+
+    private async Task<AdminAccount?> GetSignedInStaffAsync(CancellationToken ct)
+    {
+        if (Request == null) return null;
+        var audit = HttpContext?.RequestServices?.GetService<IAuditLogService>();
+        if (audit != null)
+        {
+            var staffFromService = await audit.GetSignedInStaffAsync(Request, ct);
+            if (staffFromService != null) return staffFromService;
+        }
+        if (Request.Cookies == null || !Request.Cookies.TryGetValue("admin_refresh", out var token) || string.IsNullOrWhiteSpace(token))
+            return null;
+        var hash = TokenService.HashRefreshToken(token);
+        var now = DateTime.UtcNow;
+        return await db.RefreshTokens.AsNoTracking()
+            .Where(item => item.TokenHash == hash && item.RevokedAtUtc == null && item.ExpiresAtUtc > now && item.AdminAccount.IsActive)
+            .Select(item => item.AdminAccount)
+            .SingleOrDefaultAsync(ct);
+    }
+
     private async Task<bool> IsLibrarianSignedInAsync(CancellationToken ct)
     {
         if (!Request.Cookies.TryGetValue("admin_refresh", out var token) || string.IsNullOrWhiteSpace(token)) return false;
@@ -33,6 +55,7 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
             return View(nameof(Index), await BuildModel(ct));
         }
 
+<<<<<<< Updated upstream
         var result = await loans.CreateAsync(model.BookId, model.ReaderAccountId, model.LoanDate.Value, ct);
         await LogLoanAsync(AuditActions.CreateLoan, model.BookId, model.ReaderAccountId, result.IsSuccess
             ? $"lập phiếu mượn #{result.Loan!.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {result.Loan!.DueDate:dd/MM/yyyy}"
@@ -40,6 +63,107 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
         TempData[result.IsSuccess ? "SuccessMessage" : "ErrorMessage"] = result.IsSuccess
             ? $"Đã tạo phiếu mượn. Hạn trả: {result.Loan!.DueDate:dd/MM/yyyy}."
             : result.ErrorMessage;
+        return RedirectToAction(nameof(Index));
+=======
+        var bookIds = model.BookIds != null && model.BookIds.Count > 0
+            ? model.BookIds
+            : (model.BookId > 0 ? [model.BookId] : new List<int>());
+
+        if (bookIds.Count == 0)
+        {
+            TempData["ErrorMessage"] = "Vui lòng chọn sách.";
+            return View(nameof(Index), await BuildModel(ct));
+        }
+
+        var staff = await GetSignedInStaffAsync(ct);
+        var staffEmail = staff?.Email ?? "Thủ thư";
+
+        if (bookIds.Count == 1)
+        {
+            var singleBookId = bookIds[0];
+            var result = await loans.CreateAsync(singleBookId, model.ReaderAccountId, model.LoanDate.Value, staffEmail, ct);
+            if (result.IsSuccess)
+            {
+                await LogLoanAsync(AuditActions.CreateLoan, singleBookId, model.ReaderAccountId,
+                    $"lập phiếu mượn #{result.Loan!.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {result.Loan!.DueDate:dd/MM/yyyy}", ct);
+                TempData["SuccessMessage"] = $"Đã tạo phiếu mượn. Hạn trả: {result.Loan!.DueDate:dd/MM/yyyy}.";
+            }
+            else
+            {
+                TempData["ErrorMessage"] = result.ErrorMessage;
+                TempData["BlockedErrorMessage"] = result.ErrorMessage;
+                TempData["BlockedReaderId"] = model.ReaderAccountId;
+                TempData["BlockedBookId"] = singleBookId;
+                TempData["BlockedLoanDate"] = model.LoanDate.Value.ToString("yyyy-MM-dd");
+            }
+            return RedirectToAction(nameof(Index));
+        }
+        else
+        {
+            var batchResult = await loans.CreateManyAsync(bookIds, model.ReaderAccountId, model.LoanDate.Value, staffEmail, ct);
+            if (batchResult.IsSuccess)
+            {
+                foreach (var loan in batchResult.Loans)
+                {
+                    await LogLoanAsync(AuditActions.CreateLoan, loan.BookId, model.ReaderAccountId,
+                        $"lập phiếu mượn #{loan.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {loan.DueDate:dd/MM/yyyy}", ct);
+                }
+                TempData["SuccessMessage"] = $"Đã tạo {batchResult.Loans.Count} phiếu mượn thành công.";
+            }
+            else
+            {
+                TempData["ErrorMessage"] = batchResult.ErrorMessage;
+                TempData["BlockedErrorMessage"] = batchResult.ErrorMessage;
+                TempData["BlockedReaderId"] = model.ReaderAccountId;
+                TempData["BlockedBookIds"] = string.Join(",", bookIds);
+                TempData["BlockedLoanDate"] = model.LoanDate.Value.ToString("yyyy-MM-dd");
+            }
+            return RedirectToAction(nameof(Index));
+        }
+>>>>>>> Stashed changes
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Override(OverrideBookLoanViewModel model, CancellationToken ct = default)
+    {
+        var staff = await GetSignedInStaffAsync(ct);
+        if (staff == null || !HasOverridePermission(staff.Role))
+        {
+            TempData["ErrorMessage"] = "Bạn không có quyền bỏ qua chặn cho mượn.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        if (string.IsNullOrWhiteSpace(model.BypassReason))
+        {
+            TempData["ErrorMessage"] = "Vui lòng nhập lý do bỏ qua.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var bookIds = model.BookIds != null && model.BookIds.Count > 0
+            ? model.BookIds
+            : (model.BookId > 0 ? [model.BookId] : new List<int>());
+
+        if (bookIds.Count == 0 || model.LoanDate == null)
+        {
+            TempData["ErrorMessage"] = "Dữ liệu phiếu mượn không hợp lệ.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var result = await loans.OverrideCreateManyAsync(bookIds, model.ReaderAccountId, model.LoanDate.Value, staff.Email, model.BypassReason, ct);
+        if (result.IsSuccess)
+        {
+            foreach (var loan in result.Loans)
+            {
+                await LogLoanAsync(AuditActions.CreateLoan, loan.BookId, model.ReaderAccountId,
+                    $"lập phiếu mượn #{loan.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {loan.DueDate:dd/MM/yyyy} (bỏ qua chặn)", ct);
+            }
+            TempData["SuccessMessage"] = $"Đã bỏ qua chặn và tạo {result.Loans.Count} phiếu mượn thành công.";
+        }
+        else
+        {
+            TempData["ErrorMessage"] = result.ErrorMessage;
+        }
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -63,12 +187,164 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
     {
         if (model?.LoanDate == null || !TryValidateModel(model))
             return BadRequest(new { message = "Dữ liệu phiếu mượn không hợp lệ." });
+<<<<<<< Updated upstream
         var result = await loans.CreateAsync(model.BookId, model.ReaderAccountId, model.LoanDate.Value, ct);
         await LogLoanAsync(AuditActions.CreateLoan, model.BookId, model.ReaderAccountId, result.IsSuccess
             ? $"lập phiếu mượn #{result.Loan!.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {result.Loan!.DueDate:dd/MM/yyyy}"
             : $"lập phiếu mượn thất bại: {result.ErrorMessage}", ct);
         if (!result.IsSuccess) return BadRequest(new { message = result.ErrorMessage });
         return Created($"/api/loans/{result.Loan!.Id}", ToApiModel(result.Loan));
+=======
+
+        var bookIds = model.BookIds != null && model.BookIds.Count > 0
+            ? model.BookIds
+            : (model.BookId > 0 ? [model.BookId] : new List<int>());
+
+        if (bookIds.Count == 0)
+            return BadRequest(new { message = "Dữ liệu phiếu mượn không hợp lệ." });
+
+        var staff = await GetSignedInStaffAsync(ct);
+        var staffEmail = staff?.Email ?? "Thủ thư";
+
+        if (!string.IsNullOrWhiteSpace(model.BypassReason))
+        {
+            if (staff == null || !HasOverridePermission(staff.Role))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Bạn không có quyền bỏ qua chặn cho mượn." });
+            }
+
+            var overrideResult = await loans.OverrideCreateManyAsync(bookIds, model.ReaderAccountId, model.LoanDate.Value, staff.Email, model.BypassReason, ct);
+            if (!overrideResult.IsSuccess) return BadRequest(new { message = overrideResult.ErrorMessage });
+            foreach (var loan in overrideResult.Loans)
+            {
+                await LogLoanAsync(AuditActions.CreateLoan, loan.BookId, model.ReaderAccountId,
+                    $"lập phiếu mượn #{loan.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {loan.DueDate:dd/MM/yyyy} (bỏ qua chặn)", ct);
+            }
+            return bookIds.Count == 1
+                ? Created($"/api/loans/{overrideResult.Loans[0].Id}", ToApiModel(overrideResult.Loans[0]))
+                : Ok(overrideResult.Loans.Select(ToApiModel));
+        }
+
+        if (bookIds.Count == 1)
+        {
+            var singleBookId = bookIds[0];
+            var result = await loans.CreateAsync(singleBookId, model.ReaderAccountId, model.LoanDate.Value, staffEmail, ct);
+            if (!result.IsSuccess) return BadRequest(new { message = result.ErrorMessage });
+
+            await LogLoanAsync(AuditActions.CreateLoan, singleBookId, model.ReaderAccountId,
+                $"lập phiếu mượn #{result.Loan!.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {result.Loan!.DueDate:dd/MM/yyyy}", ct);
+            return Created($"/api/loans/{result.Loan!.Id}", ToApiModel(result.Loan));
+        }
+        else
+        {
+            var batchResult = await loans.CreateManyAsync(bookIds, model.ReaderAccountId, model.LoanDate.Value, staffEmail, ct);
+            if (!batchResult.IsSuccess)
+            {
+                return BadRequest(new { message = batchResult.ErrorMessage });
+            }
+            foreach (var loan in batchResult.Loans)
+            {
+                await LogLoanAsync(AuditActions.CreateLoan, loan.BookId, model.ReaderAccountId,
+                    $"lập phiếu mượn #{loan.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {loan.DueDate:dd/MM/yyyy}", ct);
+            }
+            return Ok(batchResult.Loans.Select(ToApiModel));
+        }
+    }
+
+    [HttpPost("api/loans/batch")]
+    public async Task<IActionResult> CreateBatchApi([FromBody] CreateBatchBookLoanViewModel? model, CancellationToken ct = default)
+    {
+        if (model?.LoanDate == null || !ValidateModel(model) || model.BookIds.Count == 0)
+            return BadRequest(new { message = "Dữ liệu phiếu mượn không hợp lệ." });
+
+        var staff = await GetSignedInStaffAsync(ct);
+        var staffEmail = staff?.Email ?? "Thủ thư";
+
+        if (!string.IsNullOrWhiteSpace(model.BypassReason))
+        {
+            if (staff == null || !HasOverridePermission(staff.Role))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Bạn không có quyền bỏ qua chặn cho mượn." });
+            }
+
+            var overrideResult = await loans.OverrideCreateManyAsync(model.BookIds, model.ReaderAccountId, model.LoanDate.Value, staff.Email, model.BypassReason, ct);
+            if (!overrideResult.IsSuccess) return BadRequest(new { message = overrideResult.ErrorMessage });
+            foreach (var loan in overrideResult.Loans)
+            {
+                await LogLoanAsync(AuditActions.CreateLoan, loan.BookId, model.ReaderAccountId,
+                    $"lập phiếu mượn #{loan.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {loan.DueDate:dd/MM/yyyy} (bỏ qua chặn)", ct);
+            }
+            return Ok(overrideResult.Loans.Select(ToApiModel));
+        }
+
+        var batchResult = await loans.CreateManyAsync(model.BookIds, model.ReaderAccountId, model.LoanDate.Value, staffEmail, ct);
+        if (!batchResult.IsSuccess)
+        {
+            return BadRequest(new { message = batchResult.ErrorMessage });
+        }
+        foreach (var loan in batchResult.Loans)
+        {
+            await LogLoanAsync(AuditActions.CreateLoan, loan.BookId, model.ReaderAccountId,
+                $"lập phiếu mượn #{loan.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {loan.DueDate:dd/MM/yyyy}", ct);
+        }
+        return Ok(batchResult.Loans.Select(ToApiModel));
+    }
+
+    [HttpPost("api/loans/override")]
+    public async Task<IActionResult> OverrideApi([FromBody] OverrideBookLoanViewModel? model, CancellationToken ct = default)
+    {
+        var staff = await GetSignedInStaffAsync(ct);
+        if (staff == null || !HasOverridePermission(staff.Role))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Bạn không có quyền bỏ qua chặn cho mượn." });
+        }
+
+        if (model?.LoanDate == null)
+        {
+            return BadRequest(new { message = "Dữ liệu phiếu mượn không hợp lệ." });
+        }
+
+        if (string.IsNullOrWhiteSpace(model.BypassReason))
+        {
+            return BadRequest(new { message = "Vui lòng nhập lý do bỏ qua." });
+        }
+
+        var bookIds = model.BookIds != null && model.BookIds.Count > 0
+            ? model.BookIds
+            : (model.BookId > 0 ? [model.BookId] : new List<int>());
+
+        if (bookIds.Count == 0)
+        {
+            return BadRequest(new { message = "Dữ liệu phiếu mượn không hợp lệ." });
+        }
+
+        var result = await loans.OverrideCreateManyAsync(bookIds, model.ReaderAccountId, model.LoanDate.Value, staff.Email, model.BypassReason, ct);
+        if (!result.IsSuccess)
+        {
+            return BadRequest(new { message = result.ErrorMessage });
+        }
+
+        foreach (var loan in result.Loans)
+        {
+            await LogLoanAsync(AuditActions.CreateLoan, loan.BookId, model.ReaderAccountId,
+                $"lập phiếu mượn #{loan.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {loan.DueDate:dd/MM/yyyy} (bỏ qua chặn)", ct);
+        }
+
+        return Ok(result.Loans.Select(ToApiModel));
+    }
+
+    private bool ValidateModel(object? model)
+    {
+        if (model == null) return false;
+        try
+        {
+            if (ObjectValidator != null) return TryValidateModel(model);
+        }
+        catch (NullReferenceException) { }
+        var context = new ValidationContext(model);
+        var results = new List<ValidationResult>();
+        return Validator.TryValidateObject(model, context, results, true);
+>>>>>>> Stashed changes
     }
 
     [HttpPost("api/loans/{id:long}/renew")]
@@ -108,12 +384,53 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
 
     private async Task<LoanIndexViewModel> BuildModel(CancellationToken ct) => new()
     {
+<<<<<<< Updated upstream
         Loans = await loans.GetAllAsync(ct),
         Books = await db.Books.AsNoTracking().OrderBy(book => book.Title).ToListAsync(ct),
         Readers = await db.ReaderAccounts.AsNoTracking()
             .Where(reader => reader.Status == "Đang hoạt động").OrderBy(reader => reader.FullName).ToListAsync(ct),
         NewLoan = new CreateBookLoanViewModel { LoanDate = DateOnly.FromDateTime(DateTime.Today) }
     };
+=======
+        var readers = await db.ReaderAccounts.AsNoTracking()
+            .Include(reader => reader.LibraryCard)
+                .ThenInclude(card => card!.LibraryCardType)
+            .Where(reader => reader.Status == "Đang hoạt động")
+            .OrderBy(reader => reader.FullName)
+            .ToListAsync(ct);
+
+        var readerIds = readers.Select(r => r.Id).ToList();
+        var allLoans = await db.BookLoans.AsNoTracking()
+            .Where(l => readerIds.Contains(l.ReaderAccountId))
+            .ToListAsync(ct);
+
+        var loanCounts = allLoans
+            .Where(l => !l.IsReturned)
+            .GroupBy(l => l.ReaderAccountId)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var overdueReaderIds = allLoans
+            .Where(l => !l.IsReturned && l.DueDate < today)
+            .Select(l => l.ReaderAccountId)
+            .ToHashSet();
+
+        var staff = await GetSignedInStaffAsync(ct);
+        var canOverride = staff != null && HasOverridePermission(staff.Role);
+
+        return new()
+        {
+            Loans = await loans.GetAllAsync(ct),
+            Books = await db.Books.AsNoTracking().OrderBy(book => book.Title).ToListAsync(ct),
+            Readers = readers,
+            ReaderLoanCounts = loanCounts,
+            ReaderHasOverdue = overdueReaderIds,
+            BlockedLoanLogs = await loans.GetBlockedLoanLogsAsync(null, ct),
+            NewLoan = new CreateBookLoanViewModel { LoanDate = today },
+            CanOverride = canOverride
+        };
+    }
+>>>>>>> Stashed changes
 
     private async Task LogLoanAsync(string action, int bookId, int readerId, string detail, CancellationToken ct)
     {
