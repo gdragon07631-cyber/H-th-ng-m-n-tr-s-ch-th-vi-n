@@ -179,6 +179,10 @@ namespace Project.Migrations
                     b.Property<int?>("CategoryId")
                         .HasColumnType("int");
 
+                    b.Property<string>("CoverImagePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -189,6 +193,24 @@ namespace Project.Migrations
                     b.Property<string>("Isbn")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("PageCount")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("PublicationYear")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Publisher")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Subtitle")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("ThumbnailImagePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -202,6 +224,24 @@ namespace Project.Migrations
                     b.HasIndex("CategoryId");
 
                     b.ToTable("Books");
+                });
+
+            modelBuilder.Entity("Project.Models.BookAuthor", b =>
+                {
+                    b.Property<int>("BookId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AuthorId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("BookId", "AuthorId");
+
+                    b.HasIndex("AuthorId");
+
+                    b.ToTable("BookAuthors");
                 });
 
             modelBuilder.Entity("Project.Models.BookCopy", b =>
@@ -220,6 +260,23 @@ namespace Project.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<decimal?>("CoverPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PhysicalCondition")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("Tốt");
+
+                    b.Property<DateOnly?>("ReceivedDate")
+                        .HasColumnType("date");
+
                     b.Property<int>("ShelfId")
                         .HasColumnType("int");
 
@@ -229,6 +286,10 @@ namespace Project.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)")
                         .HasDefaultValue("Sẵn sàng");
+
+                    b.Property<string>("StatusReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.HasKey("Id");
 
@@ -242,6 +303,47 @@ namespace Project.Migrations
                     b.ToTable("BookCopies");
                 });
 
+            modelBuilder.Entity("Project.Models.BookCopyStatusHistory", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("BookCopyId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("ChangedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ChangedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("FromStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ToStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookCopyId", "ChangedAtUtc");
+
+                    b.ToTable("BookCopyStatusHistories");
+                });
+
             modelBuilder.Entity("Project.Models.BookHold", b =>
                 {
                     b.Property<long>("Id")
@@ -250,21 +352,45 @@ namespace Project.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
+                    b.Property<long?>("BookCopyId")
+                        .HasColumnType("bigint");
+
                     b.Property<int>("BookId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("CancelledAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CancelledByAdminAccountId")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("HeldAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("PickupDeadlineUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("ReaderAccountId")
                         .HasColumnType("int");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("Đang chờ");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("BookCopyId");
 
                     b.HasIndex("BookId");
 
-                    b.HasIndex("ReaderAccountId", "BookId")
-                        .IsUnique();
+                    b.HasIndex("ReaderAccountId", "Status", "BookId");
 
                     b.ToTable("BookHolds");
                 });
@@ -292,13 +418,13 @@ namespace Project.Migrations
                     b.Property<DateOnly>("OriginalDueDate")
                         .HasColumnType("date");
 
+                    b.Property<int>("ReaderAccountId")
+                        .HasColumnType("int");
+
                     b.Property<int>("RenewalCount")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
                         .HasDefaultValue(0);
-
-                    b.Property<int>("ReaderAccountId")
-                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -431,15 +557,15 @@ namespace Project.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
                     b.Property<int>("MaxRenewals")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
                         .HasDefaultValue(3);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
 
@@ -535,15 +661,34 @@ namespace Project.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<bool>("EmailConfirmed")
+                        .HasColumnType("bit");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LockReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("OutstandingBalance")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("PendingEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<string>("PhoneNumber")
                         .IsRequired()
@@ -553,6 +698,9 @@ namespace Project.Migrations
                     b.Property<string>("RejectionReason")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int?>("RequestedLibraryCardTypeId")
+                        .HasColumnType("int");
 
                     b.Property<int>("SessionVersion")
                         .ValueGeneratedOnAdd()
@@ -571,11 +719,6 @@ namespace Project.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<decimal>("OutstandingBalance")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("decimal(18,2)")
-                        .HasDefaultValue(0m);
-
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -586,6 +729,45 @@ namespace Project.Migrations
                     b.HasIndex("StudentOrStaffCode");
 
                     b.ToTable("ReaderAccounts");
+                });
+
+            modelBuilder.Entity("Project.Models.ReaderEmailVerificationToken", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("NewEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<int>("ReaderAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("UsedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("ReaderAccountId", "CreatedAtUtc");
+
+                    b.ToTable("ReaderEmailVerificationTokens");
                 });
 
             modelBuilder.Entity("Project.Models.ReaderPasswordHistory", b =>
@@ -879,6 +1061,25 @@ namespace Project.Migrations
                     b.Navigation("Category");
                 });
 
+            modelBuilder.Entity("Project.Models.BookAuthor", b =>
+                {
+                    b.HasOne("Project.Models.Author", "Author")
+                        .WithMany("BookAuthors")
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Project.Models.Book", "Book")
+                        .WithMany("BookAuthors")
+                        .HasForeignKey("BookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+
+                    b.Navigation("Book");
+                });
+
             modelBuilder.Entity("Project.Models.BookCopy", b =>
                 {
                     b.HasOne("Project.Models.Book", "Book")
@@ -898,8 +1099,24 @@ namespace Project.Migrations
                     b.Navigation("Shelf");
                 });
 
+            modelBuilder.Entity("Project.Models.BookCopyStatusHistory", b =>
+                {
+                    b.HasOne("Project.Models.BookCopy", "BookCopy")
+                        .WithMany()
+                        .HasForeignKey("BookCopyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("BookCopy");
+                });
+
             modelBuilder.Entity("Project.Models.BookHold", b =>
                 {
+                    b.HasOne("Project.Models.BookCopy", "BookCopy")
+                        .WithMany()
+                        .HasForeignKey("BookCopyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Project.Models.Book", "Book")
                         .WithMany()
                         .HasForeignKey("BookId")
@@ -913,6 +1130,8 @@ namespace Project.Migrations
                         .IsRequired();
 
                     b.Navigation("Book");
+
+                    b.Navigation("BookCopy");
 
                     b.Navigation("ReaderAccount");
                 });
@@ -975,6 +1194,17 @@ namespace Project.Migrations
                     b.Navigation("AdminAccount");
                 });
 
+            modelBuilder.Entity("Project.Models.ReaderEmailVerificationToken", b =>
+                {
+                    b.HasOne("Project.Models.ReaderAccount", "ReaderAccount")
+                        .WithMany()
+                        .HasForeignKey("ReaderAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ReaderAccount");
+                });
+
             modelBuilder.Entity("Project.Models.ReaderPasswordHistory", b =>
                 {
                     b.HasOne("Project.Models.ReaderAccount", "ReaderAccount")
@@ -1032,7 +1262,14 @@ namespace Project.Migrations
 
             modelBuilder.Entity("Project.Models.Author", b =>
                 {
+                    b.Navigation("BookAuthors");
+
                     b.Navigation("Books");
+                });
+
+            modelBuilder.Entity("Project.Models.Book", b =>
+                {
+                    b.Navigation("BookAuthors");
                 });
 
             modelBuilder.Entity("Project.Models.Category", b =>

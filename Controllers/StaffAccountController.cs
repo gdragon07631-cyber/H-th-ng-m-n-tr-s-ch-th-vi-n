@@ -150,7 +150,7 @@ public sealed class StaffAccountController(
             return View(new StaffSetPasswordViewModel());
         }
 
-        await WriteLogAsync(account.Email, AuditActions.UpdateAccount, account, "đặt mật khẩu lần đầu", cancellationToken);
+        await WriteLogAsync(account.Email, AuditActions.ResetPassword, account, "đặt mật khẩu lần đầu", cancellationToken);
         ViewBag.Success = true;
         ViewBag.LoginController = account.Role switch
         {

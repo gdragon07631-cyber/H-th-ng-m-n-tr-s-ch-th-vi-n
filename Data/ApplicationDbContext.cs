@@ -14,15 +14,18 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<ReaderAccount> ReaderAccounts => Set<ReaderAccount>();
     public DbSet<ReaderPasswordHistory> ReaderPasswordHistories => Set<ReaderPasswordHistory>();
     public DbSet<ReaderPasswordResetToken> ReaderPasswordResetTokens => Set<ReaderPasswordResetToken>();
+    public DbSet<ReaderEmailVerificationToken> ReaderEmailVerificationTokens => Set<ReaderEmailVerificationToken>();
     public DbSet<ReaderPasswordResetRequest> ReaderPasswordResetRequests => Set<ReaderPasswordResetRequest>();
     public DbSet<Author> Authors => Set<Author>();
     public DbSet<Book> Books => Set<Book>();
+    public DbSet<BookAuthor> BookAuthors => Set<BookAuthor>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<LibraryCardType> LibraryCardTypes => Set<LibraryCardType>();
     public DbSet<LibraryCard> LibraryCards => Set<LibraryCard>();
     public DbSet<BookHold> BookHolds => Set<BookHold>();
     public DbSet<BookLoan> BookLoans => Set<BookLoan>();
     public DbSet<BookCopy> BookCopies => Set<BookCopy>();
+    public DbSet<BookCopyStatusHistory> BookCopyStatusHistories => Set<BookCopyStatusHistory>();
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
     public DbSet<Shelf> Shelves => Set<Shelf>();
     public DbSet<WeeklyWorkingSchedule> WeeklyWorkingSchedules => Set<WeeklyWorkingSchedule>();
@@ -68,8 +71,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         modelBuilder.Entity<Book>(entity =>
         {
             entity.Property(b => b.Title).HasMaxLength(250).IsRequired();
+            entity.Property(b => b.Subtitle).HasMaxLength(250);
             entity.Property(b => b.Isbn).HasMaxLength(50);
+            entity.Property(b => b.Publisher).HasMaxLength(200);
             entity.Property(b => b.Description).HasMaxLength(500);
+            entity.Property(b => b.CoverImagePath).HasMaxLength(500);
+            entity.Property(b => b.ThumbnailImagePath).HasMaxLength(500);
             entity.Property(b => b.CreatedAtUtc).HasColumnType("datetime2");
             entity.HasOne(b => b.Author)
                 .WithMany(a => a.Books)
@@ -78,6 +85,20 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasOne(b => b.Category)
                 .WithMany(c => c.Books)
                 .HasForeignKey(b => b.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BookAuthor>(entity =>
+        {
+            entity.HasKey(link => new { link.BookId, link.AuthorId });
+            entity.HasIndex(link => link.AuthorId);
+            entity.HasOne(link => link.Book)
+                .WithMany(book => book.BookAuthors)
+                .HasForeignKey(link => link.BookId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(link => link.Author)
+                .WithMany(author => author.BookAuthors)
+                .HasForeignKey(link => link.AuthorId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -201,12 +222,18 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
         modelBuilder.Entity<BookHold>(entity =>
         {
-            entity.HasIndex(hold => new { hold.ReaderAccountId, hold.BookId }).IsUnique();
+            entity.HasIndex(hold => new { hold.ReaderAccountId, hold.Status, hold.BookId });
             entity.Property(hold => hold.HeldAtUtc).HasColumnType("datetime2");
+            entity.Property(hold => hold.Status).HasMaxLength(50).HasDefaultValue(BookHoldStatus.Waiting).IsRequired();
+            entity.Property(hold => hold.PickupDeadlineUtc).HasColumnType("datetime2");
+            entity.Property(hold => hold.CancellationReason).HasMaxLength(1000);
+            entity.Property(hold => hold.CancelledAtUtc).HasColumnType("datetime2");
             entity.HasOne(hold => hold.ReaderAccount).WithMany(reader => reader.BookHolds)
                 .HasForeignKey(hold => hold.ReaderAccountId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(hold => hold.Book).WithMany()
                 .HasForeignKey(hold => hold.BookId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(hold => hold.BookCopy).WithMany()
+                .HasForeignKey(hold => hold.BookCopyId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Warehouse>(entity =>
@@ -252,11 +279,28 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasIndex(copy => copy.CopyCode).IsUnique();
             entity.HasIndex(copy => copy.ShelfId);
             entity.Property(copy => copy.CopyCode).HasMaxLength(50).IsRequired();
+            entity.Property(copy => copy.ReceivedDate).HasColumnType("date");
+            entity.Property(copy => copy.CoverPrice).HasColumnType("decimal(18,2)");
             entity.Property(copy => copy.Status).HasMaxLength(50).HasDefaultValue("Sẵn sàng").IsRequired();
             entity.HasOne(copy => copy.Book).WithMany()
                 .HasForeignKey(copy => copy.BookId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(copy => copy.Shelf).WithMany()
                 .HasForeignKey(copy => copy.ShelfId).OnDelete(DeleteBehavior.Restrict);
+            entity.Property(copy => copy.PhysicalCondition).HasMaxLength(50).HasDefaultValue(BookCopyCondition.Good).IsRequired();
+            entity.Property(copy => copy.Note).HasMaxLength(500);
+            entity.Property(copy => copy.StatusReason).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<BookCopyStatusHistory>(entity =>
+        {
+            entity.HasIndex(history => new { history.BookCopyId, history.ChangedAtUtc });
+            entity.Property(history => history.FromStatus).HasMaxLength(50).IsRequired();
+            entity.Property(history => history.ToStatus).HasMaxLength(50).IsRequired();
+            entity.Property(history => history.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(history => history.ChangedBy).HasMaxLength(256).IsRequired();
+            entity.Property(history => history.ChangedAtUtc).HasColumnType("datetime2");
+            entity.HasOne(history => history.BookCopy).WithMany()
+                .HasForeignKey(history => history.BookCopyId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<WeeklyWorkingSchedule>(entity =>
@@ -273,6 +317,21 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(holiday => holiday.HolidayDate).HasColumnType("date").IsRequired();
             entity.Property(holiday => holiday.Reason).HasMaxLength(150).IsRequired();
             entity.Property(holiday => holiday.Note).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<ReaderEmailVerificationToken>(entity =>
+        {
+            entity.HasIndex(token => token.TokenHash).IsUnique();
+            entity.HasIndex(token => new { token.ReaderAccountId, token.CreatedAtUtc });
+            entity.Property(token => token.TokenHash).HasMaxLength(64).IsRequired();
+            entity.Property(token => token.NewEmail).HasMaxLength(256);
+            entity.Property(token => token.CreatedAtUtc).HasColumnType("datetime2");
+            entity.Property(token => token.ExpiresAtUtc).HasColumnType("datetime2");
+            entity.Property(token => token.UsedAtUtc).HasColumnType("datetime2");
+            entity.HasOne(token => token.ReaderAccount)
+                .WithMany()
+                .HasForeignKey(token => token.ReaderAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ReaderPasswordResetToken>(entity =>

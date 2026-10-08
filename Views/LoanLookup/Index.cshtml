@@ -1,0 +1,130 @@
+@model Project.Models.LoanLookupViewModel
+@using Project.Controllers
+@{
+    ViewData["Title"] = "Tra nhanh phiếu mượn";
+    var result = Model.Result;
+    var appliedFilter = result?.Filter;
+    string DisplayDate(DateOnly? date) => date?.ToString("dd/MM/yyyy") ?? "";
+}
+<div class="container py-4">
+    <div class="mb-4"><h1 class="h3 mb-1 text-primary fw-bold">Tra nhanh phiếu mượn</h1><p class="text-muted mb-0">Nhập mã thẻ bạn đọc, mã vạch bản sao hoặc mã phiếu mượn (ví dụ 123 hoặc #123). Phiếu đang mở được hiển thị trước.</p></div>
+
+    <div class="card shadow-sm border-0 mb-4"><div class="card-body">
+        <form id="loanLookupForm" asp-action="Index" method="get" role="search" novalidate>
+            @* Bộ lọc đang áp dụng: nút Tìm kiếm (nút mặc định khi nhấn Enter) gửi kèm để tìm mã mới mà vẫn giữ bộ lọc. *@
+            <input type="hidden" name="appliedFrom" value="@Model.AppliedFrom" />
+            <input type="hidden" name="appliedTo" value="@Model.AppliedTo" />
+            <input type="hidden" name="appliedStatus" value="@Model.AppliedStatus" />
+            <div class="row g-2 align-items-center">
+                <div class="col"><input class="form-control" type="search" name="q" value="@Model.Code" maxlength="100" autofocus aria-label="Mã tra cứu" placeholder="Nhập mã thẻ, mã vạch bản sao hoặc mã phiếu mượn" /></div>
+                <div class="col-auto"><button class="btn btn-primary" type="submit" name="op" value="@LoanLookupController.SearchOperation">Tìm kiếm</button></div>
+            </div>
+            <div class="row g-2 align-items-end mt-1">
+                <div class="col-sm-6 col-md-3"><label class="form-label small mb-1" for="loanLookupFrom">Từ ngày</label><input id="loanLookupFrom" class="form-control @(Model.FilterError is null ? null : "is-invalid")" type="date" name="from" value="@Model.From" /></div>
+                <div class="col-sm-6 col-md-3"><label class="form-label small mb-1" for="loanLookupTo">Đến ngày</label><input id="loanLookupTo" class="form-control @(Model.FilterError is null ? null : "is-invalid")" type="date" name="to" value="@Model.To" /></div>
+                <div class="col-sm-6 col-md-3"><label class="form-label small mb-1" for="loanLookupStatus">Trạng thái</label>
+                    <select id="loanLookupStatus" class="form-select" name="status">
+                        <option value="" selected="@string.IsNullOrEmpty(Model.Status)">Tất cả trạng thái</option>
+                        @foreach (var status in LoanLookupStatus.All) { <option value="@status" selected="@(Model.Status == status)">@status</option> }
+                    </select>
+                </div>
+                <div class="col-sm-6 col-md-3 d-flex gap-2">
+                    <button id="loanLookupApply" class="btn btn-outline-primary flex-fill" type="submit" name="op" value="@LoanLookupController.ApplyFilterOperation">Áp dụng bộ lọc</button>
+                    <button class="btn btn-outline-secondary flex-fill" type="submit" name="op" value="@LoanLookupController.ClearFilterOperation">Xóa bộ lọc</button>
+                </div>
+            </div>
+            <div id="loanLookupFilterError" class="text-danger small mt-2" role="alert" hidden="@(Model.FilterError is null)">@Model.FilterError</div>
+        </form>
+    </div></div>
+
+    @if (Model.ValidationMessage is string validation) { <div class="alert alert-warning">@validation</div> }
+    @if (Model.ErrorMessage is string error) { <div class="alert alert-danger" role="alert">@error</div> }
+
+    @if (result is not null)
+    {
+        @if (result.TotalItems == 0)
+        {
+            @if (result.EmptyReason == LoanLookupEmptyReason.NoMatchingCode)
+            {
+                <div id="loanLookupNoMatch" class="alert alert-info" role="status">
+                    <p class="mb-1">Không tìm thấy phiếu mượn phù hợp với mã đã nhập (“@result.Code”). Vui lòng kiểm tra lại:</p>
+                    <ul class="mb-1">
+                        <li>Mã thẻ bạn đọc.</li>
+                        <li>Mã vạch bản sao sách.</li>
+                        <li>Mã phiếu mượn.</li>
+                    </ul>
+                    <p class="mb-0">Kiểm tra loại mã và giá trị đã nhập, sau đó tìm lại.</p>
+                </div>
+            }
+            else if (result.EmptyReason == LoanLookupEmptyReason.FilteredOut)
+            {
+                <div id="loanLookupFilteredOut" class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2" role="status">
+                    <span>Mã đã nhập có phiếu mượn, nhưng không có phiếu phù hợp với khoảng ngày hoặc trạng thái đang chọn. Hãy kiểm tra bộ lọc hoặc xóa bộ lọc để xem lại kết quả.</span>
+                    @* Dùng lại thao tác "Xóa bộ lọc" của Lát 2: giữ mã, bỏ ngày và trạng thái, về trang 1. *@
+                    <form asp-action="Index" method="get" class="m-0">
+                        <input type="hidden" name="q" value="@result.Code" />
+                        <button class="btn btn-sm btn-outline-secondary" type="submit" name="op" value="@LoanLookupController.ClearFilterOperation">Xóa bộ lọc</button>
+                    </form>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-info">Không tìm thấy phiếu mượn phù hợp.</div>
+            }
+        }
+        else
+        {
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white d-flex flex-wrap justify-content-between gap-2">
+                    <h2 class="h5 mb-0">Kết quả cho “@result.Code”</h2>
+                    <span class="text-muted">Tổng số: <strong>@result.TotalItems</strong> phiếu · Trang @result.Page / @result.TotalPages</span>
+                    @if (!appliedFilter!.IsEmpty)
+                    {
+                        <div class="w-100 small text-muted">Đang lọc:
+                            @if (appliedFilter.From is not null) { <span>từ @DisplayDate(appliedFilter.From)</span> }
+                            @if (appliedFilter.To is not null) { <span>đến @DisplayDate(appliedFilter.To)</span> }
+                            @if (appliedFilter.Status is not null) { <span>· trạng thái @appliedFilter.Status</span> }
+                        </div>
+                    }
+                </div>
+                <div class="table-responsive"><table class="table table-hover align-middle mb-0">
+                    <thead class="table-light"><tr><th>Mã phiếu</th><th>Mã thẻ</th><th>Tên bạn đọc</th><th>Ngày mượn</th><th>Hạn trả</th><th>Trạng thái</th></tr></thead>
+                    <tbody>
+                    @foreach (var item in result.Items)
+                    {
+                        <tr>
+                            <td class="fw-semibold">#@item.LoanId</td>
+                            <td>@(item.CardCode ?? "—")</td>
+                            <td>@item.ReaderName</td>
+                            <td>@item.LoanDate.ToString("dd/MM/yyyy")</td>
+                            <td>@item.DueDate.ToString("dd/MM/yyyy")</td>
+                            <td><span class="badge bg-primary-subtle text-primary-emphasis">@item.Status</span></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table></div>
+                @if (result.TotalPages > 1)
+                {
+                    <div class="card-footer bg-white">
+                        <nav aria-label="Phân trang kết quả tra cứu"><ul class="pagination justify-content-center mb-0">
+                            <li class="page-item @(result.Page <= 1 ? "disabled" : null)"><a class="page-link" asp-action="Index" asp-route-q="@result.Code" asp-route-from="@appliedFilter.FromText" asp-route-to="@appliedFilter.ToText" asp-route-status="@appliedFilter.Status" asp-route-page="@(result.Page - 1)" aria-label="Trang trước">‹</a></li>
+                            @for (var pageNumber = 1; pageNumber <= result.TotalPages; pageNumber++)
+                            {
+                                if (pageNumber != 1 && pageNumber != result.TotalPages && Math.Abs(pageNumber - result.Page) > 2)
+                                {
+                                    if (Math.Abs(pageNumber - result.Page) == 3) { <li class="page-item disabled"><span class="page-link">…</span></li> }
+                                    continue;
+                                }
+                                <li class="page-item @(pageNumber == result.Page ? "active" : null)"><a class="page-link" asp-action="Index" asp-route-q="@result.Code" asp-route-from="@appliedFilter.FromText" asp-route-to="@appliedFilter.ToText" asp-route-status="@appliedFilter.Status" asp-route-page="@pageNumber" aria-current="@(pageNumber == result.Page ? "page" : null)">@pageNumber</a></li>
+                            }
+                            <li class="page-item @(result.Page >= result.TotalPages ? "disabled" : null)"><a class="page-link" asp-action="Index" asp-route-q="@result.Code" asp-route-from="@appliedFilter.FromText" asp-route-to="@appliedFilter.ToText" asp-route-status="@appliedFilter.Status" asp-route-page="@(result.Page + 1)" aria-label="Trang sau">›</a></li>
+                        </ul></nav>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+@section Scripts {
+    <script src="~/js/loan-lookup-filters.js" asp-append-version="true"></script>
+}

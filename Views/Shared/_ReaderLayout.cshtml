@@ -2,7 +2,9 @@
     var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
     // Chỉ để chọn nút hiển thị; quyền truy cập vẫn do controller kiểm tra phiên đầy đủ.
     var readerSignedIn = Context.Request.Cookies.ContainsKey("reader_id");
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
     string NavClass(string action) => string.Equals(currentAction, action, StringComparison.OrdinalIgnoreCase) ? "is-active" : "";
+    var catalogNavClass = string.Equals(currentController, "Catalog", StringComparison.OrdinalIgnoreCase) ? "is-active" : "";
 }
 <!DOCTYPE html>
 <html lang="vi">
@@ -18,17 +20,19 @@
                 <span><strong>Thư Viện</strong><small>Cổng thông tin Bạn đọc</small></span>
             </a>
             <nav class="reader-nav" aria-label="Điều hướng bạn đọc">
+                <a class="@catalogNavClass" asp-controller="Catalog" asp-action="Index"><i class="bi bi-search" aria-hidden="true"></i> Tra cứu sách</a>
                 @if (readerSignedIn)
                 {
-                    <a class="@NavClass("Profile")" asp-controller="ReaderRegistration" asp-action="Profile">Tài khoản</a>
+                    <a class="@NavClass("Profile")" asp-controller="ReaderRegistration" asp-action="Profile"><i class="bi bi-person-circle" aria-hidden="true"></i> Tài khoản</a>
+                    <a class="@NavClass("MyHolds")" asp-controller="ReaderRegistration" asp-action="MyHolds"><i class="bi bi-bookmark-star" aria-hidden="true"></i> Đơn đặt giữ</a>
                     <form asp-controller="ReaderRegistration" asp-action="Logout" method="post" class="m-0">
-                        <button type="submit" class="reader-nav-logout">Đăng xuất</button>
+                        <button type="submit" class="reader-nav-logout"><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Đăng xuất</button>
                     </form>
                 }
                 else
                 {
-                    <a class="@NavClass("Login")" asp-controller="ReaderRegistration" asp-action="Login">Đăng nhập</a>
-                    <a class="reader-nav-cta" asp-controller="ReaderRegistration" asp-action="Register">Đăng ký</a>
+                    <a class="@NavClass("Login")" asp-controller="ReaderRegistration" asp-action="Login"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Đăng nhập</a>
+                    <a class="reader-nav-cta" asp-controller="ReaderRegistration" asp-action="Register"><i class="bi bi-person-plus" aria-hidden="true"></i> Đăng ký</a>
                 }
             </nav>
         </div>
@@ -38,8 +42,26 @@
 
     <footer class="reader-footer">
         <div class="reader-footer-inner">
-            <span>© 2026 Thư viện · Tri thức cho mọi người</span>
-            <a class="reader-nav-staff" asp-controller="Librarian" asp-action="Login">Cổng dành cho nhân viên thư viện</a>
+            <div class="reader-footer-brand">
+                <strong>Thư Viện</strong>
+                <p>Tri thức cho mọi người. Tra cứu sách, đặt giữ trực tuyến và quản lý thẻ thư viện ở một nơi.</p>
+            </div>
+            <div>
+                <h2>Bạn đọc</h2>
+                <ul>
+                    <li><a asp-controller="Catalog" asp-action="Index">Tra cứu sách</a></li>
+                    <li><a asp-controller="ReaderRegistration" asp-action="Register">Đăng ký thẻ bạn đọc</a></li>
+                    <li><a asp-controller="ReaderRegistration" asp-action="ForgotPassword">Quên mật khẩu</a></li>
+                </ul>
+            </div>
+            <div>
+                <h2>Hỗ trợ</h2>
+                <ul>
+                    <li><a asp-controller="ReaderRegistration" asp-action="ResendConfirmation">Gửi lại email xác nhận</a></li>
+                    <li><a class="reader-nav-staff" asp-controller="Librarian" asp-action="Login">Cổng dành cho nhân viên thư viện</a></li>
+                </ul>
+            </div>
+            <div class="reader-footer-bottom">© 2026 Thư viện · Tri thức cho mọi người</div>
         </div>
     </footer>
 

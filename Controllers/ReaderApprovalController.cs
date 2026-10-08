@@ -71,7 +71,8 @@ public sealed class ReaderApprovalController(
             phoneNumber = reader.PhoneNumber,
             studentOrStaffCode = reader.StudentOrStaffCode,
             status = reader.Status,
-            createdAtUtc = reader.CreatedAtUtc
+            createdAtUtc = reader.CreatedAtUtc,
+            emailConfirmed = reader.EmailConfirmed
         }));
     }
 

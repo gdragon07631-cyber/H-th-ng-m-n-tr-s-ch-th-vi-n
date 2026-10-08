@@ -1,3 +1,4 @@
+using Project.Filters;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -7,6 +8,7 @@ using Project.Services;
 
 namespace Project.Controllers;
 
+[StaffOnly(AccountRoles.SystemAdmin, AccountRoles.LibraryManager)]
 public sealed class ShelfController(
     IShelfService shelfService,
     IWarehouseService warehouseService,

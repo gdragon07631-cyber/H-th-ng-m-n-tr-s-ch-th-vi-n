@@ -10,7 +10,7 @@ namespace Project.Tests;
 public sealed class ReaderProfileTests
 {
     [Fact]
-    public async Task ChangingEmailWithCurrentPasswordUpdatesEmail()
+    public async Task ChangingEmailWithCurrentPasswordKeepsOldEmailUntilConfirmed()
     {
         using var db = CreateDb();
         var reader = CreateReader();
@@ -20,10 +20,31 @@ public sealed class ReaderProfileTests
 
         var result = await service.UpdateReaderContactAsync(reader.Id, "222", "New address", "new@example.com", "correct-password");
 
-        Assert.Equal(ReaderContactUpdateResult.Success, result);
-        Assert.Equal("new@example.com", reader.Email);
+        Assert.Equal(ReaderContactUpdateResult.EmailChangePending, result);
+        // Email chỉ đổi khi chủ địa chỉ mới bấm liên kết xác nhận.
+        Assert.Equal("old@example.com", reader.Email);
+        Assert.Equal("new@example.com", reader.PendingEmail);
         Assert.Equal("222", reader.PhoneNumber);
         Assert.Equal("New address", reader.Address);
+    }
+
+    [Fact]
+    public async Task ChangingEmailToAddressOfAnotherAccountIsRejected()
+    {
+        using var db = CreateDb();
+        var reader = CreateReader();
+        var other = CreateReader();
+        other.Email = "taken@example.com";
+        other.StudentOrStaffCode = "R-2";
+        db.ReaderAccounts.AddRange(reader, other);
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        var result = await service.UpdateReaderContactAsync(reader.Id, "222", "New address", "TAKEN@example.com", "correct-password");
+
+        Assert.Equal(ReaderContactUpdateResult.EmailInUse, result);
+        Assert.Null(reader.PendingEmail);
+        Assert.Equal("111", reader.PhoneNumber);
     }
 
     [Fact]

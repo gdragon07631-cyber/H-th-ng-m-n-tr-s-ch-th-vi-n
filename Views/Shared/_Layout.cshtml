@@ -38,13 +38,18 @@
                 <a class="side-link @Active("Warehouse")" aria-current="@Current("Warehouse")" asp-controller="Warehouse" asp-action="Index"><span>▣</span> Kho sách</a>
                 <a class="side-link @Active("Shelf")" aria-current="@Current("Shelf")" asp-controller="Shelf" asp-action="Index"><span>▥</span> Kệ sách</a>
                 <a class="side-link @Active("Loan")" aria-current="@Current("Loan")" asp-controller="Loan" asp-action="Index"><span>⇄</span> Mượn trả</a>
+                <a class="side-link @Active("LoanLookup")" aria-current="@Current("LoanLookup")" asp-controller="LoanLookup" asp-action="Index"><span>⌕</span> Tra nhanh phiếu mượn</a>
+                <a class="side-link @Active("HoldPickup")" aria-current="@Current("HoldPickup")" asp-controller="HoldPickup" asp-action="Index"><span>⏳</span> Sách chờ nhận</a>
                 <a class="side-link @Active("WorkingSchedule")" aria-current="@Current("WorkingSchedule")" asp-controller="WorkingSchedule" asp-action="Index"><span>◷</span> Lịch làm việc</a>
             }
-            <div class="side-label">BẠN ĐỌC</div>
-            @if (isLibrarian)
+            else if (isLibrarian)
             {
-                <a class="side-link @Active("ReaderApproval")" aria-current="@Current("ReaderApproval")" asp-controller="ReaderApproval" asp-action="Index"><span>✓</span> Hồ sơ chờ duyệt</a>
+                <div class="side-label">QUẢN LÝ</div>
+                <a class="side-link @Active("Book") @Active("BookCopy")" aria-current="@(Current("Book") ?? Current("BookCopy"))" asp-controller="Book" asp-action="Index"><span>▤</span> Sách</a>
+                <a class="side-link @Active("HoldPickup")" aria-current="@Current("HoldPickup")" asp-controller="HoldPickup" asp-action="Index"><span>⏳</span> Sách chờ nhận</a>
+                <a class="side-link @Active("LoanLookup")" aria-current="@Current("LoanLookup")" asp-controller="LoanLookup" asp-action="Index"><span>⌕</span> Tra nhanh phiếu mượn</a>
             }
+            <div class="side-label">BẠN ĐỌC</div>
             <a class="side-link" asp-controller="ReaderRegistration" asp-action="Register"><span>＋</span> Đăng ký bạn đọc</a>
             @if (canManageLibrary)
             {
@@ -54,6 +59,7 @@
             @if (isAdmin)
             {
                 <a class="side-link @Active("StaffAccount")" aria-current="@Current("StaffAccount")" asp-controller="StaffAccount" asp-action="Index"><span>☺</span> Tài khoản nhân sự</a>
+                <a class="side-link @Active("ReaderAccount")" aria-current="@Current("ReaderAccount")" asp-controller="ReaderAccount" asp-action="Index"><span>☻</span> Tài khoản bạn đọc</a>
             }
             @if (canViewAuditLogs)
             {

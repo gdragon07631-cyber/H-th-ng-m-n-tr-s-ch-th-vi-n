@@ -1,0 +1,235 @@
+@model Project.Models.ReaderAccountAdminDetailsViewModel
+@{
+    var reader = Model.Reader;
+    ViewData["Title"] = "Bạn đọc " + reader.FullName;
+    string Local(DateTime utc) => DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+}
+<div class="container py-4">
+    <a asp-action="Index" class="small text-decoration-none">← Danh sách tài khoản bạn đọc</a>
+    <div class="d-flex flex-wrap align-items-center gap-2 mt-2 mb-4">
+        <h1 class="h3 mb-0 text-primary fw-bold">@reader.FullName</h1>
+        <span class="badge bg-secondary-subtle text-secondary-emphasis">#@reader.Id</span>
+        <span class="badge @(reader.Status == "Đang hoạt động" ? "bg-success-subtle text-success-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">@reader.Status</span>
+        @if (reader.IsLocked)
+        {
+            <span class="badge bg-danger" id="lockedBadge">Đã khoá</span>
+        }
+        @if (!reader.EmailConfirmed)
+        {
+            <span class="badge bg-warning-subtle text-warning-emphasis">Chưa xác nhận email</span>
+        }
+    </div>
+
+    @if (TempData["SuccessMessage"] is string success)
+    {
+        <div class="alert alert-success" role="status">@success</div>
+    }
+    @if (TempData["InfoMessage"] is string info)
+    {
+        <div class="alert alert-info" role="status">@info</div>
+    }
+    @if (TempData["WarningMessage"] is string warning)
+    {
+        <div class="alert alert-warning" role="alert">
+            @warning
+            @if (TempData["DevLink"] is string devLink)
+            {
+                <div class="mt-2 small"><strong>Môi trường phát triển:</strong> <a href="@devLink" class="alert-link text-break">@devLink</a></div>
+            }
+        </div>
+    }
+    @if (TempData["ErrorMessage"] is string error)
+    {
+        <div class="alert alert-danger" role="alert">@error</div>
+    }
+    @if (reader.IsLocked)
+    {
+        <div class="alert alert-danger" role="alert"><strong>Tài khoản đang bị khoá.</strong> Lý do: @reader.LockReason</div>
+    }
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h2 class="h5 fw-bold mb-3">Thông tin tài khoản</h2>
+                    <form asp-action="Edit" asp-route-id="@reader.Id" method="post" id="readerEditForm">
+                        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <label asp-for="Form.FullName" class="form-label"></label>
+                                <input asp-for="Form.FullName" class="form-control" />
+                                <span asp-validation-for="Form.FullName" class="text-danger small"></span>
+                            </div>
+                            <div class="col-sm-6">
+                                <label asp-for="Form.DateOfBirth" class="form-label"></label>
+                                <input asp-for="Form.DateOfBirth" type="date" class="form-control" />
+                                <span asp-validation-for="Form.DateOfBirth" class="text-danger small"></span>
+                            </div>
+                            <div class="col-sm-6">
+                                <label asp-for="Form.Email" class="form-label"></label>
+                                <input asp-for="Form.Email" type="email" class="form-control" />
+                                <span asp-validation-for="Form.Email" class="text-danger small"></span>
+                                <div class="form-text">Đổi tại đây có hiệu lực ngay và được coi là đã xác nhận; chỉ đổi sau khi đã kiểm tra với bạn đọc.</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <label asp-for="Form.PhoneNumber" class="form-label"></label>
+                                <input asp-for="Form.PhoneNumber" class="form-control" />
+                                <span asp-validation-for="Form.PhoneNumber" class="text-danger small"></span>
+                            </div>
+                            <div class="col-sm-6">
+                                <label asp-for="Form.StudentOrStaffCode" class="form-label"></label>
+                                <input asp-for="Form.StudentOrStaffCode" class="form-control" />
+                                <span asp-validation-for="Form.StudentOrStaffCode" class="text-danger small"></span>
+                            </div>
+                            <div class="col-sm-6">
+                                <label asp-for="Form.Address" class="form-label"></label>
+                                <input asp-for="Form.Address" class="form-control" />
+                                <span asp-validation-for="Form.Address" class="text-danger small"></span>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary mt-3">Lưu thay đổi</button>
+                    </form>
+                    @if (!string.IsNullOrWhiteSpace(reader.PendingEmail))
+                    {
+                        <div class="alert alert-warning small mt-3 mb-0">Bạn đọc đang yêu cầu đổi email sang <strong>@reader.PendingEmail</strong> (chờ bấm liên kết xác nhận).</div>
+                    }
+                    <dl class="row small text-muted mt-3 mb-0">
+                        <dt class="col-sm-4">Tạo lúc</dt><dd class="col-sm-8">@Local(reader.CreatedAtUtc)</dd>
+                        <dt class="col-sm-4">Cập nhật lần cuối</dt><dd class="col-sm-8">@Local(reader.UpdatedAtUtc)</dd>
+                        @if (!string.IsNullOrWhiteSpace(reader.RejectionReason))
+                        {
+                            <dt class="col-sm-4">Lý do từ chối</dt><dd class="col-sm-8">@reader.RejectionReason</dd>
+                        }
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-body">
+                    <h2 class="h5 fw-bold mb-3">Hỗ trợ nhanh</h2>
+                    <div class="d-grid gap-2">
+                        @if (!reader.EmailConfirmed)
+                        {
+                            <form asp-action="ConfirmEmail" asp-route-id="@reader.Id" method="post" class="d-grid">
+                                <button type="submit" class="btn btn-outline-success" id="confirmEmailButton">Xác nhận email thủ công</button>
+                            </form>
+                            <form asp-action="ResendConfirmation" asp-route-id="@reader.Id" method="post" class="d-grid">
+                                <button type="submit" class="btn btn-outline-secondary">Gửi lại email xác nhận</button>
+                            </form>
+                        }
+                        <form asp-action="SendPasswordReset" asp-route-id="@reader.Id" method="post" class="d-grid">
+                            <button type="submit" class="btn btn-outline-primary" id="sendResetButton">Gửi liên kết đặt lại mật khẩu</button>
+                        </form>
+                        <form asp-action="RevokeSessions" asp-route-id="@reader.Id" method="post" class="d-grid"
+                              onsubmit="return confirm('Đăng xuất bạn đọc khỏi mọi thiết bị?');">
+                            <button type="submit" class="btn btn-outline-secondary">Đăng xuất khỏi mọi thiết bị</button>
+                        </form>
+                    </div>
+                    <hr />
+                    @if (reader.IsLocked)
+                    {
+                        <form asp-action="SetLocked" asp-route-id="@reader.Id" method="post" class="d-grid">
+                            <input type="hidden" name="locked" value="false" />
+                            <button type="submit" class="btn btn-success" id="unlockButton">Mở khoá tài khoản</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <form asp-action="SetLocked" asp-route-id="@reader.Id" method="post" id="lockForm">
+                            <input type="hidden" name="locked" value="true" />
+                            <label for="lockReason" class="form-label small">Lý do khoá</label>
+                            <input id="lockReason" name="reason" class="form-control mb-2" maxlength="500" required placeholder="Ví dụ: nghi bị lộ mật khẩu, bạn đọc yêu cầu" />
+                            <button type="submit" class="btn btn-outline-danger w-100">Khoá tài khoản</button>
+                        </form>
+                    }
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h2 class="h5 fw-bold mb-3">Thẻ thư viện</h2>
+                    @if (reader.LibraryCard is { } card)
+                    {
+                        <dl class="row mb-0">
+                            <dt class="col-5">Mã thẻ</dt><dd class="col-7 font-monospace">@card.CardCode</dd>
+                            <dt class="col-5">Loại thẻ</dt><dd class="col-7">@card.LibraryCardType?.Name</dd>
+                            <dt class="col-5">Hiệu lực</dt><dd class="col-7">@card.IssuedOn.ToString("dd/MM/yyyy") – @card.ExpiresOn.ToString("dd/MM/yyyy")</dd>
+                            <dt class="col-5">Trạng thái</dt><dd class="col-7">@card.Status</dd>
+                        </dl>
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">Chưa được cấp thẻ@(reader.EmailConfirmed ? "." : " – thẻ được cấp tự động khi email được xác nhận.")</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mt-4">
+        <div class="card-body">
+            <h2 class="h5 fw-bold mb-3">Đơn đặt giữ đang hoạt động</h2>
+            @if (Model.ActiveHolds.Count == 0)
+            {
+                <p class="text-muted mb-0">Không có đơn đặt giữ nào.</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead><tr><th>Sách</th><th>Đặt lúc</th><th>Trạng thái</th><th>Bản sao</th><th>Hạn nhận</th></tr></thead>
+                        <tbody>
+                            @foreach (var hold in Model.ActiveHolds)
+                            {
+                                <tr>
+                                    <td><a asp-controller="Book" asp-action="Details" asp-route-id="@hold.BookId">@hold.Book?.Title</a></td>
+                                    <td>@Local(hold.HeldAtUtc)</td>
+                                    <td>@hold.Status</td>
+                                    <td class="font-monospace">@(hold.BookCopy?.CopyCode ?? "—")</td>
+                                    <td>@(hold.PickupDeadlineUtc is { } deadline ? Local(deadline) : "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mt-4">
+        <div class="card-body">
+            <h2 class="h5 fw-bold mb-1">Lịch sử hoạt động</h2>
+            <p class="small text-muted">50 thao tác gần nhất của bạn đọc hoặc liên quan tới tài khoản này.</p>
+            @if (Model.History.Count == 0)
+            {
+                <p class="text-muted mb-0">Chưa có hoạt động nào.</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0" id="historyTable">
+                        <thead><tr><th>Thời gian</th><th>Người thực hiện</th><th>Thao tác</th><th>Nội dung</th><th>IP</th></tr></thead>
+                        <tbody>
+                            @foreach (var log in Model.History)
+                            {
+                                <tr>
+                                    <td class="text-nowrap">@Local(log.OccurredAtUtc)</td>
+                                    <td>@log.Actor</td>
+                                    <td>@log.Action</td>
+                                    <td class="small">@log.Target</td>
+                                    <td class="small text-muted">@log.IpAddress</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

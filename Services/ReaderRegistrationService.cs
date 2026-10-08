@@ -9,8 +9,22 @@ namespace Project.Services;
 public sealed class ReaderRegistrationService(
     ApplicationDbContext dbContext,
     IPasswordHasher<ReaderAccount> passwordHasher,
-    ILogger<ReaderRegistrationService> logger) : IReaderRegistrationService
+    ILogger<ReaderRegistrationService> logger,
+    IBookLoanService? bookLoanService = null,
+    IBookHoldFulfillmentService? holdFulfillmentService = null) : IReaderRegistrationService
 {
+    public const int MaximumActiveBookHolds = 3;
+    /// <summary>Số ngày bạn đọc được đôn lên có để nhận sách; hạn là 17:00 ngày mở cửa tương ứng.</summary>
+    public const int PickupDays = 2;
+    public static readonly TimeOnly PickupDeadlineTime = new(17, 0);
+
+    // Dùng lại cơ chế dời hạn theo lịch làm việc/ngày nghỉ của nghiệp vụ mượn sách.
+    private readonly IBookLoanService loanService =
+        bookLoanService ?? new BookLoanService(dbContext, new WorkingScheduleService(dbContext));
+    private readonly IBookHoldFulfillmentService holdFulfillmentService =
+        holdFulfillmentService ?? new BookHoldFulfillmentService(dbContext,
+            bookLoanService ?? new BookLoanService(dbContext, new WorkingScheduleService(dbContext)));
+
     public async Task<ReaderRegistrationOutcome> RegisterAsync(
         ReaderRegistrationViewModel model,
         CancellationToken cancellationToken = default)
@@ -50,7 +64,10 @@ public sealed class ReaderRegistrationService(
             PhoneNumber = model.PhoneNumber.Trim(),
             StudentOrStaffCode = model.StudentOrStaffCode.Trim(),
             Status = "Chờ duyệt",
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = DateTime.UtcNow,
+            // Phải xác nhận qua liên kết gửi về email trước khi đăng nhập.
+            EmailConfirmed = false,
+            RequestedLibraryCardTypeId = model.LibraryCardTypeId
         };
 
         readerAccount.PasswordHash = passwordHasher.HashPassword(readerAccount, model.Password);
@@ -85,15 +102,24 @@ public sealed class ReaderRegistrationService(
             return ReaderContactUpdateResult.InvalidCurrentPassword;
         }
 
+        if (emailChanged)
+        {
+            var normalized = email.Trim().ToUpperInvariant();
+            var taken = await dbContext.ReaderAccounts
+                .AnyAsync(account => account.Id != id && account.Email.ToUpper() == normalized, cancellationToken);
+            if (taken) return ReaderContactUpdateResult.EmailInUse;
+        }
+
         reader.PhoneNumber = phoneNumber.Trim();
         reader.Address = address.Trim();
         if (emailChanged)
         {
-            reader.Email = email.Trim();
+            // Không đổi ngay: email mới phải được chủ địa chỉ xác nhận, tránh đổi sang email giả hoặc gõ nhầm.
+            reader.PendingEmail = email.Trim();
         }
         reader.UpdatedAtUtc = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
-        return ReaderContactUpdateResult.Success;
+        return emailChanged ? ReaderContactUpdateResult.EmailChangePending : ReaderContactUpdateResult.Success;
     }
 
     public async Task<ReaderPasswordChangeResult> ChangeReaderPasswordAsync(
@@ -158,7 +184,7 @@ public sealed class ReaderRegistrationService(
         }
         catch
         {
-            await transaction.RollbackAsync(cancellationToken);
+            await transaction.RollbackAsync(CancellationToken.None);
             throw;
         }
     }
@@ -183,7 +209,8 @@ public sealed class ReaderRegistrationService(
         int documentId,
         CancellationToken cancellationToken = default)
     {
-        var reader = await dbContext.ReaderAccounts.FindAsync([readerAccountId], cancellationToken);
+        var reader = await dbContext.ReaderAccounts.Include(account => account.LibraryCard)
+            .SingleOrDefaultAsync(account => account.Id == readerAccountId, cancellationToken);
         if (reader == null)
         {
             return DocumentHoldOutcome.Failed("Không tìm thấy thông tin tài khoản Bạn đọc.");
@@ -191,6 +218,8 @@ public sealed class ReaderRegistrationService(
 
         if (!string.Equals(reader.Status, "Đang hoạt động", StringComparison.OrdinalIgnoreCase))
         {
+            if (reader.Status.Contains("khóa", StringComparison.OrdinalIgnoreCase))
+                return DocumentHoldOutcome.Rejected("Tài khoản của bạn đang bị khóa nên không thể đặt giữ.");
             logger.LogWarning("Từ chối đặt giữ: Tài khoản Bạn đọc {Email} đang ở trạng thái Chờ duyệt.", reader.Email);
 
             // 6. Hiển thị thông báo rõ ràng rằng tài khoản cần được duyệt trước khi đặt giữ tài liệu
@@ -198,32 +227,179 @@ public sealed class ReaderRegistrationService(
                 "Tài khoản của bạn đang ở trạng thái Chờ duyệt. Vui lòng xuất trình giấy tờ tại quầy thư viện để được duyệt tài khoản trước khi thực hiện đặt giữ tài liệu.");
         }
 
+        var card = reader.LibraryCard;
+        if (card == null || !string.Equals(card.Status, "Đang hoạt động", StringComparison.OrdinalIgnoreCase))
+            return DocumentHoldOutcome.Rejected("Thẻ bạn đọc chưa được cấp hoặc không còn hiệu lực.");
+        if (card.ExpiresOn < DateOnly.FromDateTime(DateTime.Today))
+            return DocumentHoldOutcome.Rejected("Thẻ bạn đọc đã hết hạn.");
+
         var bookExists = await dbContext.Books.AnyAsync(book => book.Id == documentId, cancellationToken);
         if (!bookExists)
         {
             return DocumentHoldOutcome.Failed("Không tìm thấy sách cần đặt giữ.");
         }
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         var alreadyHeld = await dbContext.BookHolds
-            .AnyAsync(hold => hold.ReaderAccountId == readerAccountId && hold.BookId == documentId, cancellationToken);
+            .AnyAsync(hold => hold.ReaderAccountId == readerAccountId && hold.BookId == documentId &&
+                BookHoldStatus.ActiveStatuses.Contains(hold.Status), cancellationToken);
         if (alreadyHeld)
         {
-            return DocumentHoldOutcome.Rejected("Bạn đã đặt giữ cuốn sách này.");
+            return DocumentHoldOutcome.Rejected("Bạn đã có yêu cầu đặt giữ còn hiệu lực cho đầu sách này.");
         }
 
-        dbContext.BookHolds.Add(new BookHold { ReaderAccountId = readerAccountId, BookId = documentId });
+        var activeHoldCount = await dbContext.BookHolds.CountAsync(hold =>
+            hold.ReaderAccountId == readerAccountId && BookHoldStatus.ActiveStatuses.Contains(hold.Status), cancellationToken);
+        if (activeHoldCount >= MaximumActiveBookHolds)
+            return DocumentHoldOutcome.Rejected("Bạn đã đạt giới hạn tối đa 3 đơn đặt giữ đang hiệu lực.");
+
+        if (await dbContext.BookLoans.AnyAsync(loan =>
+                loan.ReaderAccountId == readerAccountId && loan.BookId == documentId, cancellationToken))
+            return DocumentHoldOutcome.Rejected("B\u1ea1n \u0111ang m\u01b0\u1ee3n \u0111\u1ea7u s\u00e1ch n\u00e0y. Vui l\u00f2ng tr\u1ea3 b\u1ea3n \u0111ang m\u01b0\u1ee3n tr\u01b0\u1edbc khi \u0111\u1eb7t gi\u1eef.");
+
+        var createdHold = new BookHold
+        {
+            ReaderAccountId = readerAccountId,
+            BookId = documentId,
+            HeldAtUtc = DateTime.UtcNow
+        };
+        dbContext.BookHolds.Add(createdHold);
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException)
         {
+            await transaction.RollbackAsync(CancellationToken.None);
             return DocumentHoldOutcome.Rejected("Bạn đã đặt giữ cuốn sách này.");
         }
 
+        var fulfillment = await holdFulfillmentService.FulfillNextAsync(documentId, cancellationToken);
+        if (fulfillment.ErrorMessage != null)
+            logger.LogWarning("Không tính được hạn nhận cho đầu sách #{BookId}: {Reason}", documentId, fulfillment.ErrorMessage);
+
+        int? position = createdHold.Status == BookHoldStatus.Waiting
+            ? await dbContext.BookHolds.CountAsync(hold =>
+                hold.BookId == documentId && hold.Status == BookHoldStatus.Waiting &&
+                (hold.HeldAtUtc < createdHold.HeldAtUtc ||
+                 (hold.HeldAtUtc == createdHold.HeldAtUtc && hold.Id < createdHold.Id)), cancellationToken) + 1
+            : null;
+        await transaction.CommitAsync(cancellationToken);
+
         logger.LogInformation("Đặt giữ thành công sách #{BookId} cho tài khoản {Email}.", documentId, reader.Email);
 
-        return DocumentHoldOutcome.Success("Đặt giữ sách thành công.");
+        return DocumentHoldOutcome.Success(position, fulfillment);
+    }
+
+    public async Task<IReadOnlyList<ReaderBookHoldItem>> GetReaderHoldsAsync(
+        int readerAccountId,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.BookHolds
+            .AsNoTracking()
+            .Where(hold => hold.ReaderAccountId == readerAccountId)
+            .OrderByDescending(hold => hold.HeldAtUtc)
+            .ThenByDescending(hold => hold.Id)
+            .Select(hold => new ReaderBookHoldItem(
+                hold.Id, hold.BookId, hold.Book!.Title, hold.HeldAtUtc, hold.Status,
+                // Hàng đợi của một sách gồm các đơn "Đang chờ", xếp theo thời điểm đặt (cùng thời điểm thì theo Id).
+                hold.Status == BookHoldStatus.Waiting
+                    ? dbContext.BookHolds.Count(other =>
+                        other.BookId == hold.BookId &&
+                        other.Status == BookHoldStatus.Waiting &&
+                        (other.HeldAtUtc < hold.HeldAtUtc ||
+                         (other.HeldAtUtc == hold.HeldAtUtc && other.Id < hold.Id))) + 1
+                    : (int?)null,
+                hold.Status == BookHoldStatus.Available ? hold.PickupDeadlineUtc : null,
+                hold.BookCopy == null ? null : hold.BookCopy.CopyCode))
+            .ToListAsync(cancellationToken);
+
+    public async Task<BookHoldCancelOutcome> CancelReaderHoldAsync(
+        int readerAccountId,
+        long holdId,
+        CancellationToken cancellationToken = default)
+    {
+        // Lọc theo cả chủ sở hữu: đơn của tài khoản khác được xử lý như không tồn tại.
+        var precheck = await CheckCancellableAsync(readerAccountId, holdId, cancellationToken);
+        if (precheck != null) return precheck;
+
+        // Tính hạn nhận trước khi mở giao dịch: việc đọc lịch làm việc có thể tự khởi tạo dữ liệu lịch.
+        var pickupDeadlineUtc = await CalculatePickupDeadlineUtcAsync(cancellationToken);
+
+        // Hủy đơn + đôn hàng đợi + cập nhật bản sao trong cùng một giao dịch.
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable, cancellationToken);
+
+        precheck = await CheckCancellableAsync(readerAccountId, holdId, cancellationToken);
+        if (precheck != null) return precheck;
+
+        var hold = await dbContext.BookHolds.SingleAsync(h => h.Id == holdId, cancellationToken);
+        var queue = await dbContext.BookHolds
+            .Where(h => h.BookId == hold.BookId && h.Status == BookHoldStatus.Waiting)
+            .OrderBy(h => h.HeldAtUtc).ThenBy(h => h.Id)
+            .ToListAsync(cancellationToken);
+        var wasFirstInQueue = queue[0].Id == hold.Id;
+
+        hold.Status = BookHoldStatus.Cancelled;
+        var copy = hold.BookCopyId is { } copyId
+            ? await dbContext.BookCopies.SingleOrDefaultAsync(c => c.Id == copyId && c.BookId == hold.BookId, cancellationToken)
+            : null;
+        hold.BookCopyId = null;
+
+        // Chỉ khi người đứng đầu hủy thì người kế tiếp mới được đôn lên; những người sau tự giảm 1 vị trí
+        // vì vị trí được tính từ các đơn "Đang chờ" còn lại.
+        var next = wasFirstInQueue ? queue.Skip(1).FirstOrDefault() : null;
+        long? releasedCopyId = null;
+        if (next != null)
+        {
+            next.Status = BookHoldStatus.Available;
+            next.PickupDeadlineUtc = pickupDeadlineUtc;
+            if (copy != null)
+            {
+                next.BookCopyId = copy.Id;
+                copy.Status = BookCopyStatus.OnHold;
+            }
+        }
+        else if (copy != null)
+        {
+            copy.Status = BookCopyStatus.Available;
+            releasedCopyId = copy.Id;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        logger.LogInformation(
+            "Bạn đọc #{ReaderId} đã hủy đơn đặt giữ #{HoldId}; đôn đơn {PromotedHoldId}; trả bản sao {ReleasedCopyId}.",
+            readerAccountId, holdId, next?.Id, releasedCopyId);
+        return BookHoldCancelOutcome.Success(next?.Id, releasedCopyId);
+    }
+
+    private async Task<BookHoldCancelOutcome?> CheckCancellableAsync(
+        int readerAccountId, long holdId, CancellationToken cancellationToken)
+    {
+        var status = await dbContext.BookHolds.AsNoTracking()
+            .Where(h => h.Id == holdId && h.ReaderAccountId == readerAccountId)
+            .Select(h => h.Status)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (status == null) return BookHoldCancelOutcome.NotFound();
+        return status == BookHoldStatus.Waiting ? null : BookHoldCancelOutcome.NotWaiting(status);
+    }
+
+    private async Task<DateTime?> CalculatePickupDeadlineUtcAsync(CancellationToken cancellationToken)
+    {
+        DateOnly pickupDate;
+        try
+        {
+            pickupDate = await loanService.AdjustDueDateAsync(
+                DateOnly.FromDateTime(DateTime.Now).AddDays(PickupDays), cancellationToken);
+        }
+        catch (InvalidOperationException exception)
+        {
+            // Không có ngày mở cửa nào sắp tới: vẫn cho hủy, người được đôn chưa có hạn nhận.
+            logger.LogWarning(exception, "Không tính được hạn nhận sách cho đơn đặt giữ được đôn lên.");
+            return null;
+        }
+        return pickupDate.ToDateTime(PickupDeadlineTime, DateTimeKind.Local).ToUniversalTime();
     }
 
     public Task<IReadOnlyList<ReaderAccount>> GetPendingReadersAsync(CancellationToken cancellationToken = default) =>
@@ -320,7 +496,7 @@ public sealed class ReaderRegistrationService(
         }
         catch
         {
-            await transaction.RollbackAsync(cancellationToken);
+            await transaction.RollbackAsync(CancellationToken.None);
             throw;
         }
     }
@@ -355,7 +531,7 @@ public sealed class ReaderRegistrationService(
         }
         catch
         {
-            await transaction.RollbackAsync(cancellationToken);
+            await transaction.RollbackAsync(CancellationToken.None);
             throw;
         }
     }

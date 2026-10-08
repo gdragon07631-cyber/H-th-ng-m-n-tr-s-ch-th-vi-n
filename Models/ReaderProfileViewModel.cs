@@ -27,6 +27,8 @@ public sealed class ReaderProfileViewModel : IValidatableObject
     [EmailAddress(ErrorMessage = "Email không đúng định dạng.")]
     [MaxLength(256, ErrorMessage = "Email không được vượt quá 256 ký tự.")]
     public string Email { get; set; } = string.Empty;
+    /// <summary>Email mới đang chờ bạn đọc xác nhận (chưa có hiệu lực).</summary>
+    public string? PendingEmail { get; set; }
 
     public string CurrentPassword { get; set; } = string.Empty;
 

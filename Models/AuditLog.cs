@@ -9,8 +9,31 @@ public static class AuditActions
     public const string UpdateAccount = "Sửa tài khoản";
     public const string IssueCard = "Cấp thẻ";
     public const string UpdateLoanPolicy = "Sửa chính sách mượn";
+    public const string LoginFailed = "Đăng nhập thất bại";
+    public const string Logout = "Đăng xuất";
+    public const string ChangePassword = "Đổi mật khẩu";
+    public const string ResetPassword = "Đặt lại mật khẩu";
+    public const string CreateLoan = "Mượn sách";
+    public const string RenewLoan = "Gia hạn mượn";
+    public const string PlaceHold = "Đặt giữ sách";
+    public const string CancelHold = "Hủy đặt giữ";
 
-    public static readonly IReadOnlyList<string> All = [Login, CreateAccount, UpdateAccount, IssueCard, UpdateLoanPolicy];
+    public static readonly IReadOnlyList<string> All =
+    [
+        Login, LoginFailed, Logout, CreateAccount, UpdateAccount, ChangePassword, ResetPassword,
+        IssueCard, CreateLoan, RenewLoan, PlaceHold, CancelHold, UpdateLoanPolicy
+    ];
+
+    /// <summary>Màu nhãn trên trang nhật ký để phân biệt nhanh từng nhóm hành động.</summary>
+    public static string BadgeClass(string action) => action switch
+    {
+        LoginFailed => "bg-danger-subtle text-danger-emphasis",
+        Login or Logout => "bg-secondary-subtle text-secondary-emphasis",
+        ChangePassword or ResetPassword => "bg-warning-subtle text-warning-emphasis",
+        CreateLoan or RenewLoan => "bg-success-subtle text-success-emphasis",
+        PlaceHold or CancelHold => "bg-info-subtle text-info-emphasis",
+        _ => "bg-primary-subtle text-primary-emphasis"
+    };
 }
 
 /// <summary>Nhật ký hoạt động: ai đã thao tác gì, lúc nào, trên đối tượng nào và từ IP nào.</summary>

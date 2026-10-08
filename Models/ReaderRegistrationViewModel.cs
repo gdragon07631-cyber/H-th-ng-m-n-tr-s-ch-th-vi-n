@@ -43,4 +43,11 @@ public sealed class ReaderRegistrationViewModel
     [Compare(nameof(Password), ErrorMessage = "Mật khẩu nhập lại không khớp.")]
     [Display(Name = "Nhập lại mật khẩu")]
     public string ConfirmPassword { get; set; } = string.Empty;
+
+    /// <summary>Loại thẻ bạn đọc chọn; thẻ được cấp tự động khi email được xác nhận.</summary>
+    [Required(ErrorMessage = "Vui lòng chọn loại thẻ thư viện.")]
+    [Display(Name = "Loại thẻ thư viện")]
+    public int? LibraryCardTypeId { get; set; }
+
+    public IReadOnlyList<LibraryCardType> CardTypes { get; set; } = [];
 }

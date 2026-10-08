@@ -1,0 +1,40 @@
+@model Project.Models.ResendEmailConfirmationViewModel
+@{
+    Layout = "_ReaderLayout";
+    ViewData["Title"] = "Gửi lại email xác nhận";
+}
+<div class="rd-narrow">
+    <div class="rd-card">
+        <div class="rd-card-body">
+            <div class="rd-status">
+                <div class="rd-status-icon"><i class="bi bi-envelope-arrow-up"></i></div>
+                <h1>Gửi lại email xác nhận</h1>
+                <p class="rd-lead">Nhập email bạn đã dùng để đăng ký. Liên kết mới có hiệu lực 24 giờ và thay thế liên kết cũ.</p>
+            </div>
+            @if (ViewBag.Message is string message)
+            {
+                <div class="alert alert-info" role="status">
+                    <i class="bi bi-envelope-paper me-1"></i> @message
+                    @if (ViewBag.DevConfirmLink is string devLink)
+                    {
+                        <div class="rd-dev-link"><strong>Môi trường phát triển (chưa cấu hình SMTP):</strong> <a href="@devLink">@devLink</a></div>
+                    }
+                </div>
+            }
+            <form asp-action="ResendConfirmation" method="post" class="rd-form">
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                <div class="mb-3">
+                    <label asp-for="Email" class="form-label"></label>
+                    <div class="login-input-group">
+                        <i class="bi bi-envelope login-input-icon" aria-hidden="true"></i>
+                        <input asp-for="Email" type="email" class="form-control" placeholder="bandoc@example.com" autocomplete="email" autofocus />
+                    </div>
+                    <span asp-validation-for="Email" class="text-danger small"></span>
+                </div>
+                <button type="submit" class="login-submit"><span>Gửi lại email xác nhận</span><i class="bi bi-send ms-1"></i></button>
+            </form>
+            <p class="text-center mt-3 mb-0 small"><a asp-action="Login"><i class="bi bi-arrow-left me-1"></i>Quay lại đăng nhập</a></p>
+        </div>
+    </div>
+</div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

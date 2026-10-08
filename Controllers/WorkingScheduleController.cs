@@ -1,3 +1,4 @@
+using Project.Filters;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Project.Data;
@@ -6,6 +7,7 @@ using Project.Services;
 
 namespace Project.Controllers;
 
+[StaffOnly(AccountRoles.SystemAdmin, AccountRoles.LibraryManager)]
 public sealed class WorkingScheduleController(IWorkingScheduleService schedules, ApplicationDbContext dbContext) : Controller
 {
     [HttpGet]

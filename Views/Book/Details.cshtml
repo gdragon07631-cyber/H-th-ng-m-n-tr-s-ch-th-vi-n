@@ -1,11 +1,13 @@
 @model Project.Models.BookDetailsViewModel
 @{
     ViewData["Title"] = "Chi tiết sách - " + Model.Title;
+    // Bạn đọc và khách xem bằng giao diện cổng Bạn đọc; nhân sự vẫn dùng giao diện quản trị.
+    Layout = Model.IsLibrarian ? "_Layout" : "_ReaderLayout";
 }
 
 <div class="container py-4">
     <div class="row justify-content-center">
-        <div class="col-12 col-md-8 col-lg-7">
+        <div class="@(Model.IsLibrarian ? "col-12 col-md-8 col-lg-7" : "col-12 col-xl-10")">
             @if (TempData["SuccessMessage"] != null)
             {
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -21,17 +23,80 @@
             {
                 <div class="alert alert-danger">@TempData["HoldErrorMessage"]</div>
             }
+            @if (TempData["HoldCancelErrorMessage"] != null)
+            {
+                <div class="alert alert-danger">@TempData["HoldCancelErrorMessage"]</div>
+            }
 
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-white py-3">
                     <h1 class="h4 mb-0 text-primary fw-bold">Thông tin chi tiết sách</h1>
                 </div>
                 <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <img src="@Project.Models.BookCoverPresentation.ForDetails(Model)"
+                             alt="Bìa sách @Model.Title" class="book-cover-display" />
+                    </div>
+                    @if (Model.IsLibrarian)
+                    {
+                        @if (TempData["CoverUploadError"] != null)
+                        {
+                            <div class="alert alert-danger" role="alert">@TempData["CoverUploadError"]</div>
+                        }
+                        <form asp-action="UploadCover" asp-route-id="@Model.Id" method="post" enctype="multipart/form-data" class="mb-4 border rounded p-3">
+                            @if (!string.IsNullOrWhiteSpace(Model.CoverImagePath))
+                            {
+                                <div class="alert alert-info py-2">Chọn ảnh mới để thay thế ảnh bìa hiện tại.</div>
+                            }
+                            <label for="coverImage" class="form-label fw-semibold">Tải ảnh bìa (JPG/PNG, tối đa 3MB)</label>
+                            <div class="input-group">
+                                <input type="file" id="coverImage" name="coverImage" class="form-control" accept=".jpg,.jpeg,.png,image/jpeg,image/png" required />
+                                <button class="btn btn-outline-primary" type="submit">Tải ảnh lên</button>
+                            </div>
+                            <div class="form-text">Ảnh hiển thị trên trang tra cứu với kích thước 180 × 260 px.</div>
+                        </form>
+                    }
                     <div class="mb-3 row">
                         <label class="col-sm-3 col-form-label fw-semibold text-secondary">Tên sách:</label>
                         <div class="col-sm-9">
                             <p class="form-control-plaintext fw-bold fs-5 text-dark" id="bookTitle">@Model.Title</p>
                         </div>
+                    </div>
+
+                    @if (Model.IsLibrarian && Model.TotalCopies == 0)
+                    {
+                        <div class="mb-3 row">
+                            <label class="col-sm-3 col-form-label fw-semibold text-secondary">Trạng thái:</label>
+                            <div class="col-sm-9">
+                                <p class="form-control-plaintext mb-0">
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fs-6" id="bookCopyStatus">@Project.Models.BookCatalogStatus.NoCopies</span>
+                                </p>
+                                <div class="form-text">Đầu sách chưa hiển thị trong tra cứu công khai cho tới khi có ít nhất 1 bản sao.</div>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(Model.Subtitle))
+                    {
+                        <div class="mb-3 row">
+                            <label class="col-sm-3 col-form-label fw-semibold text-secondary">Nhan đề phụ:</label>
+                            <div class="col-sm-9"><p class="form-control-plaintext text-dark">@Model.Subtitle</p></div>
+                        </div>
+                    }
+
+                    <div class="mb-3 row">
+                        <label class="col-sm-3 col-form-label fw-semibold text-secondary">Nhà xuất bản:</label>
+                        <div class="col-sm-9"><p class="form-control-plaintext text-dark">@(string.IsNullOrWhiteSpace(Model.Publisher) ? "Chưa có" : Model.Publisher)</p></div>
+                    </div>
+
+                    <div class="mb-3 row">
+                        <label class="col-sm-3 col-form-label fw-semibold text-secondary">Năm xuất bản:</label>
+                        <div class="col-sm-9"><p class="form-control-plaintext text-dark">@(Model.PublicationYear?.ToString() ?? "Chưa có")</p></div>
+                    </div>
+
+                    <div class="mb-3 row">
+                        <label class="col-sm-3 col-form-label fw-semibold text-secondary">Số trang:</label>
+                        <div class="col-sm-9"><p class="form-control-plaintext text-dark">@(Model.PageCount?.ToString() ?? "Chưa có")</p></div>
                     </div>
 
                     <div class="mb-3 row">
@@ -47,6 +112,29 @@
                     </div>
 
                     <div class="mb-3 row">
+                        <label class="col-sm-3 col-form-label fw-semibold text-secondary">Số bản rảnh:</label>
+                        <div class="col-sm-9">
+                            <p class="form-control-plaintext mb-0" id="availableCopies">
+                                @if (Model.AvailableCopies > 0)
+                                {
+                                    <span class="badge bg-success-subtle text-success-emphasis fs-6">@Model.AvailableCopies / @Model.TotalCopies bản sẵn sàng</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary-subtle text-secondary-emphasis fs-6">Hiện không còn bản rảnh</span>
+                                }
+                            </p>
+                            @if (Model.IsLibrarian)
+                            {
+                                <a asp-controller="BookCopy" asp-action="Add" asp-route-bookId="@Model.Id" class="btn btn-sm btn-primary mt-2">Thêm bản sao</a>
+                                <a asp-controller="BookCopy" asp-action="Index" asp-route-bookId="@Model.Id" class="btn btn-sm btn-outline-primary mt-2">Quản lý bản sao</a>
+                            }
+                        </div>
+                    </div>
+
+                    <partial name="_Copies" model="Model" />
+
+                    <div class="mb-3 row">
                         <label class="col-sm-3 col-form-label fw-semibold text-secondary">Tác giả:</label>
                         <div class="col-sm-9">
                             <p class="form-control-plaintext mb-1">
@@ -60,6 +148,13 @@
                                     <span class="badge bg-secondary ms-2">@Model.AuthorStatus</span>
                                 }
                             </p>
+                            @foreach (var coAuthor in Model.Authors.Where(author => author.Id != Model.AuthorId))
+                            {
+                                <p class="form-control-plaintext mb-1 py-0">
+                                    <span class="fw-semibold text-dark fs-6">@coAuthor.Name</span>
+                                    <span class="badge @(coAuthor.Status == Project.Models.AuthorStatus.Active ? "bg-success" : "bg-secondary") ms-2">@coAuthor.Status</span>
+                                </p>
+                            }
                             @if (Model.AuthorStatus == Project.Models.AuthorStatus.Inactive)
                             {
                                 <div class="small text-muted fst-italic">
@@ -83,8 +178,112 @@
                         </div>
                     </div>
 
+                    @if (Model.IsLibrarian)
+                    {
+                        <section class="border-top pt-4 mb-4" aria-labelledby="holdQueueHeading">
+                            <h2 id="holdQueueHeading" class="h5 text-primary fw-bold">Hàng đợi đặt giữ</h2>
+                            <form method="get" asp-action="Details" asp-route-id="@Model.Id" class="row g-2 align-items-end mb-3">
+                                <div class="col-sm-6 col-md-5">
+                                    <label for="holdQueueStatus" class="form-label mb-1">Lọc theo trạng thái</label>
+                                    <select id="holdQueueStatus" name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                                        <option value="@Project.Models.BookHoldQueueFilter.All" selected="@(Model.SelectedHoldQueueFilter == Project.Models.BookHoldQueueFilter.All)">Tất cả</option>
+                                        <option value="@Project.Models.BookHoldQueueFilter.Queued" selected="@(Model.SelectedHoldQueueFilter == Project.Models.BookHoldQueueFilter.Queued)">Đang xếp hàng</option>
+                                        <option value="@Project.Models.BookHoldQueueFilter.WaitingPickup" selected="@(Model.SelectedHoldQueueFilter == Project.Models.BookHoldQueueFilter.WaitingPickup)">Đang chờ nhận</option>
+                                        <option value="@Project.Models.BookHoldQueueFilter.ConvertedToLoan" selected="@(Model.SelectedHoldQueueFilter == Project.Models.BookHoldQueueFilter.ConvertedToLoan)">Đã chuyển thành phiếu mượn</option>
+                                        <option value="@Project.Models.BookHoldQueueFilter.Cancelled" selected="@(Model.SelectedHoldQueueFilter == Project.Models.BookHoldQueueFilter.Cancelled)">Đã hủy</option>
+                                    </select>
+                                </div>
+                                <div class="col-auto"><button type="submit" class="btn btn-sm btn-outline-primary">Lọc</button></div>
+                            </form>
+                            @if (Model.ActiveHoldQueue.Count == 0)
+                            {
+                                <p class="text-muted mb-0">Chưa có yêu cầu đặt giữ phù hợp với trạng thái đã chọn.</p>
+                            }
+                            else
+                            {
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover align-middle mb-0">
+                                        <thead class="table-light"><tr><th>STT</th><th>Bạn đọc</th><th>Thời điểm đặt</th><th>Trạng thái</th><th>Mã vạch bản sao</th><th>Hạn nhận</th><th>Lý do hủy</th><th></th></tr></thead>
+                                        <tbody>
+                                        @foreach (var hold in Model.ActiveHoldQueue)
+                                        {
+                                            <tr>
+                                                <td>@hold.Position</td><td>@hold.ReaderName</td><td class="font-monospace">@hold.HeldAtText</td><td>@hold.Status</td>
+                                                <td>@(hold.CopyBarcode ?? "—")</td><td>@(hold.PickupDeadlineText ?? "—")</td>
+                                                <td>@(hold.CancellationReason ?? "—")</td>
+                                                <td class="text-end">
+                                                    @if (hold.CanBeCancelledByStaff)
+                                                    {
+                                                        <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelHold-@hold.HoldId">Hủy yêu cầu</button>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                        </tbody>
+                                    </table>
+                                </div>
+                                @foreach (var hold in Model.ActiveHoldQueue.Where(item => item.CanBeCancelledByStaff))
+                                {
+                                    <div class="modal fade" id="cancelHold-@hold.HoldId" tabindex="-1" aria-labelledby="cancelHoldLabel-@hold.HoldId" aria-hidden="true">
+                                        <div class="modal-dialog"><div class="modal-content">
+                                            <form asp-action="CancelHold" method="post" class="hold-cancel-form">
+                                                <input type="hidden" name="holdId" value="@hold.HoldId" />
+                                                <input type="hidden" name="bookId" value="@Model.Id" />
+                                                <input type="hidden" name="status" value="@Model.SelectedHoldQueueFilter" />
+                                                <div class="modal-header"><h3 class="h5 modal-title" id="cancelHoldLabel-@hold.HoldId">Hủy yêu cầu đặt giữ</h3><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button></div>
+                                                <div class="modal-body">
+                                                    <p class="mb-2">Bạn đọc: <strong>@hold.ReaderName</strong></p>
+                                                    <label for="cancelReason-@hold.HoldId" class="form-label">Lý do hủy <span class="text-danger">*</span></label>
+                                                    <textarea id="cancelReason-@hold.HoldId" name="reason" class="form-control hold-cancel-reason" rows="3" maxlength="1000" required></textarea>
+                                                    <div class="form-text">Lý do là bắt buộc và không được chỉ gồm khoảng trắng.</div>
+                                                </div>
+                                                <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-danger">Xác nhận hủy</button></div>
+                                            </form>
+                                        </div></div>
+                                    </div>
+                                }
+                            }
+                        </section>
+                    }
+
+                    <script>
+                        document.querySelectorAll('.hold-cancel-form').forEach(function (form) {
+                            form.addEventListener('submit', function (event) {
+                                var reason = form.querySelector('.hold-cancel-reason');
+                                reason.setCustomValidity(reason.value.trim() ? '' : 'Vui lòng nhập lý do hủy yêu cầu đặt giữ.');
+                                if (!form.reportValidity()) event.preventDefault();
+                            });
+                        });
+                    </script>
+
                     <div class="d-flex gap-2 border-top pt-3">
-                        @if (Model.CanHold)
+                        @if (Model.ExistingReaderHold is { } existingHold)
+                        {
+                            <div class="alert alert-info mb-0 py-2" role="status">
+                                <strong>Đã đặt giữ</strong> · Trạng thái: @existingHold.Status.
+                                @if (existingHold.QueuePosition is { } position)
+                                {
+                                    <span>Vị trí hàng đợi: @position.</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(existingHold.CopyBarcode))
+                                {
+                                    <span>Bản sao đang giữ: @existingHold.CopyBarcode.</span>
+                                }
+                                @if (existingHold.PickupDeadlineText is { } pickupDeadline)
+                                {
+                                    <span>Hạn đến nhận: @pickupDeadline.</span>
+                                }
+                            </div>
+                            @if (existingHold.CanCancel)
+                            {
+                                <form asp-action="CancelMyHold" asp-route-id="@Model.Id" method="post" class="align-self-center" id="cancelMyHoldForm"
+                                      onsubmit="return confirm('Bạn có chắc muốn hủy đơn đặt giữ sách này? Lượt của bạn sẽ được nhường cho người xếp sau.');">
+                                    <input type="hidden" name="holdId" value="@existingHold.Id" />
+                                    <button type="submit" class="btn btn-outline-danger" id="cancelMyHoldButton"><i class="bi bi-x-circle"></i> Hủy đơn đặt giữ</button>
+                                </form>
+                            }
+                        }
+                        else if (Model.CanHold)
                         {
                             <form asp-action="Hold" asp-route-id="@Model.Id" method="post">
                                 <button type="submit" class="btn btn-success">Đặt giữ</button>
@@ -92,7 +291,12 @@
                         }
                         else if (!Model.IsReaderSignedIn)
                         {
+                            <span class="small text-muted align-self-center">Bạn cần đăng nhập để đặt giữ sách.</span>
                             <a asp-controller="ReaderRegistration" asp-action="Login" asp-route-returnUrl="@Url.Action("Details", new { id = Model.Id })" class="btn btn-outline-success">Đăng nhập để đặt giữ</a>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(Model.HoldBlockedReason))
+                        {
+                            <span class="small text-danger align-self-center" role="status">@Model.HoldBlockedReason</span>
                         }
                         <a asp-action="Create" class="btn btn-primary">Biên mục sách mới</a>
                         <a asp-action="Index" class="btn btn-outline-secondary">Danh sách sách</a>

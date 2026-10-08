@@ -1,7 +1,7 @@
 @model Project.Models.LoginViewModel
 @{
     Layout = null;
-    ViewData["Title"] = "Đăng nhập thủ thư";
+    ViewData["Title"] = "Đăng nhập Thủ thư";
 }
 <!DOCTYPE html>
 <html lang="vi">
@@ -10,36 +10,88 @@
     <partial name="_HeadAssets" />
 </head>
 <body class="login-page">
-    <main class="login-wrap reader-login-wrap">
-        <header class="login-brand">
-            <span class="login-brand-pill"><span class="login-brand-icon">▤</span> HỆ THỐNG QUẢN LÝ THƯ VIỆN</span>
-            <div class="login-brand-sub">CỔNG NGHIỆP VỤ DÀNH CHO THỦ THƯ</div>
-        </header>
-        <section class="login-card reader-login-card">
-            <div class="login-card-heading">
-                <div><h1>Đăng nhập thủ thư</h1><p>Dùng tài khoản được cấp riêng với vai trò Thủ thư.</p></div>
-                <span class="login-version"><i></i> NHÂN SỰ</span>
-            </div>
+    <main class="login-wrap">
+        <section class="login-card">
+            <header class="login-header">
+                <div class="login-logo">
+                    <i class="bi bi-person-badge"></i>
+                </div>
+                <h1>Đăng nhập thủ thư</h1>
+                <p>Cổng truy cập nghiệp vụ dành cho Thủ thư</p>
+            </header>
+
             <partial name="_StaffLoginSwitch" model="@("Librarian")" />
-            @if (TempData["LogoutMessage"] is string logoutMessage) { <div class="login-notice" role="status">@logoutMessage</div> }
+
+            @if (TempData["LogoutMessage"] is string logoutMessage)
+            {
+                <div class="alert alert-info py-2 small mb-3" role="status">
+                    <i class="bi bi-info-circle me-1"></i> @logoutMessage
+                </div>
+            }
+
             <div asp-validation-summary="ModelOnly" class="login-validation" role="alert"></div>
+
             <form asp-action="Login" method="post">
                 <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
-                <div class="login-field">
-                    <div class="login-label-row"><label asp-for="Email">Email thủ thư</label><span>VAI TRÒ: THỦ THƯ</span></div>
-                    <div class="login-input-wrap"><span aria-hidden="true">✉</span><input asp-for="Email" class="form-control" placeholder="thuthu@thuvien.edu.vn" autocomplete="username" autofocus /></div>
+
+                <div class="mb-3">
+                    <label asp-for="Email" class="form-label">Email thủ thư</label>
+                    <div class="login-input-group">
+                        <i class="bi bi-envelope login-input-icon" aria-hidden="true"></i>
+                        <input asp-for="Email" class="form-control" placeholder="thuthu@thuvien.edu.vn" autocomplete="username" autofocus />
+                    </div>
                     <span asp-validation-for="Email" class="text-danger small"></span>
                 </div>
-                <div class="login-field">
-                    <div class="login-label-row"><label asp-for="Password">Mật khẩu</label><span>BẢO MẬT</span></div>
-                    <div class="login-input-wrap"><span aria-hidden="true">⚿</span><input asp-for="Password" class="form-control" placeholder="Mật khẩu của bạn" autocomplete="current-password" /></div>
+
+                <div class="mb-3">
+                    <label asp-for="Password" class="form-label">Mật khẩu</label>
+                    <div class="login-input-group">
+                        <i class="bi bi-lock login-input-icon" aria-hidden="true"></i>
+                        <input asp-for="Password" class="form-control" placeholder="Nhập mật khẩu" autocomplete="current-password" />
+                        <button class="login-password-toggle" type="button" aria-label="Hiện mật khẩu" aria-pressed="false" tabindex="-1">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
                     <span asp-validation-for="Password" class="text-danger small"></span>
                 </div>
-                <button type="submit" class="login-submit reader-login-submit">Đăng nhập thủ thư <span aria-hidden="true">→</span></button>
+
+                <div class="login-options mb-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="rememberMe" checked />
+                        <label class="form-check-label" for="rememberMe">Duy trì đăng nhập</label>
+                    </div>
+                </div>
+
+                <button type="submit" class="login-submit">
+                    <span>Đăng nhập thủ thư</span>
+                    <i class="bi bi-arrow-right ms-1"></i>
+                </button>
             </form>
-            <div class="login-help"><span class="login-help-icon">i</span><span>Tài khoản quản trị viên và bạn đọc không đăng nhập được tại cổng thủ thư.</span></div>
         </section>
-        <footer class="login-footer reader-login-footer"><span>© 2026 Thư viện · Cổng nhân sự</span><a asp-controller="Account" asp-action="Login">Đăng nhập quản trị hệ thống</a></footer>
+
+        <footer class="login-footer">
+            <span>© 2026 Hệ thống Thư viện điện tử</span>
+        </footer>
     </main>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+    <script src="~/lib/jquery-validation-unobtrusive/dist/jquery.validate.unobtrusive.min.js"></script>
+    <script>
+        document.querySelector('.login-password-toggle')?.addEventListener('click', event => {
+            const button = event.currentTarget;
+            const input = document.getElementById('Password');
+            if (!input) return;
+            const reveal = input.type === 'password';
+            input.type = reveal ? 'text' : 'password';
+            button.setAttribute('aria-pressed', String(reveal));
+            button.setAttribute('aria-label', reveal ? 'Ẩn mật khẩu' : 'Hiện mật khẩu');
+            const icon = button.querySelector('i');
+            if (icon) {
+                icon.className = reveal ? 'bi bi-eye-slash' : 'bi bi-eye';
+            }
+        });
+    </script>
 </body>
 </html>
+

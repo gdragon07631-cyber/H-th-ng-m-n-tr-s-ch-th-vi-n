@@ -12,56 +12,41 @@
 
                 <form asp-action="Create" method="post" id="catalogBookForm" novalidate>
                     @Html.AntiForgeryToken()
-                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
-
-                    <div class="mb-3">
-                        <label asp-for="Title" class="form-label fw-semibold">Tên sách <span class="text-danger">*</span></label>
-                        <input asp-for="Title" class="form-control" placeholder="Nhập tên sách..." autofocus />
-                        <span asp-validation-for="Title" class="text-danger small"></span>
-                    </div>
-
-                    <div class="mb-3">
-                        <label asp-for="CategoryId" class="form-label fw-semibold">Thể loại <span class="text-danger">*</span></label>
-                        <select asp-for="CategoryId" class="form-select">
-                            <option value="">-- Chọn thể loại đang hoạt động --</option>
-                            @foreach (var category in Model.ActiveCategories)
-                            {
-                                <option value="@category.Id">@(category.Parent == null ? category.Name : $"{category.Parent.Name} > {category.Name}")</option>
-                            }
-                        </select>
-                        <span asp-validation-for="CategoryId" class="text-danger small"></span>
-                        @if (Model.ActiveCategories.Count == 0)
-                        {
-                            <div class="form-text text-danger">Hiện chưa có thể loại hoạt động. Hãy thêm thể loại trước khi biên mục.</div>
-                        }
-                    </div>
-
-                    <div class="mb-3">
-                        <label asp-for="Isbn" class="form-label fw-semibold">Mã ISBN</label>
-                        <input asp-for="Isbn" class="form-control" placeholder="Ví dụ: 978-604-2-00000-0" />
-                        <span asp-validation-for="Isbn" class="text-danger small"></span>
-                    </div>
-
-                    <div class="mb-3">
-                        <label asp-for="AuthorId" class="form-label fw-semibold">Tác giả <span class="text-danger">*</span></label>
-                        <select asp-for="AuthorId" class="form-select" id="authorSelect">
-                            <option value="">-- Chọn tác giả (chỉ hiển thị tác giả đang hoạt động) --</option>
-                            @foreach (var author in Model.ActiveAuthors)
-                            {
-                                <option value="@author.Id">@author.Name</option>
-                            }
-                        </select>
-                        <span asp-validation-for="AuthorId" class="text-danger small"></span>
-                        <div class="form-text small text-muted">
-                            Lưu ý: Chỉ những tác giả đang ở trạng thái <strong>Hoạt động</strong> mới xuất hiện trong danh sách này.
+                    @if (Model.DuplicateTitleMatches.Count > 0)
+                    {
+                        <div class="alert alert-warning" role="alert" id="duplicateTitleWarning">
+                            <h2 class="h6 fw-bold mb-2">Cảnh báo: nhan đề đã tồn tại</h2>
+                            <p class="mb-2">@Project.Models.CatalogBookRules.DuplicateTitleMessage Đầu sách mới <strong>chưa được lưu</strong>.</p>
+                            <ul class="mb-3 ps-3">
+                                @foreach (var match in Model.DuplicateTitleMatches)
+                                {
+                                    <li class="mb-1">
+                                        <a asp-action="Details" asp-route-id="@match.Id" target="_blank" rel="noopener" class="fw-semibold">@match.Title</a>
+                                        @if (!string.IsNullOrWhiteSpace(match.Subtitle))
+                                        {
+                                            <span>: @match.Subtitle</span>
+                                        }
+                                        <div class="small text-muted">
+                                            Tác giả: @(string.IsNullOrWhiteSpace(match.Authors) ? "-" : match.Authors)
+                                            · ISBN: @(match.Isbn ?? "-")
+                                            · Năm XB: @(match.PublicationYear?.ToString() ?? "-")
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button type="submit" name="ConfirmedDuplicateTitle" value="@Model.Title" class="btn btn-warning">Xác nhận tiếp tục lưu</button>
+                                <button type="button" class="btn btn-outline-secondary" id="cancelDuplicateTitle">Hủy</button>
+                            </div>
                         </div>
-                    </div>
-
-                    <div class="mb-4">
-                        <label asp-for="Description" class="form-label fw-semibold">Mô tả / Tóm tắt</label>
-                        <textarea asp-for="Description" class="form-control" rows="3" placeholder="Nhập thông tin tóm tắt nội dung sách..."></textarea>
-                        <span asp-validation-for="Description" class="text-danger small"></span>
-                    </div>
+                        <script>
+                            document.getElementById('cancelDuplicateTitle').addEventListener('click', () => {
+                                document.getElementById('duplicateTitleWarning').remove();
+                                document.getElementById('Title').focus();
+                            });
+                        </script>
+                    }
+                    <partial name="_BookForm" model="Model" />
 
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary flex-grow-1 py-2" disabled="@(Model.ActiveCategories.Count == 0)">Lưu sách</button>

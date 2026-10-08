@@ -97,7 +97,7 @@ public sealed class ReaderPasswordResetService(
             .SingleOrDefaultAsync(item => item.TokenHash == hash && item.UsedAtUtc == null && item.ExpiresAtUtc > now, cancellationToken);
         if (resetToken is null)
         {
-            await transaction.RollbackAsync(cancellationToken);
+            await transaction.RollbackAsync(CancellationToken.None);
             return false;
         }
 
@@ -107,6 +107,17 @@ public sealed class ReaderPasswordResetService(
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
+    }
+
+    public async Task<int?> GetReaderIdForTokenAsync(string token, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return null;
+        var hash = HashToken(token);
+        var now = DateTime.UtcNow;
+        return await dbContext.ReaderPasswordResetTokens.AsNoTracking()
+            .Where(item => item.TokenHash == hash && item.UsedAtUtc == null && item.ExpiresAtUtc > now)
+            .Select(item => (int?)item.ReaderAccountId)
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     private static string HashToken(string token) =>

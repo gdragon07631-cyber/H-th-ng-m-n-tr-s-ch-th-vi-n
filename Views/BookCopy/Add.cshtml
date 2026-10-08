@@ -1,0 +1,92 @@
+@model Project.Models.ManualBookCopyViewModel
+@{
+    ViewData["Title"] = "Thêm bản sao";
+}
+<div class="container py-4">
+    <div class="row justify-content-center"><div class="col-lg-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-header"><h1 class="h5 mb-0">Thêm bản sao</h1></div>
+            <div class="card-body">
+                <p>Đầu sách: <strong>@Model.BookTitle</strong></p>
+                <form asp-action="Add" asp-route-bookId="@Model.BookId" method="post">
+                    <div asp-validation-summary="All" class="text-danger" role="alert"></div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label asp-for="GenerateBarcode" class="form-label"></label>
+                            <select asp-for="GenerateBarcode" class="form-select">
+                                <option value="false">Nhập thủ công</option>
+                                <option value="true">Sinh tự động</option>
+                            </select>
+                            <div id="automaticBarcodeHelp" class="form-text" hidden="@(!Model.GenerateBarcode)">Mã LIB + 6 chữ số được cấp khi tạo bản sao.</div>
+                        </div>
+                        <div class="col-md-6" id="manualBarcodeField" hidden="@Model.GenerateBarcode">
+                            <label asp-for="CopyCode" class="form-label"></label>
+                            <input asp-for="CopyCode" class="form-control" maxlength="50" required="@(!Model.GenerateBarcode)" disabled="@Model.GenerateBarcode" />
+                            <span asp-validation-for="CopyCode" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="PhysicalCondition" class="form-label"></label>
+                            <select asp-for="PhysicalCondition" class="form-select" required>
+                                <option value="">-- Chọn tình trạng --</option>
+                                @foreach (var condition in BookCopyCondition.All) { <option value="@condition">@condition</option> }
+                            </select>
+                            <span asp-validation-for="PhysicalCondition" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="WarehouseId" class="form-label"></label>
+                            <select asp-for="WarehouseId" class="form-select" required>
+                                <option value="">-- Chọn kho --</option>
+                                @foreach (var warehouse in Model.Warehouses) { <option value="@warehouse.Id">@warehouse.Code - @warehouse.Name</option> }
+                            </select>
+                            <span asp-validation-for="WarehouseId" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="ShelfId" class="form-label"></label>
+                            <select asp-for="ShelfId" class="form-select" required>
+                                <option value="">-- Chọn kệ --</option>
+                                @foreach (var shelf in Model.Shelves) { <option value="@shelf.Id" data-warehouse="@shelf.WarehouseId">@shelf.Code - @shelf.Name</option> }
+                            </select>
+                            <span asp-validation-for="ShelfId" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="ReceivedDate" class="form-label"></label>
+                            <input asp-for="ReceivedDate" type="date" class="form-control" required />
+                            <span asp-validation-for="ReceivedDate" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="CoverPrice" class="form-label"></label>
+                            <input asp-for="CoverPrice" type="number" min="0" step="0.01" class="form-control" required />
+                            <span asp-validation-for="CoverPrice" class="text-danger small"></span>
+                        </div>
+                    </div>
+                    <p class="form-text mt-3">Trạng thái khi tạo: Sẵn sàng. Đầu sách của bản sao được giữ cố định sau khi tạo.</p>
+                    <div class="d-flex gap-2 mt-3">
+                        <button type="submit" class="btn btn-primary">Thêm bản sao</button>
+                        <a asp-controller="Book" asp-action="Details" asp-route-id="@Model.BookId" class="btn btn-outline-secondary">Huỷ</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div></div>
+</div>
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/book-copy-barcode-mode.js" asp-append-version="true"></script>
+    <script>
+        (() => {
+            const warehouse = document.getElementById('WarehouseId');
+            const shelf = document.getElementById('ShelfId');
+            const filter = () => {
+                for (const option of shelf.options) {
+                    if (!option.value) continue;
+                    const matches = option.dataset.warehouse === warehouse.value;
+                    option.hidden = !matches;
+                    option.disabled = !matches;
+                    if (!matches && option.selected) shelf.value = '';
+                }
+            };
+            warehouse.addEventListener('change', filter);
+            filter();
+        })();
+    </script>
+}

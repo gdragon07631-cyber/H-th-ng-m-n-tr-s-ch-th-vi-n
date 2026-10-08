@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -19,7 +20,8 @@ public sealed class ReaderRegistrationTests
     {
         FullName = "  Nguyen Van A  ", DateOfBirth = new DateOnly(2000, 1, 1),
         Email = "student@example.com", PhoneNumber = "0912345678",
-        StudentOrStaffCode = "  SV001  ", Password = "Abc12345", ConfirmPassword = "Abc12345"
+        StudentOrStaffCode = "  SV001  ", Password = "Abc12345", ConfirmPassword = "Abc12345",
+        LibraryCardTypeId = 1
     };
 
     private static List<ValidationResult> Errors(ReaderRegistrationViewModel model)
@@ -83,6 +85,9 @@ public sealed class ReaderRegistrationTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
         var hasher = new PasswordHasher<ReaderAccount>();
         var service = new ReaderRegistrationService(db, hasher, NullLogger<ReaderRegistrationService>.Instance);
+        // Loại thẻ được chọn khi đăng ký phải tồn tại (database thật có sẵn từ migration).
+        db.LibraryCardTypes.Add(new LibraryCardType { Id = 1, Name = "Thẻ bạn đọc thường" });
+        await db.SaveChangesAsync();
         var controller = CreateController(service);
         var model = Valid();
         var result = Assert.IsType<RedirectToActionResult>(await controller.Register(model));
@@ -98,8 +103,8 @@ public sealed class ReaderRegistrationTests
         Assert.NotNull(await service.AuthenticateReaderAsync(model.Email, model.Password));
         Assert.IsType<ViewResult>(controller.RegisterSuccess());
         Assert.Equal("Đăng ký tài khoản thành công!", (string)controller.ViewBag.SuccessMessage);
-        Assert.Equal("Chờ duyệt", (string)controller.ViewBag.AccountStatus);
-        Assert.Contains("xuất trình thẻ sinh viên", (string)controller.ViewBag.Instruction);
+        Assert.Equal("Chờ xác nhận email", (string)controller.ViewBag.AccountStatus);
+        Assert.Contains("không cần chờ thư viện duyệt", (string)controller.ViewBag.Instruction);
     }
 
     [Fact]
@@ -120,9 +125,10 @@ public sealed class ReaderRegistrationTests
     private static ReaderRegistrationController CreateController(IReaderRegistrationService service)
     {
         var controller = new ReaderRegistrationController(service, new ReaderRegistrationIpRateLimiter(),
-            new UnusedPasswordResetService(), new EphemeralDataProtectionProvider(), new NullAuditLogService());
+            new UnusedPasswordResetService(), new EphemeralDataProtectionProvider(), new NullAuditLogService(), new NoOpEmailVerificationService());
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
         controller.TempData = new TempDataDictionary(controller.HttpContext, new TestTempDataProvider());
+        controller.Url = new FixedUrlHelper();
         return controller;
     }
 
@@ -131,6 +137,7 @@ public sealed class ReaderRegistrationTests
         public Task<bool> RequestAsync(string email, string resetUrl, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<bool> IsTokenValidAsync(string token, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<bool> ResetAsync(string token, string newPassword, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<int?> GetReaderIdForTokenAsync(string token, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class NullAuditLogService : IAuditLogService
@@ -140,6 +147,16 @@ public sealed class ReaderRegistrationTests
         public Task<IReadOnlyList<AuditLog>> SearchAsync(AuditLogFilter filter, int limit, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<AuditLog>>([]);
         public Task<IReadOnlyList<string>> GetActorsAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<string>>([]);
         public Task<AdminAccount?> GetSignedInStaffAsync(HttpRequest request, CancellationToken cancellationToken = default) => Task.FromResult<AdminAccount?>(null);
+    }
+
+    private sealed class FixedUrlHelper : IUrlHelper
+    {
+        public ActionContext ActionContext { get; } = new();
+        public string? Action(UrlActionContext actionContext) => "https://localhost/" + actionContext.Action;
+        public string? Content(string? contentPath) => contentPath;
+        public bool IsLocalUrl(string? url) => true;
+        public string? Link(string? routeName, object? values) => "/";
+        public string? RouteUrl(UrlRouteContext routeContext) => "/";
     }
 
     private sealed class TestTempDataProvider : ITempDataProvider

@@ -25,7 +25,7 @@
                     <label for="ToDate" class="form-label fw-semibold">Đến ngày</label>
                     <input type="date" id="ToDate" name="ToDate" class="form-control" value="@filter.ToDate?.ToString("yyyy-MM-dd")" />
                 </div>
-                <div class="col-sm-6 col-lg-3">
+                <div class="col-sm-6 col-lg-2">
                     <label for="Actor" class="form-label fw-semibold">Người thực hiện</label>
                     <select id="Actor" name="Actor" class="form-select">
                         <option value="">Tất cả</option>
@@ -45,7 +45,11 @@
                         }
                     </select>
                 </div>
-                <div class="col-lg-3 d-flex gap-2">
+                <div class="col-sm-6 col-lg-2">
+                    <label for="Keyword" class="form-label fw-semibold">Từ khoá</label>
+                    <input type="search" id="Keyword" name="Keyword" class="form-control" maxlength="200" value="@filter.Keyword" placeholder="Email, mã thẻ, tên sách…" />
+                </div>
+                <div class="col-lg-2 d-flex gap-2">
                     <button type="submit" class="btn btn-primary flex-fill">Tra cứu</button>
                     <a asp-action="Index" class="btn btn-outline-secondary flex-fill">Xóa bộ lọc</a>
                 </div>
@@ -80,7 +84,7 @@
                         <tr>
                             <td class="text-nowrap">@DateTime.SpecifyKind(log.OccurredAtUtc, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
                             <td>@log.Actor</td>
-                            <td><span class="badge bg-primary-subtle text-primary-emphasis">@log.Action</span></td>
+                            <td class="text-nowrap"><span class="badge @Project.Models.AuditActions.BadgeClass(log.Action)">@log.Action</span></td>
                             <td>@log.Target</td>
                             <td class="text-nowrap font-monospace small">@log.IpAddress</td>
                         </tr>

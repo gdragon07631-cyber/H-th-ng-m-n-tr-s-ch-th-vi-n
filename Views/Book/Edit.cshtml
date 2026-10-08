@@ -1,0 +1,29 @@
+@model Project.Models.CatalogBookViewModel
+@{
+    ViewData["Title"] = "Sửa đầu sách";
+}
+
+<div class="row justify-content-center py-4">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4 p-md-5">
+                <h1 class="h3 mb-3 text-center text-primary font-weight-bold">Sửa đầu sách</h1>
+                <p class="text-muted text-center mb-4">Cập nhật thông tin biên mục và danh sách tác giả của đầu sách</p>
+
+                <form asp-action="Edit" asp-route-id="@Model.Id" method="post" id="catalogBookForm" novalidate>
+                    @Html.AntiForgeryToken()
+                    <partial name="_BookForm" model="Model" />
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary flex-grow-1 py-2">Lưu thay đổi</button>
+                        <a asp-action="Index" class="btn btn-outline-secondary py-2">Quay lại danh sách</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

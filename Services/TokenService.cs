@@ -68,7 +68,7 @@ public sealed class TokenService(ApplicationDbContext dbContext, IConfiguration 
             if (storedToken is null || storedToken.RevokedAtUtc.HasValue || storedToken.ExpiresAtUtc <= now ||
                 !storedToken.AdminAccount.IsActive)
             {
-                await transaction.RollbackAsync(cancellationToken);
+                await transaction.RollbackAsync(CancellationToken.None);
                 return null;
             }
 
@@ -98,7 +98,7 @@ public sealed class TokenService(ApplicationDbContext dbContext, IConfiguration 
         }
         catch
         {
-            await transaction.RollbackAsync(cancellationToken);
+            await transaction.RollbackAsync(CancellationToken.None);
             throw;
         }
     }

@@ -153,7 +153,7 @@ public sealed class AuthorService(
         }
 
         // Kiểm tra xem tác giả đã được liên kết với bất kỳ cuốn sách nào chưa
-        var hasBooks = await dbContext.Books.AnyAsync(b => b.AuthorId == id, cancellationToken);
+        var hasBooks = await HasLinkedBooksAsync(id, cancellationToken);
         if (hasBooks)
         {
             logger.LogWarning("Từ chối xóa tác giả #{Id} '{Name}': Tác giả đã có sách liên kết.", author.Id, author.Name);
@@ -196,6 +196,7 @@ public sealed class AuthorService(
 
     public async Task<bool> HasLinkedBooksAsync(int authorId, CancellationToken cancellationToken = default)
     {
-        return await dbContext.Books.AnyAsync(b => b.AuthorId == authorId, cancellationToken);
+        return await dbContext.Books.AnyAsync(b => b.AuthorId == authorId, cancellationToken)
+            || await dbContext.BookAuthors.AnyAsync(link => link.AuthorId == authorId, cancellationToken);
     }
 }

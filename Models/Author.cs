@@ -25,4 +25,7 @@ public sealed class Author
 
     [System.Text.Json.Serialization.JsonIgnore]
     public ICollection<Book> Books { get; set; } = [];
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public ICollection<BookAuthor> BookAuthors { get; set; } = [];
 }

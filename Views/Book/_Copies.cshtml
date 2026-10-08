@@ -1,0 +1,39 @@
+@model Project.Models.BookDetailsViewModel
+<section class="border-top pt-3 mb-4" aria-labelledby="copiesHeading">
+    <h2 id="copiesHeading" class="h5 text-primary fw-bold">Bản sao của đầu sách</h2>
+    <div class="d-flex flex-wrap gap-2 mb-3" role="status">
+        <span class="badge bg-secondary-subtle text-secondary-emphasis fs-6" id="totalCopyCount">Tổng số bản sao: @Model.TotalCopies</span>
+        <span class="badge bg-success-subtle text-success-emphasis fs-6" id="readyCopyCount">Sẵn sàng: @Model.AvailableCopies</span>
+    </div>
+    @if (Model.Copies.Count == 0)
+    {
+        <p class="text-muted mb-0">Đầu sách chưa có bản sao.</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0" id="bookCopies">
+                <caption class="visually-hidden">Danh sách bản sao của @Model.Title</caption>
+                <thead class="table-light">
+                    <tr><th scope="col">Mã vạch</th><th scope="col">Kho</th><th scope="col">Kệ</th><th scope="col">Ngày nhập</th><th scope="col">Giá bìa</th><th scope="col">Tình trạng vật lý</th><th scope="col">Trạng thái</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var copy in Model.Copies)
+                    {
+                        <tr data-copy-id="@copy.Id">
+                            <td class="font-monospace text-nowrap">@copy.CopyCode</td>
+                            <td>@copy.Warehouse</td>
+                            <td>@copy.Shelf</td>
+                            <td class="text-nowrap">@copy.ReceivedDateText</td>
+                            <td class="text-nowrap">@copy.CoverPriceText</td>
+                            <td>@copy.PhysicalCondition</td>
+                            <td>
+                                <span class="badge @(copy.Status == BookCopyStatus.Available ? "bg-success-subtle text-success-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">@copy.StatusText</span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

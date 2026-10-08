@@ -263,7 +263,7 @@ public sealed class ReaderPasswordResetTests : IDisposable
     {
         var registration = new ReaderRegistrationService(db, hasher, NullLogger<ReaderRegistrationService>.Instance);
         return new ReaderRegistrationController(registration, new ReaderRegistrationIpRateLimiter(), service,
-            new EphemeralDataProtectionProvider(), new AuditLogService(db, NullLogger<AuditLogService>.Instance))
+            new EphemeralDataProtectionProvider(), new AuditLogService(db, NullLogger<AuditLogService>.Instance), new NoOpEmailVerificationService())
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
             Url = new FixedUrlHelper()
