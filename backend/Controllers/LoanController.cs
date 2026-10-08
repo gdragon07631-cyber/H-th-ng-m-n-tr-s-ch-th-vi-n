@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Project.Filters;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -33,14 +34,48 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
             return View(nameof(Index), await BuildModel(ct));
         }
 
-        var result = await loans.CreateAsync(model.BookId, model.ReaderAccountId, model.LoanDate.Value, ct);
-        await LogLoanAsync(AuditActions.CreateLoan, model.BookId, model.ReaderAccountId, result.IsSuccess
-            ? $"lập phiếu mượn #{result.Loan!.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {result.Loan!.DueDate:dd/MM/yyyy}"
-            : $"lập phiếu mượn thất bại: {result.ErrorMessage}", ct);
-        TempData[result.IsSuccess ? "SuccessMessage" : "ErrorMessage"] = result.IsSuccess
-            ? $"Đã tạo phiếu mượn. Hạn trả: {result.Loan!.DueDate:dd/MM/yyyy}."
-            : result.ErrorMessage;
-        return RedirectToAction(nameof(Index));
+        var bookIds = model.BookIds != null && model.BookIds.Count > 0
+            ? model.BookIds
+            : (model.BookId > 0 ? [model.BookId] : new List<int>());
+
+        if (bookIds.Count == 0)
+        {
+            TempData["ErrorMessage"] = "Vui lòng chọn sách.";
+            return View(nameof(Index), await BuildModel(ct));
+        }
+
+        if (bookIds.Count == 1)
+        {
+            var singleBookId = bookIds[0];
+            var result = await loans.CreateAsync(singleBookId, model.ReaderAccountId, model.LoanDate.Value, ct);
+            await LogLoanAsync(AuditActions.CreateLoan, singleBookId, model.ReaderAccountId, result.IsSuccess
+                ? $"lập phiếu mượn #{result.Loan!.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {result.Loan!.DueDate:dd/MM/yyyy}"
+                : $"lập phiếu mượn thất bại: {result.ErrorMessage}", ct);
+            TempData[result.IsSuccess ? "SuccessMessage" : "ErrorMessage"] = result.IsSuccess
+                ? $"Đã tạo phiếu mượn. Hạn trả: {result.Loan!.DueDate:dd/MM/yyyy}."
+                : result.ErrorMessage;
+            return RedirectToAction(nameof(Index));
+        }
+        else
+        {
+            var batchResult = await loans.CreateManyAsync(bookIds, model.ReaderAccountId, model.LoanDate.Value, ct);
+            if (batchResult.IsSuccess)
+            {
+                foreach (var loan in batchResult.Loans)
+                {
+                    await LogLoanAsync(AuditActions.CreateLoan, loan.BookId, model.ReaderAccountId,
+                        $"lập phiếu mượn #{loan.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {loan.DueDate:dd/MM/yyyy}", ct);
+                }
+                TempData["SuccessMessage"] = $"Đã tạo {batchResult.Loans.Count} phiếu mượn thành công.";
+            }
+            else
+            {
+                await LogLoanAsync(AuditActions.CreateLoan, bookIds[0], model.ReaderAccountId,
+                    $"lập phiếu mượn thất bại: {batchResult.ErrorMessage}", ct);
+                TempData["ErrorMessage"] = batchResult.ErrorMessage;
+            }
+            return RedirectToAction(nameof(Index));
+        }
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -61,14 +96,76 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
     [HttpPost("api/loans")]
     public async Task<IActionResult> CreateApi([FromBody] CreateBookLoanViewModel? model, CancellationToken ct = default)
     {
-        if (model?.LoanDate == null || !TryValidateModel(model))
+        if (model?.LoanDate == null || !ValidateModel(model))
             return BadRequest(new { message = "Dữ liệu phiếu mượn không hợp lệ." });
-        var result = await loans.CreateAsync(model.BookId, model.ReaderAccountId, model.LoanDate.Value, ct);
-        await LogLoanAsync(AuditActions.CreateLoan, model.BookId, model.ReaderAccountId, result.IsSuccess
-            ? $"lập phiếu mượn #{result.Loan!.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {result.Loan!.DueDate:dd/MM/yyyy}"
-            : $"lập phiếu mượn thất bại: {result.ErrorMessage}", ct);
-        if (!result.IsSuccess) return BadRequest(new { message = result.ErrorMessage });
-        return Created($"/api/loans/{result.Loan!.Id}", ToApiModel(result.Loan));
+
+        var bookIds = model.BookIds != null && model.BookIds.Count > 0
+            ? model.BookIds
+            : (model.BookId > 0 ? [model.BookId] : new List<int>());
+
+        if (bookIds.Count == 0)
+            return BadRequest(new { message = "Dữ liệu phiếu mượn không hợp lệ." });
+
+        if (bookIds.Count == 1)
+        {
+            var singleBookId = bookIds[0];
+            var result = await loans.CreateAsync(singleBookId, model.ReaderAccountId, model.LoanDate.Value, ct);
+            await LogLoanAsync(AuditActions.CreateLoan, singleBookId, model.ReaderAccountId, result.IsSuccess
+                ? $"lập phiếu mượn #{result.Loan!.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {result.Loan!.DueDate:dd/MM/yyyy}"
+                : $"lập phiếu mượn thất bại: {result.ErrorMessage}", ct);
+            if (!result.IsSuccess) return BadRequest(new { message = result.ErrorMessage });
+            return Created($"/api/loans/{result.Loan!.Id}", ToApiModel(result.Loan));
+        }
+        else
+        {
+            var batchResult = await loans.CreateManyAsync(bookIds, model.ReaderAccountId, model.LoanDate.Value, ct);
+            if (!batchResult.IsSuccess)
+            {
+                await LogLoanAsync(AuditActions.CreateLoan, bookIds[0], model.ReaderAccountId,
+                    $"lập phiếu mượn thất bại: {batchResult.ErrorMessage}", ct);
+                return BadRequest(new { message = batchResult.ErrorMessage });
+            }
+            foreach (var loan in batchResult.Loans)
+            {
+                await LogLoanAsync(AuditActions.CreateLoan, loan.BookId, model.ReaderAccountId,
+                    $"lập phiếu mượn #{loan.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {loan.DueDate:dd/MM/yyyy}", ct);
+            }
+            return Ok(batchResult.Loans.Select(ToApiModel));
+        }
+    }
+
+    [HttpPost("api/loans/batch")]
+    public async Task<IActionResult> CreateBatchApi([FromBody] CreateBatchBookLoanViewModel? model, CancellationToken ct = default)
+    {
+        if (model?.LoanDate == null || !ValidateModel(model) || model.BookIds.Count == 0)
+            return BadRequest(new { message = "Dữ liệu phiếu mượn không hợp lệ." });
+
+        var batchResult = await loans.CreateManyAsync(model.BookIds, model.ReaderAccountId, model.LoanDate.Value, ct);
+        if (!batchResult.IsSuccess)
+        {
+            await LogLoanAsync(AuditActions.CreateLoan, model.BookIds[0], model.ReaderAccountId,
+                $"lập phiếu mượn thất bại: {batchResult.ErrorMessage}", ct);
+            return BadRequest(new { message = batchResult.ErrorMessage });
+        }
+        foreach (var loan in batchResult.Loans)
+        {
+            await LogLoanAsync(AuditActions.CreateLoan, loan.BookId, model.ReaderAccountId,
+                $"lập phiếu mượn #{loan.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {loan.DueDate:dd/MM/yyyy}", ct);
+        }
+        return Ok(batchResult.Loans.Select(ToApiModel));
+    }
+
+    private bool ValidateModel(object? model)
+    {
+        if (model == null) return false;
+        try
+        {
+            if (ObjectValidator != null) return TryValidateModel(model);
+        }
+        catch (NullReferenceException) { }
+        var context = new ValidationContext(model);
+        var results = new List<ValidationResult>();
+        return Validator.TryValidateObject(model, context, results, true);
     }
 
     [HttpPost("api/loans/{id:long}/renew")]
@@ -106,14 +203,31 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
         }
     }
 
-    private async Task<LoanIndexViewModel> BuildModel(CancellationToken ct) => new()
+    private async Task<LoanIndexViewModel> BuildModel(CancellationToken ct)
     {
-        Loans = await loans.GetAllAsync(ct),
-        Books = await db.Books.AsNoTracking().OrderBy(book => book.Title).ToListAsync(ct),
-        Readers = await db.ReaderAccounts.AsNoTracking()
-            .Where(reader => reader.Status == "Đang hoạt động").OrderBy(reader => reader.FullName).ToListAsync(ct),
-        NewLoan = new CreateBookLoanViewModel { LoanDate = DateOnly.FromDateTime(DateTime.Today) }
-    };
+        var readers = await db.ReaderAccounts.AsNoTracking()
+            .Include(reader => reader.LibraryCard)
+                .ThenInclude(card => card!.LibraryCardType)
+            .Where(reader => reader.Status == "Đang hoạt động")
+            .OrderBy(reader => reader.FullName)
+            .ToListAsync(ct);
+
+        var readerIds = readers.Select(r => r.Id).ToList();
+        var loanCounts = await db.BookLoans.AsNoTracking()
+            .Where(l => readerIds.Contains(l.ReaderAccountId))
+            .GroupBy(l => l.ReaderAccountId)
+            .Select(g => new { ReaderAccountId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ReaderAccountId, x => x.Count, ct);
+
+        return new()
+        {
+            Loans = await loans.GetAllAsync(ct),
+            Books = await db.Books.AsNoTracking().OrderBy(book => book.Title).ToListAsync(ct),
+            Readers = readers,
+            ReaderLoanCounts = loanCounts,
+            NewLoan = new CreateBookLoanViewModel { LoanDate = DateOnly.FromDateTime(DateTime.Today) }
+        };
+    }
 
     private async Task LogLoanAsync(string action, int bookId, int readerId, string detail, CancellationToken ct)
     {

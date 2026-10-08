@@ -10,7 +10,20 @@
         <form asp-action="Create" method="post" class="row g-3 align-items-end">
             @Html.AntiForgeryToken()
             <div class="col-md-4"><label class="form-label">Sách</label><select class="form-select" name="BookId" required><option value="">-- Chọn sách --</option>@foreach (var book in Model.Books) { <option value="@book.Id">@book.Title</option> }</select></div>
-            <div class="col-md-4"><label class="form-label">Bạn đọc</label><select class="form-select" name="ReaderAccountId" required><option value="">-- Chọn bạn đọc --</option>@foreach (var reader in Model.Readers) { <option value="@reader.Id">@reader.FullName (@reader.StudentOrStaffCode)</option> }</select></div>
+            <div class="col-md-4">
+                <label class="form-label">Bạn đọc</label>
+                <select class="form-select" name="ReaderAccountId" id="readerSelect" required>
+                    <option value="">-- Chọn bạn đọc --</option>
+                    @foreach (var reader in Model.Readers) {
+                        var currentLoans = Model.ReaderLoanCounts.TryGetValue(reader.Id, out var count) ? count : 0;
+                        var limit = reader.LibraryCard?.LibraryCardType?.MaxBooks ?? Project.Models.LibraryCardType.DefaultMaxBooks;
+                        <option value="@reader.Id" data-current-loans="@currentLoans" data-max-loans="@limit">
+                            @reader.FullName (@reader.StudentOrStaffCode) - Đang mượn: @currentLoans/@limit sách
+                        </option>
+                    }
+                </select>
+                <div id="readerLoanLimitInfo" class="form-text mt-1 text-muted" style="min-height: 20px;"></div>
+            </div>
             <div class="col-md-2"><label class="form-label">Ngày mượn</label><input class="form-control" type="date" name="LoanDate" value="@Model.NewLoan.LoanDate?.ToString("yyyy-MM-dd")" required /></div>
             <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Tạo phiếu</button></div>
         </form>
@@ -21,3 +34,29 @@
         @foreach (var loan in Model.Loans) { var renewalLimit = loan.ReaderAccount?.LibraryCard?.LibraryCardType?.MaxRenewals ?? 0; <tr><td>@loan.Book?.Title</td><td>@loan.ReaderAccount?.FullName</td><td>@loan.LoanDate.ToString("dd/MM/yyyy")</td><td class="fw-semibold">@loan.DueDate.ToString("dd/MM/yyyy") @if (loan.DueDate != loan.OriginalDueDate) { <span class="badge bg-info text-dark">Đã điều chỉnh</span> }<div class="small text-muted">Số lần gia hạn: @loan.RenewalCount / @renewalLimit</div></td><td>@if (loan.DueDate >= DateOnly.FromDateTime(DateTime.Today)) { <form asp-action="Renew" method="post" class="d-inline">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@loan.Id" /><button class="btn btn-sm btn-outline-primary" type="submit">Gia hạn</button></form> }</td></tr> }
     </tbody></table></div></div>
 </div>
+
+<script>
+    (function () {
+        var readerSelect = document.getElementById('readerSelect');
+        var info = document.getElementById('readerLoanLimitInfo');
+        if (!readerSelect || !info) return;
+
+        function updateLoanInfo() {
+            var selected = readerSelect.selectedOptions[0];
+            if (selected && selected.value) {
+                var current = parseInt(selected.getAttribute('data-current-loans') || '0', 10);
+                var max = parseInt(selected.getAttribute('data-max-loans') || '5', 10);
+                var isReached = current >= max;
+                info.innerHTML = '<span class="badge ' + (isReached ? 'bg-danger' : 'bg-info text-dark') + '">' +
+                    'Đang mượn: ' + current + '/' + max + ' sách' +
+                    (isReached ? ' (Đã đạt hạn mức)' : '') +
+                    '</span>';
+            } else {
+                info.textContent = '';
+            }
+        }
+
+        readerSelect.addEventListener('change', updateLoanInfo);
+        updateLoanInfo();
+    })();
+</script>

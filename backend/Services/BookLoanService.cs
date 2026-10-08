@@ -17,32 +17,74 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
 
     public async Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, CancellationToken cancellationToken = default)
     {
-        var book = await db.Books.FindAsync([bookId], cancellationToken);
-        if (book == null) return new(false, "Không tìm thấy sách.");
-        var reader = await db.ReaderAccounts.FindAsync([readerAccountId], cancellationToken);
-        if (reader == null) return new(false, "Không tìm thấy bạn đọc.");
+        var result = await CreateManyAsync([bookId], readerAccountId, loanDate, cancellationToken);
+        if (!result.IsSuccess)
+        {
+            return new(false, result.ErrorMessage);
+        }
+        return new(true, Loan: result.Loans.FirstOrDefault());
+    }
+
+    public async Task<BatchBookLoanOutcome> CreateManyAsync(
+        IReadOnlyList<int> bookIds, int readerAccountId, DateOnly loanDate, CancellationToken cancellationToken = default)
+    {
+        if (bookIds == null || bookIds.Count == 0)
+            return new(false, "Vui lòng chọn ít nhất một cuốn sách.", []);
+
+        var reader = await db.ReaderAccounts
+            .Include(r => r.LibraryCard)
+                .ThenInclude(card => card!.LibraryCardType)
+            .FirstOrDefaultAsync(r => r.Id == readerAccountId, cancellationToken);
+        if (reader == null) return new(false, "Không tìm thấy bạn đọc.", []);
         if (!string.Equals(reader.Status, "Đang hoạt động", StringComparison.OrdinalIgnoreCase))
-            return new(false, "Bạn đọc chưa ở trạng thái hoạt động.");
+            return new(false, "Bạn đọc chưa ở trạng thái hoạt động.", []);
+
+        var maxBooks = reader.LibraryCard?.LibraryCardType?.MaxBooks ?? LibraryCardType.DefaultMaxBooks;
+        var currentLoans = await db.BookLoans.CountAsync(l => l.ReaderAccountId == readerAccountId, cancellationToken);
+
+        if (currentLoans >= maxBooks)
+        {
+            return new(false, $"Bạn đang mượn {currentLoans}/{maxBooks} sách, không thể mượn thêm.", []);
+        }
+
+        if (currentLoans + bookIds.Count > maxBooks)
+        {
+            return new(false, $"Bạn đang mượn {currentLoans}/{maxBooks} sách, không thể mượn thêm {bookIds.Count} sách vì vượt quá hạn mức ({maxBooks} sách).", []);
+        }
+
+        var books = new List<Book>();
+        foreach (var bookId in bookIds)
+        {
+            var book = await db.Books.FindAsync([bookId], cancellationToken);
+            if (book == null) return new(false, "Không tìm thấy sách.", []);
+            books.Add(book);
+        }
 
         var originalDueDate = loanDate.AddDays(DefaultLoanDays);
         DateOnly dueDate;
         try { dueDate = await AdjustDueDateAsync(originalDueDate, cancellationToken); }
-        catch (InvalidOperationException exception) { return new(false, exception.Message); }
+        catch (InvalidOperationException exception) { return new(false, exception.Message, []); }
 
-        var loan = new BookLoan
+        var createdLoans = new List<BookLoan>();
+        foreach (var book in books)
         {
-            BookId = bookId,
-            ReaderAccountId = readerAccountId,
-            LoanDate = loanDate,
-            OriginalDueDate = originalDueDate,
-            DueDate = dueDate,
-            CreatedAtUtc = DateTime.UtcNow,
-            Book = book,
-            ReaderAccount = reader
-        };
-        db.BookLoans.Add(loan);
+            var loan = new BookLoan
+            {
+                BookId = book.Id,
+                ReaderAccountId = readerAccountId,
+                LoanDate = loanDate,
+                OriginalDueDate = originalDueDate,
+                DueDate = dueDate,
+                CreatedAtUtc = DateTime.UtcNow,
+                Book = book,
+                ReaderAccount = reader
+            };
+            db.BookLoans.Add(loan);
+            createdLoans.Add(loan);
+        }
+
         await db.SaveChangesAsync(cancellationToken);
-        return new(true, Loan: loan);
+        return new(true, Loans: createdLoans);
     }
 
     public async Task<RenewBookLoanOutcome> RenewAsync(long loanId, DateOnly today, CancellationToken cancellationToken = default)
