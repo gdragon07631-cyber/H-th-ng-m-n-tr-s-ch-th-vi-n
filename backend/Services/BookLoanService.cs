@@ -52,6 +52,9 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
 
         var hasOverdueLoan = readerLoans.Any(l => !l.IsReturned && l.DueDate < checkDate);
 
+        var totalDebt = reader.TotalDebt;
+        var hasUnpaidFee = totalDebt > 0m;
+
         var maxBooks = reader.LibraryCard?.LibraryCardType?.MaxBooks ?? LibraryCardType.DefaultMaxBooks;
         var currentLoans = readerLoans.Count(l => !l.IsReturned);
 
@@ -73,6 +76,11 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
         if (hasOverdueLoan)
         {
             errors.Add("Bạn đọc đang có phiếu mượn quá hạn chưa trả.");
+        }
+
+        if (hasUnpaidFee)
+        {
+            errors.Add($"Bạn còn nợ {FormatVnd(totalDebt)}, không thể mượn sách.");
         }
 
         if (isLimitReached)
@@ -178,5 +186,13 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
 
         return DueDateAdjuster.AdjustDueDate(proposedDate,
             date => !holidayDates.Contains(date) && openByDay.TryGetValue(date.DayOfWeek, out var isOpen) && isOpen);
+    }
+
+    public static string FormatVnd(decimal amount)
+    {
+        var culture = new System.Globalization.CultureInfo("vi-VN");
+        return amount % 1 == 0
+            ? $"{amount.ToString("#,##0", culture)} VND"
+            : $"{amount.ToString("#,##0.##", culture)} VND";
     }
 }

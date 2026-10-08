@@ -20,12 +20,16 @@
                         var isExpired = reader.LibraryCard != null && reader.LibraryCard.ExpiresOn < DateOnly.FromDateTime(DateTime.Today);
                         var isLocked = reader.IsLocked || (reader.LibraryCard != null && reader.LibraryCard.IsLocked);
                         var hasOverdue = Model.ReaderHasOverdue.Contains(reader.Id);
+                        var totalDebt = reader.TotalDebt;
+                        var debtText = Project.Services.BookLoanService.FormatVnd(totalDebt);
                         <option value="@reader.Id"
                                 data-current-loans="@currentLoans"
                                 data-max-loans="@limit"
                                 data-is-expired="@(isExpired ? "true" : "false")"
                                 data-is-locked="@(isLocked ? "true" : "false")"
-                                data-has-overdue="@(hasOverdue ? "true" : "false")">
+                                data-has-overdue="@(hasOverdue ? "true" : "false")"
+                                data-debt="@totalDebt"
+                                data-debt-text="@debtText">
                             @reader.FullName (@reader.StudentOrStaffCode) - Đang mượn: @currentLoans/@limit sách
                         </option>
                     }
@@ -57,6 +61,8 @@
                 var isExpired = selected.getAttribute('data-is-expired') === 'true';
                 var isLocked = selected.getAttribute('data-is-locked') === 'true';
                 var hasOverdue = selected.getAttribute('data-has-overdue') === 'true';
+                var debt = parseFloat(selected.getAttribute('data-debt') || '0');
+                var debtText = selected.getAttribute('data-debt-text') || '';
                 var isReached = current >= max;
 
                 var html = '<span class="badge ' + (isReached ? 'bg-danger' : 'bg-info text-dark') + '">' +
@@ -72,6 +78,9 @@
                 }
                 if (hasOverdue) {
                     html += ' <span class="badge bg-danger">Có phiếu quá hạn chưa trả</span>';
+                }
+                if (debt > 0) {
+                    html += ' <span class="badge bg-danger">Còn nợ: ' + debtText + '</span>';
                 }
 
                 info.innerHTML = html;
