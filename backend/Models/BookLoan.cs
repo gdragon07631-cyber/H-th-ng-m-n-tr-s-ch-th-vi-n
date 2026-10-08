@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Project.Models;
 
@@ -14,6 +15,23 @@ public sealed class BookLoan
     public DateOnly DueDate { get; set; }
     public int RenewalCount { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    [NotMapped]
+    public DateOnly? ReturnDate { get; set; }
+
+    [NotMapped]
+    public string? Status { get; set; }
+
+    [NotMapped]
+    public bool IsReturned
+    {
+        get => _isReturned
+            || ReturnDate.HasValue
+            || string.Equals(Status, "Đã trả", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Status, "Da tra", StringComparison.OrdinalIgnoreCase);
+        set => _isReturned = value;
+    }
+    private bool _isReturned;
 }
 
 public sealed class CreateBookLoanViewModel : IValidatableObject
@@ -55,5 +73,6 @@ public sealed class LoanIndexViewModel
     public IReadOnlyList<Book> Books { get; set; } = [];
     public IReadOnlyList<ReaderAccount> Readers { get; set; } = [];
     public IReadOnlyDictionary<int, int> ReaderLoanCounts { get; set; } = new Dictionary<int, int>();
+    public IReadOnlySet<int> ReaderHasOverdue { get; set; } = new HashSet<int>();
     public CreateBookLoanViewModel NewLoan { get; set; } = new();
 }

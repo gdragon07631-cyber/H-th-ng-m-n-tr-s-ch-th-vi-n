@@ -36,21 +36,61 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
                 .ThenInclude(card => card!.LibraryCardType)
             .FirstOrDefaultAsync(r => r.Id == readerAccountId, cancellationToken);
         if (reader == null) return new(false, "Không tìm thấy bạn đọc.", []);
-        if (!string.Equals(reader.Status, "Đang hoạt động", StringComparison.OrdinalIgnoreCase))
-            return new(false, "Bạn đọc chưa ở trạng thái hoạt động.", []);
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var checkDate = loanDate != default ? loanDate : today;
+
+        var isCardLocked = reader.IsLocked
+            || (reader.LibraryCard != null && reader.LibraryCard.IsLocked)
+            || reader.Status.Contains("khóa", StringComparison.OrdinalIgnoreCase)
+            || reader.Status.Contains("khoá", StringComparison.OrdinalIgnoreCase);
+
+        var isCardExpired = reader.LibraryCard != null && reader.LibraryCard.ExpiresOn < checkDate;
+
+        var readerLoans = await db.BookLoans
+            .Where(l => l.ReaderAccountId == readerAccountId)
+            .ToListAsync(cancellationToken);
+
+        var hasOverdueLoan = readerLoans.Any(l => !l.IsReturned && l.DueDate < checkDate);
 
         var maxBooks = reader.LibraryCard?.LibraryCardType?.MaxBooks ?? LibraryCardType.DefaultMaxBooks;
-        var currentLoans = await db.BookLoans.CountAsync(l => l.ReaderAccountId == readerAccountId, cancellationToken);
+        var currentLoans = readerLoans.Count(l => !l.IsReturned);
 
-        if (currentLoans >= maxBooks)
+        var isLimitReached = currentLoans >= maxBooks;
+        var isBatchExceeded = !isLimitReached && (currentLoans + bookIds.Count > maxBooks);
+
+        var errors = new List<string>();
+
+        if (isCardLocked)
         {
-            return new(false, $"Bạn đang mượn {currentLoans}/{maxBooks} sách, không thể mượn thêm.", []);
+            errors.Add("Thẻ bạn đọc đang bị khoá.");
         }
 
-        if (currentLoans + bookIds.Count > maxBooks)
+        if (isCardExpired)
         {
-            return new(false, $"Bạn đang mượn {currentLoans}/{maxBooks} sách, không thể mượn thêm {bookIds.Count} sách vì vượt quá hạn mức ({maxBooks} sách).", []);
+            errors.Add("Thẻ bạn đọc đã hết hạn.");
         }
+
+        if (hasOverdueLoan)
+        {
+            errors.Add("Bạn đọc đang có phiếu mượn quá hạn chưa trả.");
+        }
+
+        if (isLimitReached)
+        {
+            errors.Add($"Bạn đang mượn {currentLoans}/{maxBooks} sách, không thể mượn thêm.");
+        }
+        else if (isBatchExceeded)
+        {
+            errors.Add($"Bạn đang mượn {currentLoans}/{maxBooks} sách, không thể mượn thêm {bookIds.Count} sách vì vượt quá hạn mức ({maxBooks} sách).");
+        }
+
+        if (errors.Count > 0)
+        {
+            return new(false, string.Join(" ", errors), []);
+        }
+
+        if (!string.Equals(reader.Status, "Đang hoạt động", StringComparison.OrdinalIgnoreCase))
+            return new(false, "Bạn đọc chưa ở trạng thái hoạt động.", []);
 
         var books = new List<Book>();
         foreach (var bookId in bookIds)

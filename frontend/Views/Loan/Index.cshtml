@@ -17,7 +17,15 @@
                     @foreach (var reader in Model.Readers) {
                         var currentLoans = Model.ReaderLoanCounts.TryGetValue(reader.Id, out var count) ? count : 0;
                         var limit = reader.LibraryCard?.LibraryCardType?.MaxBooks ?? Project.Models.LibraryCardType.DefaultMaxBooks;
-                        <option value="@reader.Id" data-current-loans="@currentLoans" data-max-loans="@limit">
+                        var isExpired = reader.LibraryCard != null && reader.LibraryCard.ExpiresOn < DateOnly.FromDateTime(DateTime.Today);
+                        var isLocked = reader.IsLocked || (reader.LibraryCard != null && reader.LibraryCard.IsLocked);
+                        var hasOverdue = Model.ReaderHasOverdue.Contains(reader.Id);
+                        <option value="@reader.Id"
+                                data-current-loans="@currentLoans"
+                                data-max-loans="@limit"
+                                data-is-expired="@(isExpired ? "true" : "false")"
+                                data-is-locked="@(isLocked ? "true" : "false")"
+                                data-has-overdue="@(hasOverdue ? "true" : "false")">
                             @reader.FullName (@reader.StudentOrStaffCode) - Đang mượn: @currentLoans/@limit sách
                         </option>
                     }
@@ -46,11 +54,27 @@
             if (selected && selected.value) {
                 var current = parseInt(selected.getAttribute('data-current-loans') || '0', 10);
                 var max = parseInt(selected.getAttribute('data-max-loans') || '5', 10);
+                var isExpired = selected.getAttribute('data-is-expired') === 'true';
+                var isLocked = selected.getAttribute('data-is-locked') === 'true';
+                var hasOverdue = selected.getAttribute('data-has-overdue') === 'true';
                 var isReached = current >= max;
-                info.innerHTML = '<span class="badge ' + (isReached ? 'bg-danger' : 'bg-info text-dark') + '">' +
+
+                var html = '<span class="badge ' + (isReached ? 'bg-danger' : 'bg-info text-dark') + '">' +
                     'Đang mượn: ' + current + '/' + max + ' sách' +
                     (isReached ? ' (Đã đạt hạn mức)' : '') +
                     '</span>';
+
+                if (isLocked) {
+                    html += ' <span class="badge bg-danger">Thẻ đang bị khoá</span>';
+                }
+                if (isExpired) {
+                    html += ' <span class="badge bg-danger">Thẻ đã hết hạn</span>';
+                }
+                if (hasOverdue) {
+                    html += ' <span class="badge bg-danger">Có phiếu quá hạn chưa trả</span>';
+                }
+
+                info.innerHTML = html;
             } else {
                 info.textContent = '';
             }

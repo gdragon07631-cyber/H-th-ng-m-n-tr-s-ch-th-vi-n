@@ -213,11 +213,20 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
             .ToListAsync(ct);
 
         var readerIds = readers.Select(r => r.Id).ToList();
-        var loanCounts = await db.BookLoans.AsNoTracking()
+        var allLoans = await db.BookLoans.AsNoTracking()
             .Where(l => readerIds.Contains(l.ReaderAccountId))
+            .ToListAsync(ct);
+
+        var loanCounts = allLoans
+            .Where(l => !l.IsReturned)
             .GroupBy(l => l.ReaderAccountId)
-            .Select(g => new { ReaderAccountId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.ReaderAccountId, x => x.Count, ct);
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var overdueReaderIds = allLoans
+            .Where(l => !l.IsReturned && l.DueDate < today)
+            .Select(l => l.ReaderAccountId)
+            .ToHashSet();
 
         return new()
         {
@@ -225,7 +234,8 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
             Books = await db.Books.AsNoTracking().OrderBy(book => book.Title).ToListAsync(ct),
             Readers = readers,
             ReaderLoanCounts = loanCounts,
-            NewLoan = new CreateBookLoanViewModel { LoanDate = DateOnly.FromDateTime(DateTime.Today) }
+            ReaderHasOverdue = overdueReaderIds,
+            NewLoan = new CreateBookLoanViewModel { LoanDate = today }
         };
     }
 
