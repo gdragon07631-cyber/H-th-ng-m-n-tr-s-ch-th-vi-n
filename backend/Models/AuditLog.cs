@@ -17,11 +17,8 @@ public static class AuditActions
     public const string RenewLoan = "Gia hạn mượn";
     public const string PlaceHold = "Đặt giữ sách";
     public const string CancelHold = "Hủy đặt giữ";
-<<<<<<< Updated upstream
-=======
     public const string BlockLoan = "Chặn mượn sách";
     public const string OverrideBlockLoan = "Bỏ qua chặn mượn sách";
->>>>>>> Stashed changes
 
     public static readonly IReadOnlyList<string> All =
     [
@@ -32,12 +29,8 @@ public static class AuditActions
     /// <summary>Màu nhãn trên trang nhật ký để phân biệt nhanh từng nhóm hành động.</summary>
     public static string BadgeClass(string action) => action switch
     {
-<<<<<<< Updated upstream
-        LoginFailed => "bg-danger-subtle text-danger-emphasis",
-=======
         LoginFailed or BlockLoan => "bg-danger-subtle text-danger-emphasis",
         OverrideBlockLoan => "bg-warning-subtle text-warning-emphasis",
->>>>>>> Stashed changes
         Login or Logout => "bg-secondary-subtle text-secondary-emphasis",
         ChangePassword or ResetPassword => "bg-warning-subtle text-warning-emphasis",
         CreateLoan or RenewLoan => "bg-success-subtle text-success-emphasis",

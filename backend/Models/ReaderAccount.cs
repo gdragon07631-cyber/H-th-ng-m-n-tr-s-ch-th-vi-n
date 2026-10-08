@@ -1,6 +1,30 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Project.Models;
+
+public sealed class ReaderFee
+{
+    public int Id { get; set; }
+    public int ReaderAccountId { get; set; }
+    public decimal Amount { get; set; }
+    public decimal PaidAmount { get; set; }
+    public bool IsPaid { get; set; }
+    public string? Status { get; set; }
+    public string? Description { get; set; }
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    public decimal RemainingAmount
+    {
+        get
+        {
+            if (IsPaid || string.Equals(Status, "Đã thanh toán", StringComparison.OrdinalIgnoreCase) || string.Equals(Status, "Da thanh toan", StringComparison.OrdinalIgnoreCase))
+                return 0m;
+            var remaining = Amount - PaidAmount;
+            return remaining > 0m ? remaining : 0m;
+        }
+    }
+}
 
 public sealed class ReaderAccount
 {
@@ -59,6 +83,22 @@ public sealed class ReaderAccount
     public string? LockReason { get; set; }
 
     public decimal OutstandingBalance { get; set; }
+
+    [NotMapped]
+    public ICollection<ReaderFee> Fees { get; set; } = [];
+
+    [NotMapped]
+    public decimal TotalDebt
+    {
+        get
+        {
+            if (Fees != null && Fees.Count > 0)
+            {
+                return Fees.Sum(f => f.RemainingAmount);
+            }
+            return OutstandingBalance > 0m ? OutstandingBalance : 0m;
+        }
+    }
 
     public LibraryCard? LibraryCard { get; set; }
     public ICollection<BookHold> BookHolds { get; set; } = [];

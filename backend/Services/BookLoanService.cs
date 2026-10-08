@@ -15,34 +15,159 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
                 .ThenInclude(card => card!.LibraryCardType)
             .OrderByDescending(loan => loan.CreatedAtUtc).ToListAsync(cancellationToken);
 
-    public async Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, CancellationToken cancellationToken = default)
+    public Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, CancellationToken cancellationToken = default) =>
+        CreateAsync(bookId, readerAccountId, loanDate, null, cancellationToken);
+
+    public async Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, string? actor, CancellationToken cancellationToken = default)
     {
-        var book = await db.Books.FindAsync([bookId], cancellationToken);
-        if (book == null) return new(false, "Không tìm thấy sách.");
-        var reader = await db.ReaderAccounts.FindAsync([readerAccountId], cancellationToken);
-        if (reader == null) return new(false, "Không tìm thấy bạn đọc.");
+        var result = await CreateManyAsync([bookId], readerAccountId, loanDate, actor, cancellationToken);
+        if (!result.IsSuccess)
+        {
+            return new(false, result.ErrorMessage);
+        }
+        return new(true, Loan: result.Loans.FirstOrDefault());
+    }
+
+    public Task<BatchBookLoanOutcome> CreateManyAsync(
+        IReadOnlyList<int> bookIds, int readerAccountId, DateOnly loanDate, CancellationToken cancellationToken = default) =>
+        CreateManyAsync(bookIds, readerAccountId, loanDate, null, cancellationToken);
+
+    public async Task<BatchBookLoanOutcome> CreateManyAsync(
+        IReadOnlyList<int> bookIds, int readerAccountId, DateOnly loanDate, string? actor, CancellationToken cancellationToken = default)
+    {
+        if (bookIds == null || bookIds.Count == 0)
+            return new(false, "Vui lòng chọn ít nhất một cuốn sách.", []);
+
+        var reader = await db.ReaderAccounts
+            .Include(r => r.LibraryCard)
+                .ThenInclude(card => card!.LibraryCardType)
+            .FirstOrDefaultAsync(r => r.Id == readerAccountId, cancellationToken);
+        if (reader == null) return new(false, "Không tìm thấy bạn đọc.", []);
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var checkDate = loanDate != default ? loanDate : today;
+
+        var isCardLocked = reader.IsLocked
+            || (reader.LibraryCard != null && string.Equals(reader.LibraryCard.Status, "Bị khoá", StringComparison.OrdinalIgnoreCase))
+            || (reader.LibraryCard != null && reader.LibraryCard.IsLocked)
+            || reader.Status.Contains("khóa", StringComparison.OrdinalIgnoreCase)
+            || reader.Status.Contains("khoá", StringComparison.OrdinalIgnoreCase);
+
+        var isCardExpired = reader.LibraryCard != null && reader.LibraryCard.ExpiresOn < checkDate;
+
+        var readerLoans = await db.BookLoans
+            .Where(l => l.ReaderAccountId == readerAccountId)
+            .ToListAsync(cancellationToken);
+
+        var hasOverdueLoan = readerLoans.Any(l => !l.IsReturned && l.DueDate < checkDate);
+
+        var totalDebt = reader.TotalDebt;
+        var hasUnpaidFee = totalDebt > 0m;
+
+        var maxBooks = reader.LibraryCard?.LibraryCardType?.MaxBooks ?? LibraryCardType.DefaultMaxBooks;
+        var currentLoans = readerLoans.Count(l => !l.IsReturned);
+
+        var isLimitReached = currentLoans >= maxBooks;
+        var isBatchExceeded = !isLimitReached && (currentLoans + bookIds.Count > maxBooks);
+
+        var errors = new List<string>();
+
+        if (isCardLocked)
+        {
+            errors.Add("Thẻ bạn đọc đang bị khoá.");
+        }
+
+        if (isCardExpired)
+        {
+            errors.Add("Thẻ bạn đọc đã hết hạn.");
+        }
+
+        if (hasOverdueLoan)
+        {
+            errors.Add("Bạn đọc đang có phiếu mượn quá hạn chưa trả.");
+        }
+
+        if (hasUnpaidFee)
+        {
+            errors.Add($"Bạn còn nợ {FormatVnd(totalDebt)}, không thể mượn sách.");
+        }
+
+        if (isLimitReached)
+        {
+            errors.Add($"Bạn đang mượn {currentLoans}/{maxBooks} sách, không thể mượn thêm.");
+        }
+        else if (isBatchExceeded)
+        {
+            errors.Add($"Bạn đang mượn {currentLoans}/{maxBooks} sách, không thể mượn thêm {bookIds.Count} sách vì vượt quá hạn mức ({maxBooks} sách).");
+        }
+
+        if (errors.Count > 0)
+        {
+            var errorMessage = string.Join(" ", errors);
+            var operatorName = !string.IsNullOrWhiteSpace(actor) ? actor : "Thủ thư";
+            var blockLog = new AuditLog
+            {
+                OccurredAtUtc = DateTime.UtcNow,
+                Actor = operatorName,
+                Action = AuditActions.BlockLoan,
+                Target = $"Bạn đọc #{reader.Id} {reader.FullName} ({reader.Email}) – Lý do: {errorMessage}",
+                IpAddress = "127.0.0.1"
+            };
+            db.AuditLogs.Add(blockLog);
+            await db.SaveChangesAsync(cancellationToken);
+
+            return new(false, errorMessage, []);
+        }
+
         if (!string.Equals(reader.Status, "Đang hoạt động", StringComparison.OrdinalIgnoreCase))
-            return new(false, "Bạn đọc chưa ở trạng thái hoạt động.");
+        {
+            var operatorName = !string.IsNullOrWhiteSpace(actor) ? actor : "Thủ thư";
+            var blockLog = new AuditLog
+            {
+                OccurredAtUtc = DateTime.UtcNow,
+                Actor = operatorName,
+                Action = AuditActions.BlockLoan,
+                Target = $"Bạn đọc #{reader.Id} {reader.FullName} ({reader.Email}) – Lý do: Bạn đọc chưa ở trạng thái hoạt động.",
+                IpAddress = "127.0.0.1"
+            };
+            db.AuditLogs.Add(blockLog);
+            await db.SaveChangesAsync(cancellationToken);
+
+            return new(false, "Bạn đọc chưa ở trạng thái hoạt động.", []);
+        }
+
+        var books = new List<Book>();
+        foreach (var bookId in bookIds)
+        {
+            var book = await db.Books.FindAsync([bookId], cancellationToken);
+            if (book == null) return new(false, "Không tìm thấy sách.", []);
+            books.Add(book);
+        }
 
         var originalDueDate = loanDate.AddDays(DefaultLoanDays);
         DateOnly dueDate;
         try { dueDate = await AdjustDueDateAsync(originalDueDate, cancellationToken); }
-        catch (InvalidOperationException exception) { return new(false, exception.Message); }
+        catch (InvalidOperationException exception) { return new(false, exception.Message, []); }
 
-        var loan = new BookLoan
+        var createdLoans = new List<BookLoan>();
+        foreach (var book in books)
         {
-            BookId = bookId,
-            ReaderAccountId = readerAccountId,
-            LoanDate = loanDate,
-            OriginalDueDate = originalDueDate,
-            DueDate = dueDate,
-            CreatedAtUtc = DateTime.UtcNow,
-            Book = book,
-            ReaderAccount = reader
-        };
-        db.BookLoans.Add(loan);
+            var loan = new BookLoan
+            {
+                BookId = book.Id,
+                ReaderAccountId = readerAccountId,
+                LoanDate = loanDate,
+                OriginalDueDate = originalDueDate,
+                DueDate = dueDate,
+                CreatedAtUtc = DateTime.UtcNow,
+                Book = book,
+                ReaderAccount = reader
+            };
+            db.BookLoans.Add(loan);
+            createdLoans.Add(loan);
+        }
+
         await db.SaveChangesAsync(cancellationToken);
-        return new(true, Loan: loan);
+        return new(true, Loans: createdLoans);
     }
 
     public async Task<RenewBookLoanOutcome> RenewAsync(long loanId, DateOnly today, CancellationToken cancellationToken = default)
@@ -52,7 +177,6 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
             .ThenInclude(card => card!.LibraryCardType)
             .FirstOrDefaultAsync(item => item.Id == loanId, cancellationToken);
         if (loan == null) return new(false, "Không tìm thấy phiếu mượn.");
-        // The current loan model has no closed/returned state; existing loans are open until that workflow exists.
         if (loan.DueDate < today) return new(false, "Phiếu mượn đã quá hạn.");
         var cardType = loan.ReaderAccount?.LibraryCard?.LibraryCardType;
         if (cardType == null) return new(false, "Bạn đọc chưa có loại thẻ hợp lệ.");
@@ -97,8 +221,6 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
         return DueDateAdjuster.AdjustDueDate(proposedDate,
             date => !holidayDates.Contains(date) && openByDay.TryGetValue(date.DayOfWeek, out var isOpen) && isOpen);
     }
-<<<<<<< Updated upstream
-=======
 
     public static string FormatVnd(decimal amount)
     {
@@ -143,7 +265,8 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
         }
 
         var checkDate = loanDate;
-        var isCardLocked = (reader.LibraryCard != null && string.Equals(reader.LibraryCard.Status, "Bị khoá", StringComparison.OrdinalIgnoreCase))
+        var isCardLocked = reader.IsLocked
+            || (reader.LibraryCard != null && string.Equals(reader.LibraryCard.Status, "Bị khoá", StringComparison.OrdinalIgnoreCase))
             || (reader.LibraryCard != null && reader.LibraryCard.IsLocked)
             || reader.Status.Contains("khóa", StringComparison.OrdinalIgnoreCase)
             || reader.Status.Contains("khoá", StringComparison.OrdinalIgnoreCase);
@@ -336,5 +459,4 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
             entry.ReaderName = readerPart;
         }
     }
->>>>>>> Stashed changes
 }

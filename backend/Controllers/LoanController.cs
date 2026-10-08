@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Project.Filters;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -55,16 +56,6 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
             return View(nameof(Index), await BuildModel(ct));
         }
 
-<<<<<<< Updated upstream
-        var result = await loans.CreateAsync(model.BookId, model.ReaderAccountId, model.LoanDate.Value, ct);
-        await LogLoanAsync(AuditActions.CreateLoan, model.BookId, model.ReaderAccountId, result.IsSuccess
-            ? $"lập phiếu mượn #{result.Loan!.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {result.Loan!.DueDate:dd/MM/yyyy}"
-            : $"lập phiếu mượn thất bại: {result.ErrorMessage}", ct);
-        TempData[result.IsSuccess ? "SuccessMessage" : "ErrorMessage"] = result.IsSuccess
-            ? $"Đã tạo phiếu mượn. Hạn trả: {result.Loan!.DueDate:dd/MM/yyyy}."
-            : result.ErrorMessage;
-        return RedirectToAction(nameof(Index));
-=======
         var bookIds = model.BookIds != null && model.BookIds.Count > 0
             ? model.BookIds
             : (model.BookId > 0 ? [model.BookId] : new List<int>());
@@ -120,7 +111,6 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
             }
             return RedirectToAction(nameof(Index));
         }
->>>>>>> Stashed changes
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -187,14 +177,7 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
     {
         if (model?.LoanDate == null || !TryValidateModel(model))
             return BadRequest(new { message = "Dữ liệu phiếu mượn không hợp lệ." });
-<<<<<<< Updated upstream
-        var result = await loans.CreateAsync(model.BookId, model.ReaderAccountId, model.LoanDate.Value, ct);
-        await LogLoanAsync(AuditActions.CreateLoan, model.BookId, model.ReaderAccountId, result.IsSuccess
-            ? $"lập phiếu mượn #{result.Loan!.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {result.Loan!.DueDate:dd/MM/yyyy}"
-            : $"lập phiếu mượn thất bại: {result.ErrorMessage}", ct);
-        if (!result.IsSuccess) return BadRequest(new { message = result.ErrorMessage });
-        return Created($"/api/loans/{result.Loan!.Id}", ToApiModel(result.Loan));
-=======
+
 
         var bookIds = model.BookIds != null && model.BookIds.Count > 0
             ? model.BookIds
@@ -344,7 +327,6 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
         var context = new ValidationContext(model);
         var results = new List<ValidationResult>();
         return Validator.TryValidateObject(model, context, results, true);
->>>>>>> Stashed changes
     }
 
     [HttpPost("api/loans/{id:long}/renew")]
@@ -382,16 +364,8 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
         }
     }
 
-    private async Task<LoanIndexViewModel> BuildModel(CancellationToken ct) => new()
+    private async Task<LoanIndexViewModel> BuildModel(CancellationToken ct)
     {
-<<<<<<< Updated upstream
-        Loans = await loans.GetAllAsync(ct),
-        Books = await db.Books.AsNoTracking().OrderBy(book => book.Title).ToListAsync(ct),
-        Readers = await db.ReaderAccounts.AsNoTracking()
-            .Where(reader => reader.Status == "Đang hoạt động").OrderBy(reader => reader.FullName).ToListAsync(ct),
-        NewLoan = new CreateBookLoanViewModel { LoanDate = DateOnly.FromDateTime(DateTime.Today) }
-    };
-=======
         var readers = await db.ReaderAccounts.AsNoTracking()
             .Include(reader => reader.LibraryCard)
                 .ThenInclude(card => card!.LibraryCardType)
@@ -430,7 +404,6 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
             CanOverride = canOverride
         };
     }
->>>>>>> Stashed changes
 
     private async Task LogLoanAsync(string action, int bookId, int readerId, string detail, CancellationToken ct)
     {

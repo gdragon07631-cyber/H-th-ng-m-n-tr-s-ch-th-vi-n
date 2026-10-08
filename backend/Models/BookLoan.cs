@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Project.Models;
 
@@ -14,18 +15,42 @@ public sealed class BookLoan
     public DateOnly DueDate { get; set; }
     public int RenewalCount { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    [NotMapped]
+    public DateOnly? ReturnDate { get; set; }
+
+    [NotMapped]
+    public DateOnly? ReturnedDate
+    {
+        get => ReturnDate;
+        set => ReturnDate = value;
+    }
+
+    [NotMapped]
+    public string? Status { get; set; }
+
+    [NotMapped]
+    public bool IsReturned
+    {
+        get => _isReturned
+            || ReturnDate.HasValue
+            || string.Equals(Status, "Đã trả", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Status, "Da tra", StringComparison.OrdinalIgnoreCase);
+        set => _isReturned = value;
+    }
+    private bool _isReturned;
 }
 
-public sealed class CreateBookLoanViewModel
+public sealed class CreateBookLoanViewModel : IValidatableObject
 {
-    [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn sách.")]
     public int BookId { get; set; }
+    public List<int>? BookIds { get; set; }
+
     [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn bạn đọc.")]
     public int ReaderAccountId { get; set; }
+
     [Required(ErrorMessage = "Vui lòng chọn ngày mượn.")]
     public DateOnly? LoanDate { get; set; }
-<<<<<<< Updated upstream
-=======
 
     public string? BypassReason { get; set; }
 
@@ -96,7 +121,6 @@ public sealed class BlockedLoanLogEntry
     public string Status { get; set; } = "Bị chặn";
     public bool IsOverridden => Status == "Đã bỏ qua";
     public string Target { get; set; } = string.Empty;
->>>>>>> Stashed changes
 }
 
 public sealed class LoanIndexViewModel
@@ -104,6 +128,9 @@ public sealed class LoanIndexViewModel
     public IReadOnlyList<BookLoan> Loans { get; set; } = [];
     public IReadOnlyList<Book> Books { get; set; } = [];
     public IReadOnlyList<ReaderAccount> Readers { get; set; } = [];
+    public IReadOnlyDictionary<int, int> ReaderLoanCounts { get; set; } = new Dictionary<int, int>();
+    public IReadOnlySet<int> ReaderHasOverdue { get; set; } = new HashSet<int>();
+    public IReadOnlyList<BlockedLoanLogEntry> BlockedLoanLogs { get; set; } = [];
     public CreateBookLoanViewModel NewLoan { get; set; } = new();
     public bool CanOverride { get; set; }
 }
