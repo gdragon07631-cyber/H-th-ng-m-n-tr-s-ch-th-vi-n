@@ -15,9 +15,12 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
                 .ThenInclude(card => card!.LibraryCardType)
             .OrderByDescending(loan => loan.CreatedAtUtc).ToListAsync(cancellationToken);
 
-    public async Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, CancellationToken cancellationToken = default)
+    public Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, CancellationToken cancellationToken = default) =>
+        CreateAsync(bookId, readerAccountId, loanDate, null, cancellationToken);
+
+    public async Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, string? actor, CancellationToken cancellationToken = default)
     {
-        var result = await CreateManyAsync([bookId], readerAccountId, loanDate, cancellationToken);
+        var result = await CreateManyAsync([bookId], readerAccountId, loanDate, actor, cancellationToken);
         if (!result.IsSuccess)
         {
             return new(false, result.ErrorMessage);
@@ -25,8 +28,12 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
         return new(true, Loan: result.Loans.FirstOrDefault());
     }
 
+    public Task<BatchBookLoanOutcome> CreateManyAsync(
+        IReadOnlyList<int> bookIds, int readerAccountId, DateOnly loanDate, CancellationToken cancellationToken = default) =>
+        CreateManyAsync(bookIds, readerAccountId, loanDate, null, cancellationToken);
+
     public async Task<BatchBookLoanOutcome> CreateManyAsync(
-        IReadOnlyList<int> bookIds, int readerAccountId, DateOnly loanDate, CancellationToken cancellationToken = default)
+        IReadOnlyList<int> bookIds, int readerAccountId, DateOnly loanDate, string? actor, CancellationToken cancellationToken = default)
     {
         if (bookIds == null || bookIds.Count == 0)
             return new(false, "Vui lòng chọn ít nhất một cuốn sách.", []);
@@ -94,11 +101,38 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
 
         if (errors.Count > 0)
         {
-            return new(false, string.Join(" ", errors), []);
+            var errorMessage = string.Join(" ", errors);
+            var operatorName = !string.IsNullOrWhiteSpace(actor) ? actor : "Thủ thư";
+            var blockLog = new AuditLog
+            {
+                OccurredAtUtc = DateTime.UtcNow,
+                Actor = operatorName,
+                Action = AuditActions.BlockLoan,
+                Target = $"Bạn đọc #{reader.Id} {reader.FullName} ({reader.Email}) – Lý do: {errorMessage}",
+                IpAddress = "127.0.0.1"
+            };
+            db.AuditLogs.Add(blockLog);
+            await db.SaveChangesAsync(cancellationToken);
+
+            return new(false, errorMessage, []);
         }
 
         if (!string.Equals(reader.Status, "Đang hoạt động", StringComparison.OrdinalIgnoreCase))
+        {
+            var operatorName = !string.IsNullOrWhiteSpace(actor) ? actor : "Thủ thư";
+            var blockLog = new AuditLog
+            {
+                OccurredAtUtc = DateTime.UtcNow,
+                Actor = operatorName,
+                Action = AuditActions.BlockLoan,
+                Target = $"Bạn đọc #{reader.Id} {reader.FullName} ({reader.Email}) – Lý do: Bạn đọc chưa ở trạng thái hoạt động.",
+                IpAddress = "127.0.0.1"
+            };
+            db.AuditLogs.Add(blockLog);
+            await db.SaveChangesAsync(cancellationToken);
+
             return new(false, "Bạn đọc chưa ở trạng thái hoạt động.", []);
+        }
 
         var books = new List<Book>();
         foreach (var bookId in bookIds)
@@ -194,5 +228,63 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
         return amount % 1 == 0
             ? $"{amount.ToString("#,##0", culture)} VND"
             : $"{amount.ToString("#,##0.##", culture)} VND";
+    }
+
+    public async Task<IReadOnlyList<BlockedLoanLogEntry>> GetBlockedLoanLogsAsync(
+        int? readerAccountId = null, CancellationToken cancellationToken = default)
+    {
+        var logs = await db.AuditLogs.AsNoTracking()
+            .Where(l => l.Action == AuditActions.BlockLoan)
+            .OrderByDescending(l => l.OccurredAtUtc)
+            .ToListAsync(cancellationToken);
+
+        var result = new List<BlockedLoanLogEntry>();
+        foreach (var log in logs)
+        {
+            var entry = ToBlockedLoanLogEntry(log);
+            if (readerAccountId == null || entry.ReaderAccountId == readerAccountId.Value)
+            {
+                result.Add(entry);
+            }
+        }
+        return result;
+    }
+
+    public static BlockedLoanLogEntry ToBlockedLoanLogEntry(AuditLog log)
+    {
+        var entry = new BlockedLoanLogEntry
+        {
+            Id = log.Id,
+            OccurredAtUtc = log.OccurredAtUtc,
+            Operator = log.Actor,
+            Target = log.Target
+        };
+
+        const string reasonPrefix = " – Lý do: ";
+        var reasonIdx = log.Target.IndexOf(reasonPrefix, StringComparison.Ordinal);
+        if (reasonIdx >= 0)
+        {
+            entry.Reason = log.Target[(reasonIdx + reasonPrefix.Length)..].Trim();
+            var readerPart = log.Target[..reasonIdx].Trim();
+            var match = System.Text.RegularExpressions.Regex.Match(readerPart, @"Bạn đọc #(\d+)\s+([^(]+)(?:\(([^)]+)\))?");
+            if (match.Success)
+            {
+                if (int.TryParse(match.Groups[1].Value, out var id))
+                    entry.ReaderAccountId = id;
+                entry.ReaderName = match.Groups[2].Value.Trim();
+                if (match.Groups.Count > 3)
+                    entry.ReaderEmail = match.Groups[3].Value.Trim();
+            }
+            else
+            {
+                entry.ReaderName = readerPart;
+            }
+        }
+        else
+        {
+            entry.Reason = log.Target;
+        }
+
+        return entry;
     }
 }

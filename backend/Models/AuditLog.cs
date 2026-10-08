@@ -17,6 +17,7 @@ public static class AuditActions
     public const string RenewLoan = "Gia hạn mượn";
     public const string PlaceHold = "Đặt giữ sách";
     public const string CancelHold = "Hủy đặt giữ";
+    public const string BlockLoan = "Chặn mượn sách";
 
     public static readonly IReadOnlyList<string> All =
     [
@@ -27,7 +28,7 @@ public static class AuditActions
     /// <summary>Màu nhãn trên trang nhật ký để phân biệt nhanh từng nhóm hành động.</summary>
     public static string BadgeClass(string action) => action switch
     {
-        LoginFailed => "bg-danger-subtle text-danger-emphasis",
+        LoginFailed or BlockLoan => "bg-danger-subtle text-danger-emphasis",
         Login or Logout => "bg-secondary-subtle text-secondary-emphasis",
         ChangePassword or ResetPassword => "bg-warning-subtle text-warning-emphasis",
         CreateLoan or RenewLoan => "bg-success-subtle text-success-emphasis",

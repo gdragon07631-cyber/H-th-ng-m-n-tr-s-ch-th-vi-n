@@ -67,6 +67,18 @@ public sealed class CreateBatchBookLoanViewModel
     public DateOnly? LoanDate { get; set; }
 }
 
+public sealed class BlockedLoanLogEntry
+{
+    public long Id { get; set; }
+    public DateTime OccurredAtUtc { get; set; }
+    public string Operator { get; set; } = string.Empty;
+    public int ReaderAccountId { get; set; }
+    public string ReaderName { get; set; } = string.Empty;
+    public string ReaderEmail { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
+    public string Target { get; set; } = string.Empty;
+}
+
 public sealed class LoanIndexViewModel
 {
     public IReadOnlyList<BookLoan> Loans { get; set; } = [];
@@ -74,5 +86,6 @@ public sealed class LoanIndexViewModel
     public IReadOnlyList<ReaderAccount> Readers { get; set; } = [];
     public IReadOnlyDictionary<int, int> ReaderLoanCounts { get; set; } = new Dictionary<int, int>();
     public IReadOnlySet<int> ReaderHasOverdue { get; set; } = new HashSet<int>();
+    public IReadOnlyList<BlockedLoanLogEntry> BlockedLoanLogs { get; set; } = [];
     public CreateBookLoanViewModel NewLoan { get; set; } = new();
 }

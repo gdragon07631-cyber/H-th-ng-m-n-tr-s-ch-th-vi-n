@@ -44,21 +44,29 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
             return View(nameof(Index), await BuildModel(ct));
         }
 
+        var audit = HttpContext?.RequestServices?.GetService<IAuditLogService>();
+        var staff = audit != null ? await audit.GetSignedInStaffAsync(Request, ct) : null;
+        var staffEmail = staff?.Email ?? "Thủ thư";
+
         if (bookIds.Count == 1)
         {
             var singleBookId = bookIds[0];
-            var result = await loans.CreateAsync(singleBookId, model.ReaderAccountId, model.LoanDate.Value, ct);
-            await LogLoanAsync(AuditActions.CreateLoan, singleBookId, model.ReaderAccountId, result.IsSuccess
-                ? $"lập phiếu mượn #{result.Loan!.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {result.Loan!.DueDate:dd/MM/yyyy}"
-                : $"lập phiếu mượn thất bại: {result.ErrorMessage}", ct);
-            TempData[result.IsSuccess ? "SuccessMessage" : "ErrorMessage"] = result.IsSuccess
-                ? $"Đã tạo phiếu mượn. Hạn trả: {result.Loan!.DueDate:dd/MM/yyyy}."
-                : result.ErrorMessage;
+            var result = await loans.CreateAsync(singleBookId, model.ReaderAccountId, model.LoanDate.Value, staffEmail, ct);
+            if (result.IsSuccess)
+            {
+                await LogLoanAsync(AuditActions.CreateLoan, singleBookId, model.ReaderAccountId,
+                    $"lập phiếu mượn #{result.Loan!.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {result.Loan!.DueDate:dd/MM/yyyy}", ct);
+                TempData["SuccessMessage"] = $"Đã tạo phiếu mượn. Hạn trả: {result.Loan!.DueDate:dd/MM/yyyy}.";
+            }
+            else
+            {
+                TempData["ErrorMessage"] = result.ErrorMessage;
+            }
             return RedirectToAction(nameof(Index));
         }
         else
         {
-            var batchResult = await loans.CreateManyAsync(bookIds, model.ReaderAccountId, model.LoanDate.Value, ct);
+            var batchResult = await loans.CreateManyAsync(bookIds, model.ReaderAccountId, model.LoanDate.Value, staffEmail, ct);
             if (batchResult.IsSuccess)
             {
                 foreach (var loan in batchResult.Loans)
@@ -70,8 +78,6 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
             }
             else
             {
-                await LogLoanAsync(AuditActions.CreateLoan, bookIds[0], model.ReaderAccountId,
-                    $"lập phiếu mượn thất bại: {batchResult.ErrorMessage}", ct);
                 TempData["ErrorMessage"] = batchResult.ErrorMessage;
             }
             return RedirectToAction(nameof(Index));
@@ -106,23 +112,25 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
         if (bookIds.Count == 0)
             return BadRequest(new { message = "Dữ liệu phiếu mượn không hợp lệ." });
 
+        var audit = HttpContext?.RequestServices?.GetService<IAuditLogService>();
+        var staff = audit != null ? await audit.GetSignedInStaffAsync(Request, ct) : null;
+        var staffEmail = staff?.Email ?? "Thủ thư";
+
         if (bookIds.Count == 1)
         {
             var singleBookId = bookIds[0];
-            var result = await loans.CreateAsync(singleBookId, model.ReaderAccountId, model.LoanDate.Value, ct);
-            await LogLoanAsync(AuditActions.CreateLoan, singleBookId, model.ReaderAccountId, result.IsSuccess
-                ? $"lập phiếu mượn #{result.Loan!.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {result.Loan!.DueDate:dd/MM/yyyy}"
-                : $"lập phiếu mượn thất bại: {result.ErrorMessage}", ct);
+            var result = await loans.CreateAsync(singleBookId, model.ReaderAccountId, model.LoanDate.Value, staffEmail, ct);
             if (!result.IsSuccess) return BadRequest(new { message = result.ErrorMessage });
+
+            await LogLoanAsync(AuditActions.CreateLoan, singleBookId, model.ReaderAccountId,
+                $"lập phiếu mượn #{result.Loan!.Id}, ngày mượn {model.LoanDate:dd/MM/yyyy}, hạn trả {result.Loan!.DueDate:dd/MM/yyyy}", ct);
             return Created($"/api/loans/{result.Loan!.Id}", ToApiModel(result.Loan));
         }
         else
         {
-            var batchResult = await loans.CreateManyAsync(bookIds, model.ReaderAccountId, model.LoanDate.Value, ct);
+            var batchResult = await loans.CreateManyAsync(bookIds, model.ReaderAccountId, model.LoanDate.Value, staffEmail, ct);
             if (!batchResult.IsSuccess)
             {
-                await LogLoanAsync(AuditActions.CreateLoan, bookIds[0], model.ReaderAccountId,
-                    $"lập phiếu mượn thất bại: {batchResult.ErrorMessage}", ct);
                 return BadRequest(new { message = batchResult.ErrorMessage });
             }
             foreach (var loan in batchResult.Loans)
@@ -140,11 +148,13 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
         if (model?.LoanDate == null || !ValidateModel(model) || model.BookIds.Count == 0)
             return BadRequest(new { message = "Dữ liệu phiếu mượn không hợp lệ." });
 
-        var batchResult = await loans.CreateManyAsync(model.BookIds, model.ReaderAccountId, model.LoanDate.Value, ct);
+        var audit = HttpContext?.RequestServices?.GetService<IAuditLogService>();
+        var staff = audit != null ? await audit.GetSignedInStaffAsync(Request, ct) : null;
+        var staffEmail = staff?.Email ?? "Thủ thư";
+
+        var batchResult = await loans.CreateManyAsync(model.BookIds, model.ReaderAccountId, model.LoanDate.Value, staffEmail, ct);
         if (!batchResult.IsSuccess)
         {
-            await LogLoanAsync(AuditActions.CreateLoan, model.BookIds[0], model.ReaderAccountId,
-                $"lập phiếu mượn thất bại: {batchResult.ErrorMessage}", ct);
             return BadRequest(new { message = batchResult.ErrorMessage });
         }
         foreach (var loan in batchResult.Loans)
@@ -235,6 +245,7 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
             Readers = readers,
             ReaderLoanCounts = loanCounts,
             ReaderHasOverdue = overdueReaderIds,
+            BlockedLoanLogs = await loans.GetBlockedLoanLogsAsync(null, ct),
             NewLoan = new CreateBookLoanViewModel { LoanDate = today }
         };
     }

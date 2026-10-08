@@ -40,11 +40,51 @@
             <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Tạo phiếu</button></div>
         </form>
     </div></div>
-    <div class="card shadow-sm border-0"><div class="card-header bg-white"><h2 class="h5 mb-0">Danh sách phiếu mượn</h2></div><div class="table-responsive"><table class="table table-hover align-middle mb-0">
+    <div class="card shadow-sm border-0 mb-4"><div class="card-header bg-white"><h2 class="h5 mb-0">Danh sách phiếu mượn</h2></div><div class="table-responsive"><table class="table table-hover align-middle mb-0">
         <thead class="table-light"><tr><th>Sách</th><th>Bạn đọc</th><th>Ngày mượn</th><th>Hạn trả</th><th>Thao tác</th></tr></thead><tbody>
         @if (Model.Loans.Count == 0) { <tr><td colspan="5" class="text-center text-muted py-4">Chưa có phiếu mượn.</td></tr> }
         @foreach (var loan in Model.Loans) { var renewalLimit = loan.ReaderAccount?.LibraryCard?.LibraryCardType?.MaxRenewals ?? 0; <tr><td>@loan.Book?.Title</td><td>@loan.ReaderAccount?.FullName</td><td>@loan.LoanDate.ToString("dd/MM/yyyy")</td><td class="fw-semibold">@loan.DueDate.ToString("dd/MM/yyyy") @if (loan.DueDate != loan.OriginalDueDate) { <span class="badge bg-info text-dark">Đã điều chỉnh</span> }<div class="small text-muted">Số lần gia hạn: @loan.RenewalCount / @renewalLimit</div></td><td>@if (loan.DueDate >= DateOnly.FromDateTime(DateTime.Today)) { <form asp-action="Renew" method="post" class="d-inline">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@loan.Id" /><button class="btn btn-sm btn-outline-primary" type="submit">Gia hạn</button></form> }</td></tr> }
     </tbody></table></div></div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h2 class="h5 mb-0 text-danger fw-semibold">Lịch sử chặn cho mượn</h2>
+            <span class="badge bg-secondary">@Model.BlockedLoanLogs.Count lần chặn</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Thời điểm</th>
+                        <th>Bạn đọc</th>
+                        <th>Người thực hiện</th>
+                        <th>Lý do bị chặn</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.BlockedLoanLogs.Count == 0)
+                    {
+                        <tr><td colspan="4" class="text-center text-muted py-4">Chưa có lần chặn cho mượn nào được ghi nhận.</td></tr>
+                    }
+                    @foreach (var log in Model.BlockedLoanLogs)
+                    {
+                        <tr>
+                            <td class="text-nowrap fw-semibold">@DateTime.SpecifyKind(log.OccurredAtUtc, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
+                            <td>
+                                <div><span class="fw-semibold">@log.ReaderName</span></div>
+                                @if (!string.IsNullOrEmpty(log.ReaderEmail))
+                                {
+                                    <div class="small text-muted">@log.ReaderEmail</div>
+                                }
+                            </td>
+                            <td><span class="badge bg-light text-dark border">@log.Operator</span></td>
+                            <td><span class="badge bg-danger-subtle text-danger-emphasis text-wrap text-start">@log.Reason</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 <script>
