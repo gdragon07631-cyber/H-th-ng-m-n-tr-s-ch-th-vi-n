@@ -10,7 +10,7 @@ public sealed class HoldPickupExpiryService(
     IBookHoldFulfillmentService holdFulfillmentService,
     ILogger<HoldPickupExpiryService> logger) : IHoldPickupExpiryService
 {
-    public const string ExpiredReason = "Quá hạn nhận sách – hệ thống tự hủy";
+    public const string ExpiredReason = BookHoldStatus.ExpiredCancellationReason;
     private const string SystemActor = "System: hold pickup expiry";
 
     public async Task<int> ExpireOverdueAsync(DateTime nowUtc, CancellationToken cancellationToken = default)

@@ -25,6 +25,10 @@ public sealed class HoldPickupConfirmationService(
             if (hold == null)
                 return await RejectAsync(transaction, "Không tìm thấy đơn đặt giữ.", cancellationToken);
 
+            var now = DateTime.UtcNow;
+            if (hold.Status == BookHoldStatus.Cancelled && hold.CancellationReason == BookHoldStatus.ExpiredCancellationReason)
+                return await RejectAsync(transaction, ExpiredMessage, cancellationToken);
+
             if (!HoldPickupService.WaitingPickupStatuses.Contains(hold.Status))
             {
                 var message = hold.Status == BookHoldStatus.ConvertedToLoan
@@ -32,6 +36,9 @@ public sealed class HoldPickupConfirmationService(
                     : "Đơn đặt giữ không còn ở trạng thái chờ nhận.";
                 return await RejectAsync(transaction, message, cancellationToken);
             }
+
+            if (hold.PickupDeadlineUtc is { } pickupDeadline && pickupDeadline < now)
+                return await RejectAsync(transaction, ExpiredMessage, cancellationToken);
 
             if (hold.BookCopyId == null || hold.BookCopy == null)
                 return await RejectAsync(transaction, "Đơn đặt giữ chưa được gán bản sao sách.", cancellationToken);
@@ -48,7 +55,6 @@ public sealed class HoldPickupConfirmationService(
                 return await RejectAsync(transaction,
                     "Loại thẻ của bạn đọc chưa được cấu hình số ngày mượn. Vui lòng cập nhật tại Chính sách mượn.", cancellationToken);
 
-            var now = DateTime.UtcNow;
             // Match the application's existing DateTime.Today / ToLocalTime calendar-day convention.
             var loanDate = DateOnly.FromDateTime(now.ToLocalTime());
             var originalDueDate = loanDate.AddDays(cardType.LoanDays.Value);
@@ -93,6 +99,8 @@ public sealed class HoldPickupConfirmationService(
             throw;
         }
     }
+
+    private const string ExpiredMessage = "Đơn đặt giữ đã quá hạn nhận. Vui lòng yêu cầu bạn đọc đặt lại đơn.";
 
     private static async Task<HoldPickupConfirmationResult> RejectAsync(
         Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction,

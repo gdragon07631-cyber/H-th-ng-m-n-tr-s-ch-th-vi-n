@@ -25,16 +25,21 @@
         <div class="card-body">
             <dl class="row mb-0">
                 <dt class="col-sm-4">Mã đơn đặt giữ</dt><dd class="col-sm-8">#@Model.HoldId</dd>
-                <dt class="col-sm-4">Trạng thái</dt><dd class="col-sm-8">@Model.Status</dd>
+                <dt class="col-sm-4">Trạng thái</dt><dd class="col-sm-8"><span class="badge @(Model.IsPickupExpired ? "bg-danger" : "bg-info text-dark")">@Model.DisplayStatus</span></dd>
                 <dt class="col-sm-4">Bạn đọc</dt><dd class="col-sm-8">@Model.ReaderName (ID @Model.ReaderAccountId)</dd>
                 <dt class="col-sm-4">Mã thẻ đã đăng ký</dt><dd class="col-sm-8"><strong>@(string.IsNullOrWhiteSpace(Model.LibraryCardCode) ? "Chưa có thẻ thư viện" : Model.LibraryCardCode)</strong></dd>
                 <dt class="col-sm-4">Sách</dt><dd class="col-sm-8">@Model.BookTitle @if (!string.IsNullOrWhiteSpace(Model.Isbn)) { <span class="text-muted">(ISBN @Model.Isbn)</span> }</dd>
-                <dt class="col-sm-4">Bản sao đã giữ</dt><dd class="col-sm-8">ID @Model.BookCopyId · <span class="font-monospace">@Model.CopyBarcode</span></dd>
+                <dt class="col-sm-4">Bản sao đã giữ</dt><dd class="col-sm-8">@(Model.BookCopyId is long copyId ? $"ID {copyId} · " : "")<span class="font-monospace">@Model.CopyBarcode</span></dd>
                 <dt class="col-sm-4">Ngày đặt</dt><dd class="col-sm-8">@Model.HeldAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd>
                 <dt class="col-sm-4">Hạn nhận</dt><dd class="col-sm-8">@Model.PickupDeadlineText</dd>
             </dl>
         </div>
     </div>
+
+    @if (Model.IsPickupExpired)
+    {
+        <div class="alert alert-danger" role="alert">Đơn đặt giữ đã quá hạn nhận. Vui lòng yêu cầu bạn đọc đặt lại đơn.</div>
+    }
 
     @if (Model.CanConfirm)
     {

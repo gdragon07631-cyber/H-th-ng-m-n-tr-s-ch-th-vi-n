@@ -208,7 +208,7 @@
                                         @foreach (var hold in Model.ActiveHoldQueue)
                                         {
                                             <tr>
-                                                <td>@hold.Position</td><td>@hold.ReaderName</td><td class="font-monospace">@hold.HeldAtText</td><td>@hold.Status</td>
+                                                <td>@hold.Position</td><td>@hold.ReaderName</td><td class="font-monospace">@hold.HeldAtText</td><td>@hold.DisplayStatus</td>
                                                 <td>@(hold.CopyBarcode ?? "—")</td><td>@(hold.PickupDeadlineText ?? "—")</td>
                                                 <td>@(hold.CancellationReason ?? "—")</td>
                                                 <td class="text-end">

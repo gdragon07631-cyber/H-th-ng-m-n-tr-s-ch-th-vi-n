@@ -44,6 +44,7 @@
                         <th style="width: 170px;">Mã vạch bản sao</th>
                         <th>Tên bạn đọc</th>
                         <th style="width: 180px;">Hạn nhận</th>
+                        <th style="width: 140px;">Trạng thái</th>
                         <th>Tên sách</th>
                         <th style="width: 200px;">Vị trí kệ hiện tại</th>
                         <th style="width: 110px;" class="text-center">Mã yêu cầu</th>
@@ -54,7 +55,7 @@
                 @if (Model.Items.Count == 0)
                 {
                     <tr>
-                        <td colspan="8" class="text-center text-muted py-5">
+                        <td colspan="9" class="text-center text-muted py-5">
                             <div class="py-4">
                                 <span class="fs-1 d-block mb-2">📭</span>
                                 <h5 class="fw-normal text-secondary mb-1">Hiện không có sách nào đang chờ người đến nhận</h5>
@@ -95,6 +96,7 @@
                                     <span class="text-muted">—</span>
                                 }
                             </td>
+                            <td><span class="badge @(item.IsPickupExpired ? "bg-danger" : "bg-info text-dark")">@item.DisplayStatus</span></td>
                             <td>
                                 <a asp-controller="Book" asp-action="Details" asp-route-id="@item.BookId" class="fw-semibold text-primary text-decoration-none">@item.BookTitle</a>
                                 @if (!string.IsNullOrWhiteSpace(item.Isbn))

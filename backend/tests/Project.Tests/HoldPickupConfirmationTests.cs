@@ -104,6 +104,45 @@ public sealed class HoldPickupConfirmationTests
     }
 
     [Fact]
+    public async Task Confirm_RejectsHoldThatExpiredMomentsAgo_AndRequestsReapplication()
+    {
+        await using var fixture = await Fixture.CreateAsync(pickupDeadlineUtc: DateTime.UtcNow.AddSeconds(-2));
+
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian");
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("quá hạn nhận", result.Message);
+        Assert.Contains("đặt lại đơn", result.Message);
+        await fixture.AssertUnchangedAsync();
+    }
+
+    [Fact]
+    public async Task Confirm_RejectsHoldExpiredForSeveralDaysWithoutChangingCopy()
+    {
+        await using var fixture = await Fixture.CreateAsync(pickupDeadlineUtc: DateTime.UtcNow.AddDays(-7));
+
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian");
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("đặt lại đơn", result.Message);
+        await fixture.AssertUnchangedAsync();
+    }
+
+    [Fact]
+    public void PickupViewModel_LabelsOverdueWaitingHold()
+    {
+        var item = new HoldPickupItemViewModel
+        {
+            Status = BookHoldStatus.Available,
+            PickupDeadlineUtc = DateTime.UtcNow.AddMinutes(-1)
+        };
+
+        Assert.True(item.IsPickupExpired);
+        Assert.Equal("Quá hạn nhận", item.DisplayStatus);
+        Assert.False(item.CanConfirm);
+    }
+
+    [Fact]
     public async Task Confirm_RejectsMismatchedCard_WithoutChanges()
     {
         await using var fixture = await Fixture.CreateAsync();
@@ -158,7 +197,8 @@ public sealed class HoldPickupConfirmationTests
 
         public static async Task<Fixture> CreateAsync(
             string holdStatus = "Đã có sách", int? loanDays = 14,
-            IEnumerable<DateOnly>? holidayDates = null, DayOfWeek? closedDay = null, bool includeSchedules = true)
+            IEnumerable<DateOnly>? holidayDates = null, DayOfWeek? closedDay = null, bool includeSchedules = true,
+            DateTime? pickupDeadlineUtc = null)
         {
             var connection = new SqliteConnection("Data Source=:memory:");
             await connection.OpenAsync();
@@ -205,7 +245,8 @@ public sealed class HoldPickupConfirmationTests
             var hold = new BookHold
             {
                 ReaderAccountId = reader.Id, BookId = book.Id, BookCopyId = copy.Id,
-                Status = holdStatus, HeldAtUtc = DateTime.UtcNow
+                Status = holdStatus, HeldAtUtc = DateTime.UtcNow,
+                PickupDeadlineUtc = pickupDeadlineUtc ?? DateTime.UtcNow.AddDays(2)
             };
             context.BookHolds.Add(hold);
             await context.SaveChangesAsync();

@@ -6,7 +6,7 @@ public sealed class HoldPickupItemViewModel
     public int BookId { get; set; }
     public string BookTitle { get; set; } = string.Empty;
     public string? Isbn { get; set; }
-    public long BookCopyId { get; set; }
+    public long? BookCopyId { get; set; }
     public string CopyBarcode { get; set; } = string.Empty;
     public int ReaderAccountId { get; set; }
     public string ReaderName { get; set; } = string.Empty;
@@ -16,9 +16,14 @@ public sealed class HoldPickupItemViewModel
     public DateTime? PickupDeadlineUtc { get; set; }
     public DateTime HeldAtUtc { get; set; }
     public string Status { get; set; } = string.Empty;
+    public string? CancellationReason { get; set; }
     public string? CurrentShelf { get; set; }
     public string? CurrentWarehouse { get; set; }
-    public bool CanConfirm => BookHoldStatus.WaitingPickupStatuses.Contains(Status);
+    public bool IsPickupExpired =>
+        (PickupDeadlineUtc is { } deadline && deadline < DateTime.UtcNow) ||
+        (Status == BookHoldStatus.Cancelled && CancellationReason == BookHoldStatus.ExpiredCancellationReason);
+    public string DisplayStatus => IsPickupExpired ? "Quá hạn nhận" : Status;
+    public bool CanConfirm => BookHoldStatus.WaitingPickupStatuses.Contains(Status) && !IsPickupExpired;
 
     public string PickupDeadlineText => PickupDeadlineUtc is { } deadline
         ? deadline.ToString("dd/MM/yyyy HH:mm")

@@ -46,6 +46,11 @@ public sealed class BookHoldQueueItemViewModel
     public DateTime? CancelledAtUtc { get; set; }
     public bool CanBeCancelledByStaff { get; set; }
 
+    public bool IsPickupExpired =>
+        (PickupDeadlineUtc is { } deadline && deadline < DateTime.UtcNow) ||
+        (Status == BookHoldStatus.Cancelled && CancellationReason == BookHoldStatus.ExpiredCancellationReason);
+    public string DisplayStatus => IsPickupExpired ? "Quá hạn nhận" : Status;
+
     public string HeldAtText => HeldAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
     public string? PickupDeadlineText => PickupDeadlineUtc?.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
     public string? CancelledAtText => CancelledAtUtc?.ToLocalTime().ToString("dd/MM/yyyy HH:mm");

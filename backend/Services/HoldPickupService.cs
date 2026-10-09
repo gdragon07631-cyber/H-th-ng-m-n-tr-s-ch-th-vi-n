@@ -53,17 +53,18 @@ public sealed class HoldPickupService(ApplicationDbContext db) : IHoldPickupServ
             .Include(h => h.Book)
             .Include(h => h.BookCopy).ThenInclude(c => c!.Shelf).ThenInclude(s => s!.Warehouse)
             .FirstOrDefaultAsync(h => h.Id == holdId, cancellationToken);
-        if (hold == null || hold.BookCopyId == null || hold.BookCopy == null) return null;
+        if (hold == null) return null;
 
         return new HoldPickupItemViewModel
         {
             HoldId = hold.Id, BookId = hold.BookId, BookTitle = hold.Book?.Title ?? "—", Isbn = hold.Book?.Isbn,
-            BookCopyId = hold.BookCopyId.Value, CopyBarcode = hold.BookCopy.CopyCode,
+            BookCopyId = hold.BookCopyId, CopyBarcode = hold.BookCopy?.CopyCode ?? "—",
             ReaderAccountId = hold.ReaderAccountId, ReaderName = hold.ReaderAccount?.FullName ?? "—",
             LibraryCardCode = hold.ReaderAccount?.LibraryCard?.CardCode ?? string.Empty,
             ReaderEmail = hold.ReaderAccount?.Email ?? string.Empty, ReaderPhone = hold.ReaderAccount?.PhoneNumber ?? string.Empty,
             PickupDeadlineUtc = hold.PickupDeadlineUtc, HeldAtUtc = hold.HeldAtUtc, Status = hold.Status,
-            CurrentShelf = hold.BookCopy.Shelf?.Name, CurrentWarehouse = hold.BookCopy.Shelf?.Warehouse?.Name
+            CancellationReason = hold.CancellationReason,
+            CurrentShelf = hold.BookCopy?.Shelf?.Name, CurrentWarehouse = hold.BookCopy?.Shelf?.Warehouse?.Name
         };
     }
 }
