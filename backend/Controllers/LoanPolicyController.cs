@@ -22,7 +22,8 @@ public sealed class LoanPolicyController(
         return View(new LoanPolicyViewModel
         {
             LoanDays = policy?.LoanDays ?? LoanPolicy.DefaultLoanDays,
-            UpdatedAtUtc = policy?.UpdatedAtUtc
+            UpdatedAtUtc = policy?.UpdatedAtUtc,
+            CardTypePolicies = await GetCardTypePoliciesAsync(cancellationToken)
         });
     }
 
@@ -39,6 +40,7 @@ public sealed class LoanPolicyController(
         if (!ModelState.IsValid)
         {
             model.UpdatedAtUtc = policy?.UpdatedAtUtc;
+            model.CardTypePolicies = await GetCardTypePoliciesAsync(cancellationToken);
             return View(model);
         }
 
@@ -68,6 +70,53 @@ public sealed class LoanPolicyController(
         TempData["SuccessMessage"] = "Đã cập nhật chính sách mượn.";
         return RedirectToAction(nameof(Index));
     }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateCardTypeLoanDays(UpdateCardTypeLoanDaysViewModel model, CancellationToken cancellationToken = default)
+    {
+        var admin = await GetSignedInAdminAsync(cancellationToken);
+        if (admin is null)
+            return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Index)) });
+
+        if (!ModelState.IsValid)
+        {
+            TempData["ErrorMessage"] = ModelState.Values.SelectMany(value => value.Errors).FirstOrDefault()?.ErrorMessage
+                ?? "Số ngày mượn cho loại thẻ không hợp lệ.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var cardType = await dbContext.LibraryCardTypes
+            .SingleOrDefaultAsync(type => type.Id == model.LibraryCardTypeId, cancellationToken);
+        if (cardType is null)
+        {
+            TempData["ErrorMessage"] = "Không tìm thấy loại thẻ cần cập nhật.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var previousDays = cardType.LoanDays;
+        cardType.LoanDays = model.LoanDays!.Value;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await auditLogService.WriteAsync(
+            admin.Email,
+            AuditActions.UpdateLoanPolicy,
+            $"Chính sách mượn loại thẻ {cardType.Name}: số ngày {(previousDays?.ToString() ?? "chưa cấu hình")} → {cardType.LoanDays}",
+            AuditLogService.ClientIp(HttpContext),
+            cancellationToken);
+
+        TempData["SuccessMessage"] = $"Đã cập nhật số ngày mượn cho loại thẻ {cardType.Name}.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    private Task<List<CardTypeLoanDaysViewModel>> GetCardTypePoliciesAsync(CancellationToken cancellationToken) =>
+        dbContext.LibraryCardTypes.AsNoTracking().OrderBy(type => type.Name)
+            .Select(type => new CardTypeLoanDaysViewModel
+            {
+                LibraryCardTypeId = type.Id,
+                Name = type.Name,
+                LoanDays = type.LoanDays
+            })
+            .ToListAsync(cancellationToken);
 
     private async Task<AdminAccount?> GetSignedInAdminAsync(CancellationToken cancellationToken)
     {

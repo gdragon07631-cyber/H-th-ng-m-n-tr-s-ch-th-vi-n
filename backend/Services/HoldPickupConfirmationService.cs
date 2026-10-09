@@ -5,7 +5,10 @@ using Project.Models;
 
 namespace Project.Services;
 
-public sealed class HoldPickupConfirmationService(ApplicationDbContext db, IBookLoanService loanService)
+public sealed class HoldPickupConfirmationService(
+    ApplicationDbContext db,
+    IBookLoanService loanService,
+    IWorkingScheduleService workingScheduleService)
     : IHoldPickupConfirmationService
 {
     public async Task<HoldPickupConfirmationResult> ConfirmAsync(
@@ -16,6 +19,7 @@ public sealed class HoldPickupConfirmationService(ApplicationDbContext db, IBook
         {
             var hold = await db.BookHolds
                 .Include(item => item.ReaderAccount).ThenInclude(reader => reader!.LibraryCard)
+                    .ThenInclude(card => card!.LibraryCardType)
                 .Include(item => item.BookCopy)
                 .FirstOrDefaultAsync(item => item.Id == holdId, cancellationToken);
             if (hold == null)
@@ -39,9 +43,27 @@ public sealed class HoldPickupConfirmationService(ApplicationDbContext db, IBook
             if (hold.BookCopy.BookId != hold.BookId || hold.BookCopy.Status != BookCopyStatus.OnHold)
                 return await RejectAsync(transaction, "Bản sao được giữ không còn ở trạng thái hợp lệ để cho mượn.", cancellationToken);
 
+            var cardType = hold.ReaderAccount.LibraryCard.LibraryCardType;
+            if (cardType?.LoanDays is not > 0)
+                return await RejectAsync(transaction,
+                    "Loại thẻ của bạn đọc chưa được cấu hình số ngày mượn. Vui lòng cập nhật tại Chính sách mượn.", cancellationToken);
+
             var now = DateTime.UtcNow;
-            var loanDate = DateOnly.FromDateTime(DateTime.Today);
-            var loanResult = await loanService.CreateAsync(hold.BookId, hold.ReaderAccountId, loanDate, actor, cancellationToken);
+            // Match the application's existing DateTime.Today / ToLocalTime calendar-day convention.
+            var loanDate = DateOnly.FromDateTime(now.ToLocalTime());
+            var originalDueDate = loanDate.AddDays(cardType.LoanDays.Value);
+            DateOnly dueDate;
+            try
+            {
+                dueDate = await workingScheduleService.AdjustLoanDueDateAsync(originalDueDate, cancellationToken);
+            }
+            catch (InvalidOperationException exception)
+            {
+                return await RejectAsync(transaction, exception.Message, cancellationToken);
+            }
+
+            var loanResult = await loanService.CreateForHoldAsync(
+                hold.BookId, hold.ReaderAccountId, loanDate, originalDueDate, dueDate, actor, cancellationToken);
             if (!loanResult.IsSuccess || loanResult.Loan == null)
                 return await RejectAsync(transaction, loanResult.ErrorMessage ?? "Không thể tạo phiếu mượn.", cancellationToken);
 

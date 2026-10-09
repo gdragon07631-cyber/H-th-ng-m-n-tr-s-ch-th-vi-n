@@ -16,4 +16,5 @@ public interface IWorkingScheduleService
     Task<HolidayClosureOutcome> UpdateHolidayClosureAsync(int id, DateOnly holidayDate, string reason, string? note, CancellationToken cancellationToken = default);
     Task<HolidayClosureOutcome> DeleteHolidayClosureAsync(int id, CancellationToken cancellationToken = default);
     Task<LibraryOpeningStatus> GetStatusForDateAsync(DateOnly date, CancellationToken cancellationToken = default);
+    Task<DateOnly> AdjustLoanDueDateAsync(DateOnly proposedDate, CancellationToken cancellationToken = default);
 }

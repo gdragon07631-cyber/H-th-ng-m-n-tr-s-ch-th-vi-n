@@ -109,6 +109,22 @@ public sealed class WorkingScheduleService(ApplicationDbContext db) : IWorkingSc
         return new(schedule.IsOpen, false, schedule.Note);
     }
 
+    public async Task<DateOnly> AdjustLoanDueDateAsync(DateOnly proposedDate, CancellationToken cancellationToken = default)
+    {
+        // This path deliberately reads the configured calendar without EnsureSevenDaysAsync:
+        // missing days must be reported instead of silently treating them as open.
+        var schedules = await db.WeeklyWorkingSchedules.AsNoTracking().ToListAsync(cancellationToken);
+        var days = Enum.GetValues<DayOfWeek>();
+        if (schedules.Count != days.Length || days.Any(day => schedules.Count(item => item.DayOfWeek == day) != 1))
+            throw new InvalidOperationException("Lịch ngày mở cửa chưa được cấu hình đầy đủ (cần đúng một thiết lập cho mỗi ngày trong tuần).");
+
+        var openByDay = schedules.ToDictionary(item => item.DayOfWeek, item => item.IsOpen);
+        var holidays = (await db.HolidayClosures.AsNoTracking().ToListAsync(cancellationToken))
+            .Select(item => item.HolidayDate).ToHashSet();
+        return DueDateAdjuster.AdjustDueDate(proposedDate,
+            date => !holidays.Contains(date) && openByDay[date.DayOfWeek]);
+    }
+
     private async Task EnsureSevenDaysAsync(CancellationToken cancellationToken)
     {
         var configuredDays = await db.WeeklyWorkingSchedules.Select(schedule => schedule.DayOfWeek).ToListAsync(cancellationToken);

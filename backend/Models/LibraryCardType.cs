@@ -17,6 +17,10 @@ public sealed class LibraryCardType
 
     public int MaxRenewals { get; set; } = DefaultMaxRenewals;
 
+    /// <summary>Maximum number of calendar days for loans issued to this card type; null means not configured.</summary>
+    [Range(1, 365)]
+    public int? LoanDays { get; set; }
+
     [NotMapped]
     private int? _maxBooks;
 

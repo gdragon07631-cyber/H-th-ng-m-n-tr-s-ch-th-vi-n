@@ -33,7 +33,23 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
         CreateManyAsync(bookIds, readerAccountId, loanDate, null, cancellationToken);
 
     public async Task<BatchBookLoanOutcome> CreateManyAsync(
-        IReadOnlyList<int> bookIds, int readerAccountId, DateOnly loanDate, string? actor, CancellationToken cancellationToken = default)
+        IReadOnlyList<int> bookIds, int readerAccountId, DateOnly loanDate, string? actor, CancellationToken cancellationToken = default) =>
+        await CreateManyCoreAsync(bookIds, readerAccountId, loanDate, actor, null, null, cancellationToken);
+
+    public async Task<BookLoanOutcome> CreateForHoldAsync(
+        int bookId, int readerAccountId, DateOnly loanDate, DateOnly originalDueDate, DateOnly dueDate,
+        string? actor, CancellationToken cancellationToken = default)
+    {
+        var result = await CreateManyCoreAsync([bookId], readerAccountId, loanDate, actor,
+            originalDueDate, dueDate, cancellationToken);
+        return result.IsSuccess
+            ? new(true, Loan: result.Loans.FirstOrDefault())
+            : new(false, result.ErrorMessage);
+    }
+
+    private async Task<BatchBookLoanOutcome> CreateManyCoreAsync(
+        IReadOnlyList<int> bookIds, int readerAccountId, DateOnly loanDate, string? actor,
+        DateOnly? explicitOriginalDueDate, DateOnly? explicitDueDate, CancellationToken cancellationToken)
     {
         if (bookIds == null || bookIds.Count == 0)
             return new(false, "Vui lòng chọn ít nhất một cuốn sách.", []);
@@ -143,10 +159,17 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
             books.Add(book);
         }
 
-        var originalDueDate = loanDate.AddDays(DefaultLoanDays);
+        var originalDueDate = explicitOriginalDueDate ?? loanDate.AddDays(DefaultLoanDays);
         DateOnly dueDate;
-        try { dueDate = await AdjustDueDateAsync(originalDueDate, cancellationToken); }
-        catch (InvalidOperationException exception) { return new(false, exception.Message, []); }
+        if (explicitDueDate is { } calculatedDueDate)
+        {
+            dueDate = calculatedDueDate;
+        }
+        else
+        {
+            try { dueDate = await AdjustDueDateAsync(originalDueDate, cancellationToken); }
+            catch (InvalidOperationException exception) { return new(false, exception.Message, []); }
+        }
 
         var createdLoans = new List<BookLoan>();
         foreach (var book in books)

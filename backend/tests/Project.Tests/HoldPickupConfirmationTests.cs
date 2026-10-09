@@ -23,7 +23,84 @@ public sealed class HoldPickupConfirmationTests
         Assert.Equal(BookCopyStatus.OnLoan, copy.Status);
         Assert.Equal(copy.Id, loan.BookCopyId);
         Assert.Equal(fixture.BookId, loan.BookId);
+        var expectedLoanDate = DateOnly.FromDateTime(DateTime.UtcNow.ToLocalTime());
+        Assert.Equal(expectedLoanDate, loan.LoanDate);
+        Assert.Equal(expectedLoanDate.AddDays(14), loan.OriginalDueDate);
+        Assert.Equal(loan.OriginalDueDate, loan.DueDate);
         Assert.Single(await verify.BookCopyStatusHistories.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(5)]
+    [InlineData(21)]
+    public async Task Confirm_UsesLoanDaysConfiguredForCardType(int loanDays)
+    {
+        await using var fixture = await Fixture.CreateAsync(loanDays: loanDays);
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian");
+
+        Assert.True(result.IsSuccess);
+        await using var verify = fixture.CreateContext();
+        var loan = await verify.BookLoans.SingleAsync();
+        Assert.Equal(loan.LoanDate.AddDays(loanDays), loan.OriginalDueDate);
+        Assert.Equal(loan.OriginalDueDate, loan.DueDate);
+    }
+
+    [Fact]
+    public async Task Confirm_MovesHolidayDueDateToNextOpenDate()
+    {
+        var loanDate = DateOnly.FromDateTime(DateTime.UtcNow.ToLocalTime());
+        var proposedDueDate = loanDate.AddDays(8);
+        await using var fixture = await Fixture.CreateAsync(loanDays: 8, holidayDates: [proposedDueDate]);
+
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian");
+
+        Assert.True(result.IsSuccess);
+        await using var verify = fixture.CreateContext();
+        var loan = await verify.BookLoans.SingleAsync();
+        Assert.Equal(proposedDueDate, loan.OriginalDueDate);
+        Assert.Equal(proposedDueDate.AddDays(1), loan.DueDate);
+    }
+
+    [Fact]
+    public async Task Confirm_SkipsMultipleConsecutiveClosedDates()
+    {
+        var loanDate = DateOnly.FromDateTime(DateTime.UtcNow.ToLocalTime());
+        var proposedDueDate = loanDate.AddDays(8);
+        await using var fixture = await Fixture.CreateAsync(
+            loanDays: 8,
+            holidayDates: [proposedDueDate, proposedDueDate.AddDays(1)],
+            closedDay: proposedDueDate.AddDays(2).DayOfWeek);
+
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian");
+
+        Assert.True(result.IsSuccess);
+        await using var verify = fixture.CreateContext();
+        var loan = await verify.BookLoans.SingleAsync();
+        Assert.Equal(proposedDueDate.AddDays(3), loan.DueDate);
+    }
+
+    [Fact]
+    public async Task Confirm_RejectsCardTypeWithoutLoanPolicy_WithoutChanges()
+    {
+        await using var fixture = await Fixture.CreateAsync(loanDays: null);
+
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian");
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("chưa được cấu hình số ngày mượn", result.Message);
+        await fixture.AssertUnchangedAsync();
+    }
+
+    [Fact]
+    public async Task Confirm_RejectsIncompleteWeeklyCalendar_WithoutChanges()
+    {
+        await using var fixture = await Fixture.CreateAsync(includeSchedules: false);
+
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian");
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("chưa được cấu hình đầy đủ", result.Message);
+        await fixture.AssertUnchangedAsync();
     }
 
     [Fact]
@@ -76,16 +153,28 @@ public sealed class HoldPickupConfirmationTests
             Context = context;
             HoldId = holdId;
             BookId = bookId;
-            Service = new HoldPickupConfirmationService(context, new CreatingLoanService(context));
+            Service = new HoldPickupConfirmationService(context, new CreatingLoanService(context), new WorkingScheduleService(context));
         }
 
-        public static async Task<Fixture> CreateAsync(string holdStatus = "Đã có sách")
+        public static async Task<Fixture> CreateAsync(
+            string holdStatus = "Đã có sách", int? loanDays = 14,
+            IEnumerable<DateOnly>? holidayDates = null, DayOfWeek? closedDay = null, bool includeSchedules = true)
         {
             var connection = new SqliteConnection("Data Source=:memory:");
             await connection.OpenAsync();
             var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options;
             var context = new ApplicationDbContext(options);
             await context.Database.EnsureCreatedAsync();
+            if (includeSchedules)
+            {
+                context.WeeklyWorkingSchedules.AddRange(Enum.GetValues<DayOfWeek>().Select(day =>
+                    new WeeklyWorkingSchedule { DayOfWeek = day, IsOpen = day != closedDay }));
+            }
+            if (holidayDates != null)
+            {
+                context.HolidayClosures.AddRange(holidayDates.Select(date => new HolidayClosure { HolidayDate = date, Reason = "Test closure" }));
+            }
+            await context.SaveChangesAsync();
             var author = new Author { Name = "Test Author" };
             context.Authors.Add(author);
             var reader = new ReaderAccount
@@ -93,7 +182,7 @@ public sealed class HoldPickupConfirmationTests
                 FullName = "Test Reader", DateOfBirth = new DateOnly(2000, 1, 1), Email = "reader@example.test",
                 PhoneNumber = "000", StudentOrStaffCode = "ST-001", PasswordHash = "hash", Status = "Đang hoạt động"
             };
-            var cardType = new LibraryCardType { Name = "Sinh viên" };
+            var cardType = new LibraryCardType { Name = "Sinh viên", LoanDays = loanDays };
             context.ReaderAccounts.Add(reader);
             context.LibraryCardTypes.Add(cardType);
             var warehouse = new Warehouse { Code = "WH", Name = "Warehouse" };
@@ -148,6 +237,13 @@ public sealed class HoldPickupConfirmationTests
         public async Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, string? actor, CancellationToken cancellationToken = default)
         {
             var loan = new BookLoan { BookId = bookId, ReaderAccountId = readerAccountId, LoanDate = loanDate, OriginalDueDate = loanDate.AddDays(14), DueDate = loanDate.AddDays(14), CreatedAtUtc = DateTime.UtcNow };
+            db.BookLoans.Add(loan);
+            await db.SaveChangesAsync(cancellationToken);
+            return new(true, Loan: loan);
+        }
+        public async Task<BookLoanOutcome> CreateForHoldAsync(int bookId, int readerAccountId, DateOnly loanDate, DateOnly originalDueDate, DateOnly dueDate, string? actor, CancellationToken cancellationToken = default)
+        {
+            var loan = new BookLoan { BookId = bookId, ReaderAccountId = readerAccountId, LoanDate = loanDate, OriginalDueDate = originalDueDate, DueDate = dueDate, CreatedAtUtc = DateTime.UtcNow };
             db.BookLoans.Add(loan);
             await db.SaveChangesAsync(cancellationToken);
             return new(true, Loan: loan);
