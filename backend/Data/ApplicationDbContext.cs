@@ -24,6 +24,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<LibraryCard> LibraryCards => Set<LibraryCard>();
     public DbSet<BookHold> BookHolds => Set<BookHold>();
     public DbSet<BookLoan> BookLoans => Set<BookLoan>();
+    public DbSet<LoanContactHistory> LoanContactHistories => Set<LoanContactHistory>();
     public DbSet<BookCopy> BookCopies => Set<BookCopy>();
     public DbSet<BookCopyStatusHistory> BookCopyStatusHistories => Set<BookCopyStatusHistory>();
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
@@ -280,6 +281,18 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .HasForeignKey(loan => loan.SourceBookHoldId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(loan => loan.CreatedByAdminAccount).WithMany()
                 .HasForeignKey(loan => loan.CreatedByAdminAccountId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<LoanContactHistory>(entity =>
+        {
+            entity.HasIndex(history => new { history.BookLoanId, history.CreatedAtUtc });
+            entity.Property(history => history.CreatedAtUtc).HasColumnType("datetime2");
+            entity.Property(history => history.Note).HasMaxLength(1000).IsRequired();
+            entity.Property(history => history.ContactedBy).HasMaxLength(256).IsRequired();
+            entity.HasOne(history => history.BookLoan).WithMany(loan => loan.ContactHistories)
+                .HasForeignKey(history => history.BookLoanId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(history => history.ContactedByAdminAccount).WithMany()
+                .HasForeignKey(history => history.ContactedByAdminAccountId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<BookCopy>(entity =>

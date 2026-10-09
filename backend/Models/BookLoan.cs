@@ -15,6 +15,7 @@ public sealed class BookLoan
     public BookHold? SourceBookHold { get; set; }
     public int? CreatedByAdminAccountId { get; set; }
     public AdminAccount? CreatedByAdminAccount { get; set; }
+    public ICollection<LoanContactHistory> ContactHistories { get; set; } = [];
     public int ReaderAccountId { get; set; }
     public ReaderAccount? ReaderAccount { get; set; }
     public DateOnly LoanDate { get; set; }
@@ -152,7 +153,30 @@ public sealed record OverdueLoanItem(
     string BookTitle,
     DateOnly LoanDate,
     DateOnly DueDate,
-    string? CopyBarcode);
+    string? CopyBarcode,
+    LoanContactHistoryItem? LatestContact);
+
+public sealed record LoanContactHistoryItem(
+    long Id,
+    long LoanId,
+    DateTime CreatedAtUtc,
+    string Note,
+    int? ContactedByAdminAccountId,
+    string ContactedBy);
+
+public sealed class CreateLoanContactHistoryViewModel
+{
+    public long LoanId { get; set; }
+
+    [Required(ErrorMessage = "Vui lòng nhập nội dung ghi chú liên hệ."), MaxLength(1000)]
+    public string Note { get; set; } = string.Empty;
+}
+
+public sealed class LoanContactHistoryPageViewModel
+{
+    public long LoanId { get; init; }
+    public IReadOnlyList<LoanContactHistoryItem> Items { get; init; } = [];
+}
 
 /// <summary>Các khoảng ngày trễ được hỗ trợ trên danh sách nhắc hạn.</summary>
 public enum OverdueLoanRange

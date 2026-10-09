@@ -25,6 +25,7 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
             .Include(loan => loan.Book)
             .Include(loan => loan.BookCopy)
             .Include(loan => loan.ReaderAccount).ThenInclude(reader => reader!.LibraryCard)
+            .Include(loan => loan.ContactHistories)
             .Where(loan => loan.DueDate < today)
             .ToListAsync(cancellationToken);
 
@@ -44,7 +45,10 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
                 loan.Book?.Title ?? string.Empty,
                 loan.LoanDate,
                 loan.DueDate,
-                loan.BookCopy?.CopyCode))
+                loan.BookCopy?.CopyCode,
+                loan.ContactHistories.OrderByDescending(history => history.CreatedAtUtc).ThenByDescending(history => history.Id)
+                    .Select(history => new LoanContactHistoryItem(history.Id, history.BookLoanId, history.CreatedAtUtc,
+                        history.Note, history.ContactedByAdminAccountId, history.ContactedBy)).FirstOrDefault()))
             .Where(item => item.DaysOverdue > 0)
             .Where(item => range switch
             {

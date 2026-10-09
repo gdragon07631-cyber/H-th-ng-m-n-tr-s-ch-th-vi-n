@@ -10,6 +10,15 @@
     </div>
 </div>
 
+@if (TempData["SuccessMessage"] is string successMessage)
+{
+    <div class="alert alert-success">@successMessage</div>
+}
+@if (TempData["ErrorMessage"] is string errorMessage)
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
 <form method="get" class="card shadow-sm border-0 mb-3">
     <div class="card-body d-flex flex-wrap gap-2 align-items-end">
         <div>
@@ -31,13 +40,13 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th>Số ngày trễ</th><th>Bạn đọc</th><th>Số điện thoại</th><th>Mã thẻ</th><th>Tên sách</th><th>Mã phiếu</th><th>Hạn trả</th>
+                        <th>Số ngày trễ</th><th>Bạn đọc</th><th>Số điện thoại</th><th>Mã thẻ</th><th>Tên sách</th><th>Mã phiếu</th><th>Hạn trả</th><th>Lần liên hệ gần nhất</th><th></th>
                     </tr>
                 </thead>
                 <tbody>
                 @if (Model.Items.Count == 0)
                 {
-                    <tr><td colspan="7" class="text-center text-muted py-5">@(Model.Range == Project.Models.OverdueLoanRange.All ? "Không có phiếu mượn quá hạn." : "Không tìm thấy phiếu mượn nào quá hạn trong khoảng đã chọn.")</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-5">@(Model.Range == Project.Models.OverdueLoanRange.All ? "Không có phiếu mượn quá hạn." : "Không tìm thấy phiếu mượn nào quá hạn trong khoảng đã chọn.")</td></tr>
                 }
                 else
                 {
@@ -45,6 +54,15 @@
                     {
                         <tr>
                             <td><span class="badge bg-danger">@item.DaysOverdue ngày</span></td><td class="fw-semibold">@item.ReaderName</td><td class="text-nowrap">@item.PhoneNumber</td><td>@(item.CardCode ?? "—")</td><td>@item.BookTitle</td><td>#@item.LoanId</td><td class="text-nowrap">@item.DueDate.ToString("dd/MM/yyyy")</td>
+                            <td>
+                                @if (item.LatestContact is not null)
+                                {
+                                    <div class="small fw-semibold">@DateTime.SpecifyKind(item.LatestContact.CreatedAtUtc, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM/yyyy HH:mm")</div>
+                                    <div class="small text-muted text-truncate" style="max-width: 180px" title="@item.LatestContact.Note">@item.LatestContact.Note</div>
+                                }
+                                else { <span class="text-muted small">Chưa liên hệ</span> }
+                            </td>
+                            <td class="text-nowrap"><button type="button" class="btn btn-sm btn-primary contact-button" data-bs-toggle="modal" data-bs-target="#contactModal" data-loan-id="@item.LoanId">Ghi nhận liên hệ</button><a asp-action="History" asp-route-id="@item.LoanId" class="btn btn-sm btn-outline-secondary ms-1">Lịch sử</a></td>
                         </tr>
                     }
                 }
@@ -53,3 +71,27 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="contactModal" tabindex="-1" aria-labelledby="contactModalLabel" aria-hidden="true">
+    <div class="modal-dialog"><div class="modal-content">
+        <form asp-action="AddContact" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="LoanId" id="contactLoanId" />
+            <input type="hidden" name="overdueRange" value="@Project.Models.OverdueLoanRanges.ToQueryValue(Model.Range)" />
+            <div class="modal-header"><h5 class="modal-title" id="contactModalLabel">Ghi nhận liên hệ</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button></div>
+            <div class="modal-body"><label for="contactNote" class="form-label">Nội dung ghi chú</label><textarea id="contactNote" name="Note" class="form-control" rows="4" maxlength="1000" required placeholder="Ví dụ: Đã gọi điện nhưng không nghe máy."></textarea><div class="form-text">Thời điểm liên hệ được hệ thống tự động ghi nhận.</div></div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button><button type="submit" class="btn btn-primary">Lưu liên hệ</button></div>
+        </form>
+    </div></div>
+</div>
+
+@section Scripts {
+<script>
+    document.querySelectorAll('.contact-button').forEach(function (button) {
+        button.addEventListener('click', function () {
+            document.getElementById('contactLoanId').value = button.dataset.loanId;
+            document.getElementById('contactNote').value = '';
+        });
+    });
+</script>
+}

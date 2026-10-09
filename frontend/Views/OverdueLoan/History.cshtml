@@ -1,0 +1,25 @@
+@model Project.Models.LoanContactHistoryPageViewModel
+@{
+    ViewData["Title"] = "Lịch sử liên hệ";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div><h1 class="h3 mb-1">Lịch sử liên hệ phiếu #@Model.LoanId</h1><p class="text-muted mb-0">Mới nhất hiển thị trước.</p></div>
+    <a asp-action="Index" class="btn btn-outline-secondary">Quay lại danh sách quá hạn</a>
+</div>
+
+<div class="card shadow-sm border-0"><div class="card-body">
+@if (Model.Items.Count == 0)
+{
+    <p class="text-muted mb-0">Chưa có lần liên hệ nào cho phiếu mượn này.</p>
+}
+else
+{
+    <div class="list-group list-group-flush">
+    @foreach (var item in Model.Items)
+    {
+        <div class="list-group-item px-0"><div class="d-flex justify-content-between gap-3"><strong>@item.ContactedBy</strong><span class="text-muted text-nowrap">@DateTime.SpecifyKind(item.CreatedAtUtc, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span></div><div class="mt-2">@item.Note</div></div>
+    }
+    </div>
+}
+</div></div>

@@ -454,6 +454,42 @@ namespace Project.Migrations
                     b.ToTable("BookLoans");
                 });
 
+            modelBuilder.Entity("Project.Models.LoanContactHistory", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("BookLoanId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("ContactedByAdminAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContactedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookLoanId", "CreatedAtUtc");
+
+                    b.HasIndex("ContactedByAdminAccountId");
+
+                    b.ToTable("LoanContactHistories");
+                });
+
             modelBuilder.Entity("Project.Models.Category", b =>
                 {
                     b.Property<int>("Id")
@@ -1193,9 +1229,29 @@ namespace Project.Migrations
 
                     b.Navigation("CreatedByAdminAccount");
 
+                    b.Navigation("ContactHistories");
+
                     b.Navigation("ReaderAccount");
 
                     b.Navigation("SourceBookHold");
+                });
+
+            modelBuilder.Entity("Project.Models.LoanContactHistory", b =>
+                {
+                    b.HasOne("Project.Models.BookLoan", "BookLoan")
+                        .WithMany("ContactHistories")
+                        .HasForeignKey("BookLoanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Project.Models.AdminAccount", "ContactedByAdminAccount")
+                        .WithMany()
+                        .HasForeignKey("ContactedByAdminAccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("BookLoan");
+
+                    b.Navigation("ContactedByAdminAccount");
                 });
 
             modelBuilder.Entity("Project.Models.Category", b =>
