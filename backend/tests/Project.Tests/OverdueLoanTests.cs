@@ -11,6 +11,7 @@ public sealed class OverdueLoanTests : IDisposable
     private static readonly DateOnly Today = new(2026, 10, 9);
     private readonly SqliteConnection connection = new("DataSource=:memory:");
     private readonly ApplicationDbContext db;
+    private readonly WorkingScheduleService calendar;
     private readonly BookLoanService service;
     private int sequence;
 
@@ -19,7 +20,8 @@ public sealed class OverdueLoanTests : IDisposable
         connection.Open();
         db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options);
         db.Database.EnsureCreated();
-        service = new BookLoanService(db, new WorkingScheduleService(db));
+        calendar = new WorkingScheduleService(db);
+        service = new BookLoanService(db, calendar);
     }
 
     public void Dispose()
@@ -139,6 +141,69 @@ public sealed class OverdueLoanTests : IDisposable
         Assert.Equal([sevenDays.Id, oneDay.Id], oneToSeven.Select(item => item.LoanId));
         Assert.Equal([eightDays.Id, sevenDays.Id, oneDay.Id], all.Select(item => item.LoanId));
         Assert.Empty(empty);
+    }
+
+    [Fact]
+    public async Task DueDateTodayOrInFutureDoesNotAppearAsOverdue()
+    {
+        var reader = await AddReaderAsync("Bạn đọc", "0900000000", "CARD-01");
+        await AddLoanAsync(reader, "Đến hạn hôm nay", Today);
+        await AddLoanAsync(reader, "Hạn ngày mai", Today.AddDays(1));
+
+        Assert.Empty(await service.GetOverdueAsync(Today));
+    }
+
+    [Fact]
+    public async Task CountsSaturdayWhenLibraryIsOpen()
+    {
+        var dueFriday = new DateOnly(2026, 10, 9);
+        var reader = await AddReaderAsync("Bạn đọc", "0900000000", "CARD-01");
+        await AddLoanAsync(reader, "Sách", dueFriday);
+
+        var item = Assert.Single(await service.GetOverdueAsync(dueFriday.AddDays(1)));
+
+        Assert.Equal(1, item.DaysOverdue);
+    }
+
+    [Fact]
+    public async Task ExcludesWeeklyClosedDaysFromOverdueCount()
+    {
+        await calendar.UpdateWeeklyScheduleAsync(DayOfWeek.Sunday, false, "Nghỉ Chủ nhật");
+        var dueFriday = new DateOnly(2026, 10, 9);
+        var reader = await AddReaderAsync("Bạn đọc", "0900000000", "CARD-01");
+        await AddLoanAsync(reader, "Sách", dueFriday);
+
+        var item = Assert.Single(await service.GetOverdueAsync(new DateOnly(2026, 10, 12)));
+
+        Assert.Equal(2, item.DaysOverdue);
+    }
+
+    [Fact]
+    public async Task ExcludesHolidayClosuresAndUsesOpeningDayCountForRanges()
+    {
+        await calendar.UpdateWeeklyScheduleAsync(DayOfWeek.Sunday, false, "Nghỉ Chủ nhật");
+        await calendar.CreateHolidayClosureAsync(new DateOnly(2026, 10, 12), "Nghỉ lễ", null);
+        var dueFriday = new DateOnly(2026, 10, 9);
+        var reader = await AddReaderAsync("Bạn đọc", "0900000000", "CARD-01");
+        await AddLoanAsync(reader, "Sách", dueFriday);
+
+        var item = Assert.Single(await service.GetOverdueAsync(new DateOnly(2026, 10, 14)));
+
+        Assert.Equal(3, item.DaysOverdue);
+    }
+
+    [Fact]
+    public async Task MoreThanSevenDaysFilterUsesOpenDaysInsteadOfCalendarDays()
+    {
+        await calendar.UpdateWeeklyScheduleAsync(DayOfWeek.Sunday, false, "Nghỉ Chủ nhật");
+        var reader = await AddReaderAsync("Bạn đọc", "0900000000", "CARD-01");
+        var eightOpenDays = await AddLoanAsync(reader, "Trễ 8 ngày mở cửa", Today.AddDays(-9));
+        await AddLoanAsync(reader, "Trễ 7 ngày mở cửa", Today.AddDays(-8));
+
+        var items = await service.GetOverdueAsync(Today, OverdueLoanRange.MoreThanSevenDays);
+
+        Assert.Equal(eightOpenDays.Id, Assert.Single(items).LoanId);
+        Assert.Equal(8, items[0].DaysOverdue);
     }
 
     private async Task<ReaderAccount> AddReaderAsync(string name, string phone, string cardCode)

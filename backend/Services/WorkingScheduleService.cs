@@ -109,6 +109,25 @@ public sealed class WorkingScheduleService(ApplicationDbContext db) : IWorkingSc
         return new(schedule.IsOpen, false, schedule.Note);
     }
 
+    public async Task<IReadOnlySet<DateOnly>> GetOpenDatesAsync(
+        DateOnly fromInclusive, DateOnly toInclusive, CancellationToken cancellationToken = default)
+    {
+        if (fromInclusive > toInclusive) return new HashSet<DateOnly>();
+
+        await EnsureSevenDaysAsync(cancellationToken);
+        var openByDay = await db.WeeklyWorkingSchedules.AsNoTracking()
+            .ToDictionaryAsync(schedule => schedule.DayOfWeek, schedule => schedule.IsOpen, cancellationToken);
+        var holidays = await db.HolidayClosures.AsNoTracking()
+            .Where(holiday => holiday.HolidayDate >= fromInclusive && holiday.HolidayDate <= toInclusive)
+            .Select(holiday => holiday.HolidayDate)
+            .ToHashSetAsync(cancellationToken);
+
+        var openDates = new HashSet<DateOnly>();
+        for (var date = fromInclusive; date <= toInclusive; date = date.AddDays(1))
+            if (openByDay[date.DayOfWeek] && !holidays.Contains(date)) openDates.Add(date);
+        return openDates;
+    }
+
     public async Task<DateOnly> AdjustLoanDueDateAsync(DateOnly proposedDate, CancellationToken cancellationToken = default)
     {
         // This path deliberately reads the configured calendar without EnsureSevenDaysAsync:

@@ -21,29 +21,23 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
     public async Task<IReadOnlyList<OverdueLoanItem>> GetOverdueAsync(
         DateOnly today, OverdueLoanRange range, CancellationToken cancellationToken = default)
     {
-        var query = db.BookLoans
+        var candidates = await db.BookLoans
             .Include(loan => loan.Book)
             .Include(loan => loan.BookCopy)
             .Include(loan => loan.ReaderAccount).ThenInclude(reader => reader!.LibraryCard)
-            .Where(loan => loan.DueDate < today);
+            .Where(loan => loan.DueDate < today)
+            .ToListAsync(cancellationToken);
 
-        // Keep the range in the database query. DueDate is date-only, therefore the bounds exactly
-        // implement calendar-day delays without consulting the working-schedule calendar.
-        query = range switch
-        {
-            OverdueLoanRange.OneToSevenDays => query.Where(loan => loan.DueDate >= today.AddDays(-7)),
-            OverdueLoanRange.MoreThanSevenDays => query.Where(loan => loan.DueDate < today.AddDays(-7)),
-            OverdueLoanRange.MoreThanThirtyDays => query.Where(loan => loan.DueDate < today.AddDays(-30)),
-            _ => query
-        };
+        if (candidates.Count == 0) return [];
 
-        var candidates = await query.ToListAsync(cancellationToken);
+        var firstCountedDate = candidates.Min(loan => loan.DueDate).AddDays(1);
+        var openDates = await workingScheduleService.GetOpenDatesAsync(firstCountedDate, today, cancellationToken);
 
         return candidates
             .Where(loan => !loan.IsReturned)
             .Select(loan => new OverdueLoanItem(
                 loan.Id,
-                today.DayNumber - loan.DueDate.DayNumber,
+                openDates.Count(date => date > loan.DueDate),
                 loan.ReaderAccount?.FullName ?? string.Empty,
                 loan.ReaderAccount?.PhoneNumber ?? string.Empty,
                 loan.ReaderAccount?.LibraryCard?.CardCode,
@@ -51,6 +45,14 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
                 loan.LoanDate,
                 loan.DueDate,
                 loan.BookCopy?.CopyCode))
+            .Where(item => item.DaysOverdue > 0)
+            .Where(item => range switch
+            {
+                OverdueLoanRange.OneToSevenDays => item.DaysOverdue <= 7,
+                OverdueLoanRange.MoreThanSevenDays => item.DaysOverdue > 7,
+                OverdueLoanRange.MoreThanThirtyDays => item.DaysOverdue > 30,
+                _ => true
+            })
             .OrderByDescending(item => item.DaysOverdue)
             .ThenBy(item => item.DueDate)
             .ThenBy(item => item.LoanId)
