@@ -10,6 +10,21 @@
     </div>
 </div>
 
+<form method="get" class="card shadow-sm border-0 mb-3">
+    <div class="card-body d-flex flex-wrap gap-2 align-items-end">
+        <div>
+            <label for="overdueRange" class="form-label mb-1">Khoảng số ngày trễ</label>
+            <select id="overdueRange" name="overdueRange" class="form-select">
+                <option value="@Project.Models.OverdueLoanRanges.All" selected="@(Model.Range == Project.Models.OverdueLoanRange.All ? "selected" : null)">Tất cả</option>
+                <option value="@Project.Models.OverdueLoanRanges.OneToSevenDays" selected="@(Model.Range == Project.Models.OverdueLoanRange.OneToSevenDays ? "selected" : null)">Trễ từ 1 - 7 ngày</option>
+                <option value="@Project.Models.OverdueLoanRanges.MoreThanSevenDays" selected="@(Model.Range == Project.Models.OverdueLoanRange.MoreThanSevenDays ? "selected" : null)">Trễ trên 7 ngày</option>
+                <option value="@Project.Models.OverdueLoanRanges.MoreThanThirtyDays" selected="@(Model.Range == Project.Models.OverdueLoanRange.MoreThanThirtyDays ? "selected" : null)">Trễ trên 30 ngày</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Lọc</button>
+    </div>
+</form>
+
 <div class="card shadow-sm border-0">
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -22,7 +37,7 @@
                 <tbody>
                 @if (Model.Items.Count == 0)
                 {
-                    <tr><td colspan="7" class="text-center text-muted py-5">Không có phiếu mượn quá hạn.</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted py-5">@(Model.Range == Project.Models.OverdueLoanRange.All ? "Không có phiếu mượn quá hạn." : "Không tìm thấy phiếu mượn nào quá hạn trong khoảng đã chọn.")</td></tr>
                 }
                 else
                 {

@@ -154,7 +154,41 @@ public sealed record OverdueLoanItem(
     DateOnly DueDate,
     string? CopyBarcode);
 
+/// <summary>Các khoảng ngày trễ được hỗ trợ trên danh sách nhắc hạn.</summary>
+public enum OverdueLoanRange
+{
+    All,
+    OneToSevenDays,
+    MoreThanSevenDays,
+    MoreThanThirtyDays
+}
+
+public static class OverdueLoanRanges
+{
+    public const string All = "all";
+    public const string OneToSevenDays = "1-7";
+    public const string MoreThanSevenDays = "over-7";
+    public const string MoreThanThirtyDays = "over-30";
+
+    public static OverdueLoanRange Parse(string? value) => value?.Trim() switch
+    {
+        OneToSevenDays => OverdueLoanRange.OneToSevenDays,
+        MoreThanSevenDays => OverdueLoanRange.MoreThanSevenDays,
+        MoreThanThirtyDays => OverdueLoanRange.MoreThanThirtyDays,
+        _ => OverdueLoanRange.All
+    };
+
+    public static string ToQueryValue(OverdueLoanRange range) => range switch
+    {
+        OverdueLoanRange.OneToSevenDays => OneToSevenDays,
+        OverdueLoanRange.MoreThanSevenDays => MoreThanSevenDays,
+        OverdueLoanRange.MoreThanThirtyDays => MoreThanThirtyDays,
+        _ => All
+    };
+}
+
 public sealed class OverdueLoanViewModel
 {
     public IReadOnlyList<OverdueLoanItem> Items { get; init; } = [];
+    public OverdueLoanRange Range { get; init; } = OverdueLoanRange.All;
 }

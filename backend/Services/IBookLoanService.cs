@@ -12,6 +12,7 @@ public interface IBookLoanService
 {
     Task<IReadOnlyList<BookLoan>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<OverdueLoanItem>> GetOverdueAsync(DateOnly today, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<OverdueLoanItem>> GetOverdueAsync(DateOnly today, OverdueLoanRange range, CancellationToken cancellationToken = default);
     Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, CancellationToken cancellationToken = default);
     Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, string? actor, CancellationToken cancellationToken = default);
     Task<BookLoanOutcome> CreateForHoldAsync(int bookId, int readerAccountId, DateOnly loanDate, DateOnly originalDueDate, DateOnly dueDate, string? actor, CancellationToken cancellationToken = default);

@@ -99,6 +99,48 @@ public sealed class OverdueLoanTests : IDisposable
         Assert.Equal([first.Id, second.Id], items.Select(item => item.LoanId));
     }
 
+    [Fact]
+    public async Task MoreThanSevenDaysFilterOnlyReturnsLoansDelayedMoreThanSevenDays()
+    {
+        var reader = await AddReaderAsync("Bạn đọc", "0900000000", "CARD-01");
+        await AddLoanAsync(reader, "Trễ 7", Today.AddDays(-7));
+        var eightDays = await AddLoanAsync(reader, "Trễ 8", Today.AddDays(-8));
+        var thirtyOneDays = await AddLoanAsync(reader, "Trễ 31", Today.AddDays(-31));
+
+        var items = await service.GetOverdueAsync(Today, OverdueLoanRange.MoreThanSevenDays);
+
+        Assert.Equal([thirtyOneDays.Id, eightDays.Id], items.Select(item => item.LoanId));
+    }
+
+    [Fact]
+    public async Task MoreThanThirtyDaysFilterOnlyReturnsLoansDelayedMoreThanThirtyDays()
+    {
+        var reader = await AddReaderAsync("Bạn đọc", "0900000000", "CARD-01");
+        await AddLoanAsync(reader, "Trễ 30", Today.AddDays(-30));
+        var thirtyOneDays = await AddLoanAsync(reader, "Trễ 31", Today.AddDays(-31));
+
+        var items = await service.GetOverdueAsync(Today, OverdueLoanRange.MoreThanThirtyDays);
+
+        Assert.Equal(thirtyOneDays.Id, Assert.Single(items).LoanId);
+    }
+
+    [Fact]
+    public async Task OneToSevenDaysFilterAndAllFilterRespectTheirRanges()
+    {
+        var reader = await AddReaderAsync("Bạn đọc", "0900000000", "CARD-01");
+        var oneDay = await AddLoanAsync(reader, "Trễ 1", Today.AddDays(-1));
+        var sevenDays = await AddLoanAsync(reader, "Trễ 7", Today.AddDays(-7));
+        var eightDays = await AddLoanAsync(reader, "Trễ 8", Today.AddDays(-8));
+
+        var oneToSeven = await service.GetOverdueAsync(Today, OverdueLoanRange.OneToSevenDays);
+        var all = await service.GetOverdueAsync(Today, OverdueLoanRange.All);
+        var empty = await service.GetOverdueAsync(Today, OverdueLoanRange.MoreThanThirtyDays);
+
+        Assert.Equal([sevenDays.Id, oneDay.Id], oneToSeven.Select(item => item.LoanId));
+        Assert.Equal([eightDays.Id, sevenDays.Id, oneDay.Id], all.Select(item => item.LoanId));
+        Assert.Empty(empty);
+    }
+
     private async Task<ReaderAccount> AddReaderAsync(string name, string phone, string cardCode)
     {
         var id = ++sequence;

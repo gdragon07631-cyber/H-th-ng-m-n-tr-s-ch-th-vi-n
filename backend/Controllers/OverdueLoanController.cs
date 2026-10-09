@@ -10,16 +10,21 @@ namespace Project.Controllers;
 public sealed class OverdueLoanController(IBookLoanService loans) : Controller
 {
     [HttpGet]
-    public async Task<IActionResult> Index(CancellationToken ct = default) =>
-        View(new OverdueLoanViewModel
+    public async Task<IActionResult> Index(string? overdueRange, CancellationToken ct = default)
+    {
+        var range = OverdueLoanRanges.Parse(overdueRange);
+        return View(new OverdueLoanViewModel
         {
-            Items = await loans.GetOverdueAsync(DateOnly.FromDateTime(DateTime.Today), ct)
+            Range = range,
+            Items = await loans.GetOverdueAsync(DateOnly.FromDateTime(DateTime.Today), range, ct)
         });
+    }
 
     [HttpGet("api/overdue-loans")]
-    public async Task<IActionResult> GetOverdueApi(CancellationToken ct = default)
+    public async Task<IActionResult> GetOverdueApi(string? overdueRange, CancellationToken ct = default)
     {
-        var items = await loans.GetOverdueAsync(DateOnly.FromDateTime(DateTime.Today), ct);
+        var range = OverdueLoanRanges.Parse(overdueRange);
+        var items = await loans.GetOverdueAsync(DateOnly.FromDateTime(DateTime.Today), range, ct);
         return Ok(items.Select(item => new
         {
             loanId = item.LoanId,

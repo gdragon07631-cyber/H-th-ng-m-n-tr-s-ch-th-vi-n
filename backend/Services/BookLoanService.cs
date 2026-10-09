@@ -16,13 +16,28 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
             .OrderByDescending(loan => loan.CreatedAtUtc).ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<OverdueLoanItem>> GetOverdueAsync(DateOnly today, CancellationToken cancellationToken = default)
+        => await GetOverdueAsync(today, OverdueLoanRange.All, cancellationToken);
+
+    public async Task<IReadOnlyList<OverdueLoanItem>> GetOverdueAsync(
+        DateOnly today, OverdueLoanRange range, CancellationToken cancellationToken = default)
     {
-        var candidates = await db.BookLoans
+        var query = db.BookLoans
             .Include(loan => loan.Book)
             .Include(loan => loan.BookCopy)
             .Include(loan => loan.ReaderAccount).ThenInclude(reader => reader!.LibraryCard)
-            .Where(loan => loan.DueDate < today)
-            .ToListAsync(cancellationToken);
+            .Where(loan => loan.DueDate < today);
+
+        // Keep the range in the database query. DueDate is date-only, therefore the bounds exactly
+        // implement calendar-day delays without consulting the working-schedule calendar.
+        query = range switch
+        {
+            OverdueLoanRange.OneToSevenDays => query.Where(loan => loan.DueDate >= today.AddDays(-7)),
+            OverdueLoanRange.MoreThanSevenDays => query.Where(loan => loan.DueDate < today.AddDays(-7)),
+            OverdueLoanRange.MoreThanThirtyDays => query.Where(loan => loan.DueDate < today.AddDays(-30)),
+            _ => query
+        };
+
+        var candidates = await query.ToListAsync(cancellationToken);
 
         return candidates
             .Where(loan => !loan.IsReturned)
