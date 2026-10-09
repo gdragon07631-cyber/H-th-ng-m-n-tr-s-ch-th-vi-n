@@ -12,7 +12,7 @@ public sealed class HoldPickupConfirmationTests
     public async Task Confirm_CreatesLoanForReservedCopy_AndUpdatesStatuses()
     {
         await using var fixture = await Fixture.CreateAsync();
-        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian@example.test");
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian@example.test", fixture.AdminAccountId);
 
         Assert.True(result.IsSuccess);
         await using var verify = fixture.CreateContext();
@@ -27,7 +27,41 @@ public sealed class HoldPickupConfirmationTests
         Assert.Equal(expectedLoanDate, loan.LoanDate);
         Assert.Equal(expectedLoanDate.AddDays(14), loan.OriginalDueDate);
         Assert.Equal(loan.OriginalDueDate, loan.DueDate);
+        Assert.Equal(fixture.HoldId, loan.SourceBookHoldId);
+        Assert.Equal(fixture.AdminAccountId, loan.CreatedByAdminAccountId);
         Assert.Single(await verify.BookCopyStatusHistories.ToListAsync());
+
+        var details = await new BookLoanDetailsService(verify).GetHoldConversionDetailsAsync(loan.Id);
+        Assert.NotNull(details);
+        Assert.Equal(loan.Id, details.LoanId);
+        Assert.Equal(fixture.HoldId, details.HoldId);
+        Assert.Equal("COPY-001", details.CopyBarcode);
+        Assert.Equal("Test Book", details.BookTitle);
+        Assert.Equal("CARD-001", details.LibraryCardCode);
+        Assert.Equal("Test Reader", details.ReaderName);
+        Assert.Equal("reader@example.test", details.ReaderEmail);
+        Assert.Equal("000", details.ReaderPhone);
+        Assert.Equal(loan.LoanDate, details.LoanDate);
+        Assert.Equal(loan.DueDate, details.DueDate);
+        Assert.Equal("Librarian One", details.CreatedByName);
+        Assert.Equal("librarian@example.test", details.CreatedByEmail);
+        Assert.Equal("Đang mượn", details.LoanStatus);
+        Assert.Equal(BookHoldStatus.ConvertedToLoan, details.TransactionStatus);
+        var holdHistory = await new BookHoldQueueService(verify)
+            .GetQueueForBookAsync(fixture.BookId, BookHoldQueueFilter.All);
+        Assert.Equal(loan.Id, Assert.Single(holdHistory).LoanId);
+        Assert.Null(await new BookLoanDetailsService(verify).GetHoldConversionDetailsAsync(long.MaxValue));
+
+        loan.SourceBookHoldId = null;
+        loan.CreatedByAdminAccountId = null;
+        await verify.SaveChangesAsync();
+        var legacyDetails = await new BookLoanDetailsService(verify).GetHoldConversionDetailsAsync(loan.Id);
+        Assert.NotNull(legacyDetails);
+        Assert.Equal(fixture.HoldId, legacyDetails.HoldId);
+        Assert.Equal("librarian@example.test", legacyDetails.CreatedByName);
+        var legacyHoldHistory = await new BookHoldQueueService(verify)
+            .GetQueueForBookAsync(fixture.BookId, BookHoldQueueFilter.All);
+        Assert.Equal(loan.Id, Assert.Single(legacyHoldHistory).LoanId);
     }
 
     [Theory]
@@ -36,7 +70,7 @@ public sealed class HoldPickupConfirmationTests
     public async Task Confirm_UsesLoanDaysConfiguredForCardType(int loanDays)
     {
         await using var fixture = await Fixture.CreateAsync(loanDays: loanDays);
-        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian");
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian", fixture.AdminAccountId);
 
         Assert.True(result.IsSuccess);
         await using var verify = fixture.CreateContext();
@@ -52,7 +86,7 @@ public sealed class HoldPickupConfirmationTests
         var proposedDueDate = loanDate.AddDays(8);
         await using var fixture = await Fixture.CreateAsync(loanDays: 8, holidayDates: [proposedDueDate]);
 
-        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian");
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian", fixture.AdminAccountId);
 
         Assert.True(result.IsSuccess);
         await using var verify = fixture.CreateContext();
@@ -71,7 +105,7 @@ public sealed class HoldPickupConfirmationTests
             holidayDates: [proposedDueDate, proposedDueDate.AddDays(1)],
             closedDay: proposedDueDate.AddDays(2).DayOfWeek);
 
-        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian");
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian", fixture.AdminAccountId);
 
         Assert.True(result.IsSuccess);
         await using var verify = fixture.CreateContext();
@@ -84,7 +118,7 @@ public sealed class HoldPickupConfirmationTests
     {
         await using var fixture = await Fixture.CreateAsync(loanDays: null);
 
-        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian");
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian", fixture.AdminAccountId);
 
         Assert.False(result.IsSuccess);
         Assert.Contains("chưa được cấu hình số ngày mượn", result.Message);
@@ -96,7 +130,7 @@ public sealed class HoldPickupConfirmationTests
     {
         await using var fixture = await Fixture.CreateAsync(includeSchedules: false);
 
-        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian");
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian", fixture.AdminAccountId);
 
         Assert.False(result.IsSuccess);
         Assert.Contains("chưa được cấu hình đầy đủ", result.Message);
@@ -108,7 +142,7 @@ public sealed class HoldPickupConfirmationTests
     {
         await using var fixture = await Fixture.CreateAsync(pickupDeadlineUtc: DateTime.UtcNow.AddSeconds(-2));
 
-        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian");
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian", fixture.AdminAccountId);
 
         Assert.False(result.IsSuccess);
         Assert.Contains("quá hạn nhận", result.Message);
@@ -121,7 +155,7 @@ public sealed class HoldPickupConfirmationTests
     {
         await using var fixture = await Fixture.CreateAsync(pickupDeadlineUtc: DateTime.UtcNow.AddDays(-7));
 
-        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian");
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian", fixture.AdminAccountId);
 
         Assert.False(result.IsSuccess);
         Assert.Contains("đặt lại đơn", result.Message);
@@ -143,10 +177,22 @@ public sealed class HoldPickupConfirmationTests
     }
 
     [Fact]
+    public void LoanDetailsController_IsRestrictedToLibraryStaffRoles()
+    {
+        var staffOnly = (Project.Filters.StaffOnlyAttribute?)Attribute.GetCustomAttribute(
+            typeof(Project.Controllers.BookLoanDetailsController), typeof(Project.Filters.StaffOnlyAttribute));
+
+        Assert.NotNull(staffOnly);
+        Assert.Contains(AccountRoles.Librarian, staffOnly.Roles);
+        Assert.Contains(AccountRoles.SystemAdmin, staffOnly.Roles);
+        Assert.Contains(AccountRoles.LibraryManager, staffOnly.Roles);
+    }
+
+    [Fact]
     public async Task Confirm_RejectsMismatchedCard_WithoutChanges()
     {
         await using var fixture = await Fixture.CreateAsync();
-        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-WRONG", "librarian");
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-WRONG", "librarian", fixture.AdminAccountId);
 
         Assert.False(result.IsSuccess);
         Assert.Contains("không khớp", result.Message);
@@ -157,7 +203,7 @@ public sealed class HoldPickupConfirmationTests
     public async Task Confirm_RejectsAlreadyConvertedHold()
     {
         await using var fixture = await Fixture.CreateAsync(BookHoldStatus.ConvertedToLoan);
-        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian");
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian", fixture.AdminAccountId);
 
         Assert.False(result.IsSuccess);
         Assert.Contains("đã được chuyển", result.Message);
@@ -174,7 +220,7 @@ public sealed class HoldPickupConfirmationTests
             await command.ExecuteNonQueryAsync();
         }
 
-        await Assert.ThrowsAsync<DbUpdateException>(() => fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian"));
+        await Assert.ThrowsAsync<DbUpdateException>(() => fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian", fixture.AdminAccountId));
         await fixture.AssertUnchangedAsync();
     }
 
@@ -185,13 +231,15 @@ public sealed class HoldPickupConfirmationTests
         public HoldPickupConfirmationService Service { get; }
         public long HoldId { get; private init; }
         public int BookId { get; private init; }
+        public int AdminAccountId { get; private init; }
 
-        private Fixture(SqliteConnection connection, ApplicationDbContext context, long holdId, int bookId)
+        private Fixture(SqliteConnection connection, ApplicationDbContext context, long holdId, int bookId, int adminAccountId)
         {
             Connection = connection;
             Context = context;
             HoldId = holdId;
             BookId = bookId;
+            AdminAccountId = adminAccountId;
             Service = new HoldPickupConfirmationService(context, new CreatingLoanService(context), new WorkingScheduleService(context));
         }
 
@@ -205,6 +253,11 @@ public sealed class HoldPickupConfirmationTests
             var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options;
             var context = new ApplicationDbContext(options);
             await context.Database.EnsureCreatedAsync();
+            var admin = new AdminAccount
+            {
+                FullName = "Librarian One", Email = "librarian@example.test", PasswordHash = "hash", Role = AccountRoles.Librarian
+            };
+            context.AdminAccounts.Add(admin);
             if (includeSchedules)
             {
                 context.WeeklyWorkingSchedules.AddRange(Enum.GetValues<DayOfWeek>().Select(day =>
@@ -250,7 +303,7 @@ public sealed class HoldPickupConfirmationTests
             };
             context.BookHolds.Add(hold);
             await context.SaveChangesAsync();
-            return new Fixture(connection, context, hold.Id, book.Id);
+            return new Fixture(connection, context, hold.Id, book.Id, admin.Id);
         }
 
         public ApplicationDbContext CreateContext() => new(new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(Connection).Options);

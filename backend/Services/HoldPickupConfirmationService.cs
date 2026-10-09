@@ -12,7 +12,7 @@ public sealed class HoldPickupConfirmationService(
     : IHoldPickupConfirmationService
 {
     public async Task<HoldPickupConfirmationResult> ConfirmAsync(
-        long holdId, string libraryCardCode, string actor, CancellationToken cancellationToken = default)
+        long holdId, string libraryCardCode, string actor, int createdByAdminAccountId, CancellationToken cancellationToken = default)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         try
@@ -77,6 +77,8 @@ public sealed class HoldPickupConfirmationService(
             copy.Status = BookCopyStatus.OnLoan;
             copy.StatusReason = $"Issued for book hold #{hold.Id}";
             loanResult.Loan.BookCopyId = copy.Id;
+            loanResult.Loan.SourceBookHoldId = hold.Id;
+            loanResult.Loan.CreatedByAdminAccountId = createdByAdminAccountId;
             hold.Status = BookHoldStatus.ConvertedToLoan;
 
             db.BookCopyStatusHistories.Add(new BookCopyStatusHistory

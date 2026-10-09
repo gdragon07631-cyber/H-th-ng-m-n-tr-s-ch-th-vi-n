@@ -212,6 +212,10 @@
                                                 <td>@(hold.CopyBarcode ?? "—")</td><td>@(hold.PickupDeadlineText ?? "—")</td>
                                                 <td>@(hold.CancellationReason ?? "—")</td>
                                                 <td class="text-end">
+                                                    @if (hold.LoanId is long loanId)
+                                                    {
+                                                        <a asp-controller="BookLoanDetails" asp-action="Details" asp-route-id="@loanId" class="btn btn-sm btn-outline-primary">Phiếu #@loanId</a>
+                                                    }
                                                     @if (hold.CanBeCancelledByStaff)
                                                     {
                                                         <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelHold-@hold.HoldId">Hủy yêu cầu</button>

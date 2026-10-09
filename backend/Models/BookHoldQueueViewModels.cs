@@ -34,6 +34,7 @@ public static class BookHoldQueueFilter
 public sealed class BookHoldQueueItemViewModel
 {
     public long HoldId { get; set; }
+    public long? LoanId { get; set; }
     public int Position { get; set; }
     public int ReaderAccountId { get; set; }
     public string ReaderName { get; set; } = string.Empty;

@@ -50,9 +50,12 @@ public sealed class HoldPickupController(
         try
         {
             var staff = await auditLogService.GetSignedInStaffAsync(Request, ct);
-            var result = await confirmationService.ConfirmAsync(model.HoldId, model.LibraryCardCode, staff?.Email ?? "Thủ thư", ct);
+            if (staff is null) return Unauthorized();
+            var result = await confirmationService.ConfirmAsync(model.HoldId, model.LibraryCardCode, staff.Email, staff.Id, ct);
             TempData[result.IsSuccess ? "SuccessMessage" : "ErrorMessage"] = result.Message;
-            return RedirectToAction(result.IsSuccess ? nameof(Index) : nameof(Details), result.IsSuccess ? null : new { id = model.HoldId });
+            return result.IsSuccess && result.LoanId is long loanId
+                ? RedirectToAction("Details", "BookLoanDetails", new { id = loanId })
+                : RedirectToAction(nameof(Details), new { id = model.HoldId });
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

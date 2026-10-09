@@ -11,6 +11,10 @@ public sealed class BookLoan
     /// <summary>Specific physical copy issued for this loan, when created from a hold.</summary>
     public long? BookCopyId { get; set; }
     public BookCopy? BookCopy { get; set; }
+    public long? SourceBookHoldId { get; set; }
+    public BookHold? SourceBookHold { get; set; }
+    public int? CreatedByAdminAccountId { get; set; }
+    public AdminAccount? CreatedByAdminAccount { get; set; }
     public int ReaderAccountId { get; set; }
     public ReaderAccount? ReaderAccount { get; set; }
     public DateOnly LoanDate { get; set; }

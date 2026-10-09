@@ -1,0 +1,39 @@
+@model Project.Models.BookLoanDetailsViewModel
+@{
+    ViewData["Title"] = $"Chi tiết phiếu mượn #{Model.LoanId}";
+}
+
+<div class="container py-4" style="max-width: 950px">
+    @if (TempData["SuccessMessage"] is string success)
+    {
+        <div class="alert alert-success" role="status">@success</div>
+    }
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+        <div>
+            <h1 class="h3 text-primary fw-bold mb-1">Phiếu mượn #@Model.LoanId</h1>
+            <p class="text-muted mb-0">Được tạo từ đơn đặt giữ #@Model.HoldId</p>
+        </div>
+        <a asp-controller="HoldPickup" asp-action="Details" asp-route-id="@Model.HoldId" class="btn btn-outline-secondary">Mở đơn nguồn</a>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white fw-semibold">Thông tin phiếu mượn</div>
+        <div class="card-body">
+            <dl class="row mb-0">
+                <dt class="col-sm-4">Mã phiếu mượn</dt><dd class="col-sm-8">#@Model.LoanId</dd>
+                <dt class="col-sm-4">Đơn đặt giữ nguồn</dt><dd class="col-sm-8">#@Model.HoldId</dd>
+                <dt class="col-sm-4">Bản sao / mã vạch</dt><dd class="col-sm-8"><span class="font-monospace">@Model.CopyBarcode</span></dd>
+                <dt class="col-sm-4">Tên sách</dt><dd class="col-sm-8">@Model.BookTitle</dd>
+                <dt class="col-sm-4">Bạn đọc</dt><dd class="col-sm-8">@Model.ReaderName</dd>
+                <dt class="col-sm-4">Mã thẻ</dt><dd class="col-sm-8"><span class="font-monospace">@Model.LibraryCardCode</span></dd>
+                <dt class="col-sm-4">Email / Điện thoại</dt><dd class="col-sm-8">@Model.ReaderEmail · @Model.ReaderPhone</dd>
+                <dt class="col-sm-4">Ngày mượn</dt><dd class="col-sm-8">@Model.LoanDate.ToString("dd/MM/yyyy")</dd>
+                <dt class="col-sm-4">Hạn trả</dt><dd class="col-sm-8">@Model.DueDate.ToString("dd/MM/yyyy")</dd>
+                <dt class="col-sm-4">Người lập phiếu</dt><dd class="col-sm-8">@if (string.IsNullOrWhiteSpace(Model.CreatedByEmail)) { @Model.CreatedByName } else { @Model.CreatedByName <text>(@Model.CreatedByEmail)</text> }</dd>
+                <dt class="col-sm-4">Trạng thái phiếu</dt><dd class="col-sm-8"><span class="badge bg-primary">@Model.LoanStatus</span></dd>
+                <dt class="col-sm-4">Trạng thái giao dịch</dt><dd class="col-sm-8"><span class="badge bg-success">@Model.TransactionStatus</span></dd>
+                <dt class="col-sm-4">Thời điểm lập</dt><dd class="col-sm-8">@DateTime.SpecifyKind(Model.CreatedAtUtc, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</dd>
+            </dl>
+        </div>
+    </div>
+</div>

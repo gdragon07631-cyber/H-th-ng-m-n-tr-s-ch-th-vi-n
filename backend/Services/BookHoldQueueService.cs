@@ -20,6 +20,11 @@ public sealed class BookHoldQueueService(ApplicationDbContext db) : IBookHoldQue
             .Select(hold => new
             {
                 hold.Id,
+                LoanId = db.BookLoans.Where(loan => loan.SourceBookHoldId == hold.Id ||
+                    (hold.Status == BookHoldStatus.ConvertedToLoan && loan.SourceBookHoldId == null &&
+                     hold.BookCopyId != null && loan.BookCopyId == hold.BookCopyId &&
+                     loan.ReaderAccountId == hold.ReaderAccountId && loan.BookId == hold.BookId))
+                    .OrderByDescending(loan => loan.CreatedAtUtc).Select(loan => (long?)loan.Id).FirstOrDefault(),
                 hold.ReaderAccountId,
                 ReaderName = hold.ReaderAccount!.FullName,
                 hold.HeldAtUtc,
@@ -35,6 +40,7 @@ public sealed class BookHoldQueueService(ApplicationDbContext db) : IBookHoldQue
         return holds.Select((hold, index) => new BookHoldQueueItemViewModel
         {
             HoldId = hold.Id,
+            LoanId = hold.LoanId,
             Position = index + 1,
             ReaderAccountId = hold.ReaderAccountId,
             ReaderName = hold.ReaderName,
@@ -64,6 +70,11 @@ public sealed class BookHoldQueueService(ApplicationDbContext db) : IBookHoldQue
             .Select(hold => new
             {
                 hold.Id,
+                LoanId = db.BookLoans.Where(loan => loan.SourceBookHoldId == hold.Id ||
+                    (hold.Status == BookHoldStatus.ConvertedToLoan && loan.SourceBookHoldId == null &&
+                     hold.BookCopyId != null && loan.BookCopyId == hold.BookCopyId &&
+                     loan.ReaderAccountId == hold.ReaderAccountId && loan.BookId == hold.BookId))
+                    .OrderByDescending(loan => loan.CreatedAtUtc).Select(loan => (long?)loan.Id).FirstOrDefault(),
                 hold.ReaderAccountId,
                 ReaderName = hold.ReaderAccount!.FullName,
                 hold.HeldAtUtc,
@@ -79,6 +90,7 @@ public sealed class BookHoldQueueService(ApplicationDbContext db) : IBookHoldQue
         return allHolds.Select((hold, index) => new BookHoldQueueItemViewModel
             {
                 HoldId = hold.Id,
+                LoanId = hold.LoanId,
                 Position = index + 1,
                 ReaderAccountId = hold.ReaderAccountId,
                 ReaderName = hold.ReaderName,

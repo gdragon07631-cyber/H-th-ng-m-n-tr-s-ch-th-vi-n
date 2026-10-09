@@ -275,6 +275,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasIndex(loan => loan.BookCopyId).IsUnique().HasFilter("[BookCopyId] IS NOT NULL");
             entity.HasOne(loan => loan.BookCopy).WithMany()
                 .HasForeignKey(loan => loan.BookCopyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(loan => loan.SourceBookHoldId).IsUnique().HasFilter("[SourceBookHoldId] IS NOT NULL");
+            entity.HasOne(loan => loan.SourceBookHold).WithMany()
+                .HasForeignKey(loan => loan.SourceBookHoldId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(loan => loan.CreatedByAdminAccount).WithMany()
+                .HasForeignKey(loan => loan.CreatedByAdminAccountId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<BookCopy>(entity =>
