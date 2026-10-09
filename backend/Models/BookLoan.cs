@@ -141,3 +141,20 @@ public sealed class LoanIndexViewModel
     public CreateBookLoanViewModel NewLoan { get; set; } = new();
     public bool CanOverride { get; set; }
 }
+
+/// <summary>Thông tin liên hệ cần thiết để thủ thư nhắc các phiếu mượn quá hạn.</summary>
+public sealed record OverdueLoanItem(
+    long LoanId,
+    int DaysOverdue,
+    string ReaderName,
+    string PhoneNumber,
+    string? CardCode,
+    string BookTitle,
+    DateOnly LoanDate,
+    DateOnly DueDate,
+    string? CopyBarcode);
+
+public sealed class OverdueLoanViewModel
+{
+    public IReadOnlyList<OverdueLoanItem> Items { get; init; } = [];
+}

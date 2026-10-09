@@ -1,0 +1,40 @@
+@model Project.Models.OverdueLoanViewModel
+@{
+    ViewData["Title"] = "Phiếu mượn quá hạn";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">Phiếu mượn quá hạn</h1>
+        <p class="text-muted mb-0">Ưu tiên liên hệ các trường hợp trễ lâu nhất.</p>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Số ngày trễ</th><th>Bạn đọc</th><th>Số điện thoại</th><th>Mã thẻ</th><th>Tên sách</th><th>Mã phiếu</th><th>Hạn trả</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @if (Model.Items.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-muted py-5">Không có phiếu mượn quá hạn.</td></tr>
+                }
+                else
+                {
+                    @foreach (var item in Model.Items)
+                    {
+                        <tr>
+                            <td><span class="badge bg-danger">@item.DaysOverdue ngày</span></td><td class="fw-semibold">@item.ReaderName</td><td class="text-nowrap">@item.PhoneNumber</td><td>@(item.CardCode ?? "—")</td><td>@item.BookTitle</td><td>#@item.LoanId</td><td class="text-nowrap">@item.DueDate.ToString("dd/MM/yyyy")</td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

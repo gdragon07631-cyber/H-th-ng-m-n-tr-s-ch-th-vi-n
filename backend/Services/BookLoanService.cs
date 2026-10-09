@@ -15,6 +15,33 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
                 .ThenInclude(card => card!.LibraryCardType)
             .OrderByDescending(loan => loan.CreatedAtUtc).ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<OverdueLoanItem>> GetOverdueAsync(DateOnly today, CancellationToken cancellationToken = default)
+    {
+        var candidates = await db.BookLoans
+            .Include(loan => loan.Book)
+            .Include(loan => loan.BookCopy)
+            .Include(loan => loan.ReaderAccount).ThenInclude(reader => reader!.LibraryCard)
+            .Where(loan => loan.DueDate < today)
+            .ToListAsync(cancellationToken);
+
+        return candidates
+            .Where(loan => !loan.IsReturned)
+            .Select(loan => new OverdueLoanItem(
+                loan.Id,
+                today.DayNumber - loan.DueDate.DayNumber,
+                loan.ReaderAccount?.FullName ?? string.Empty,
+                loan.ReaderAccount?.PhoneNumber ?? string.Empty,
+                loan.ReaderAccount?.LibraryCard?.CardCode,
+                loan.Book?.Title ?? string.Empty,
+                loan.LoanDate,
+                loan.DueDate,
+                loan.BookCopy?.CopyCode))
+            .OrderByDescending(item => item.DaysOverdue)
+            .ThenBy(item => item.DueDate)
+            .ThenBy(item => item.LoanId)
+            .ToList();
+    }
+
     public Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, CancellationToken cancellationToken = default) =>
         CreateAsync(bookId, readerAccountId, loanDate, null, cancellationToken);
 
