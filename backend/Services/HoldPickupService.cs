@@ -13,6 +13,7 @@ public sealed class HoldPickupService(ApplicationDbContext db) : IHoldPickupServ
         var holds = await db.BookHolds
             .AsNoTracking()
             .Include(h => h.ReaderAccount)
+                .ThenInclude(r => r!.LibraryCard)
             .Include(h => h.Book)
             .Include(h => h.BookCopy)
                 .ThenInclude(c => c!.Shelf)
@@ -34,6 +35,7 @@ public sealed class HoldPickupService(ApplicationDbContext db) : IHoldPickupServ
             CopyBarcode = h.BookCopy?.CopyCode ?? "—",
             ReaderAccountId = h.ReaderAccountId,
             ReaderName = h.ReaderAccount?.FullName ?? "—",
+            LibraryCardCode = h.ReaderAccount?.LibraryCard?.CardCode ?? string.Empty,
             ReaderEmail = h.ReaderAccount?.Email ?? string.Empty,
             ReaderPhone = h.ReaderAccount?.PhoneNumber ?? string.Empty,
             PickupDeadlineUtc = h.PickupDeadlineUtc,
@@ -42,6 +44,27 @@ public sealed class HoldPickupService(ApplicationDbContext db) : IHoldPickupServ
             CurrentShelf = h.BookCopy?.Shelf?.Name,
             CurrentWarehouse = h.BookCopy?.Shelf?.Warehouse?.Name
         }).ToList();
+    }
+
+    public async Task<HoldPickupItemViewModel?> GetHoldAsync(long holdId, CancellationToken cancellationToken = default)
+    {
+        var hold = await db.BookHolds.AsNoTracking()
+            .Include(h => h.ReaderAccount).ThenInclude(r => r!.LibraryCard)
+            .Include(h => h.Book)
+            .Include(h => h.BookCopy).ThenInclude(c => c!.Shelf).ThenInclude(s => s!.Warehouse)
+            .FirstOrDefaultAsync(h => h.Id == holdId, cancellationToken);
+        if (hold == null || hold.BookCopyId == null || hold.BookCopy == null) return null;
+
+        return new HoldPickupItemViewModel
+        {
+            HoldId = hold.Id, BookId = hold.BookId, BookTitle = hold.Book?.Title ?? "—", Isbn = hold.Book?.Isbn,
+            BookCopyId = hold.BookCopyId.Value, CopyBarcode = hold.BookCopy.CopyCode,
+            ReaderAccountId = hold.ReaderAccountId, ReaderName = hold.ReaderAccount?.FullName ?? "—",
+            LibraryCardCode = hold.ReaderAccount?.LibraryCard?.CardCode ?? string.Empty,
+            ReaderEmail = hold.ReaderAccount?.Email ?? string.Empty, ReaderPhone = hold.ReaderAccount?.PhoneNumber ?? string.Empty,
+            PickupDeadlineUtc = hold.PickupDeadlineUtc, HeldAtUtc = hold.HeldAtUtc, Status = hold.Status,
+            CurrentShelf = hold.BookCopy.Shelf?.Name, CurrentWarehouse = hold.BookCopy.Shelf?.Warehouse?.Name
+        };
     }
 }
 

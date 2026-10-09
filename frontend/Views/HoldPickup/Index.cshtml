@@ -47,13 +47,14 @@
                         <th>Tên sách</th>
                         <th style="width: 200px;">Vị trí kệ hiện tại</th>
                         <th style="width: 110px;" class="text-center">Mã yêu cầu</th>
+                        <th>Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
                 @if (Model.Items.Count == 0)
                 {
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-5">
+                        <td colspan="8" class="text-center text-muted py-5">
                             <div class="py-4">
                                 <span class="fs-1 d-block mb-2">📭</span>
                                 <h5 class="fw-normal text-secondary mb-1">Hiện không có sách nào đang chờ người đến nhận</h5>
@@ -120,6 +121,7 @@
                             <td class="text-center">
                                 <span class="badge bg-secondary font-monospace">#@item.HoldId</span>
                             </td>
+                            <td><a asp-action="Details" asp-route-id="@item.HoldId" class="btn btn-sm btn-primary">Chi tiết / Xác nhận</a></td>
                         </tr>
                     }
                 }

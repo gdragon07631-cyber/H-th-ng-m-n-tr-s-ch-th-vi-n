@@ -38,6 +38,7 @@ builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IStaffAccountService, StaffAccountService>();
 builder.Services.AddScoped<IBookCopyService, BookCopyService>();
 builder.Services.AddScoped<IHoldPickupService, HoldPickupService>();
+builder.Services.AddScoped<IHoldPickupConfirmationService, HoldPickupConfirmationService>();
 builder.Services.AddScoped<IBookHoldQueueService, BookHoldQueueService>();
 builder.Services.AddScoped<IBookHoldFulfillmentService, BookHoldFulfillmentService>();
 builder.Services.AddScoped<IStaffHoldCancellationService, StaffHoldCancellationService>();

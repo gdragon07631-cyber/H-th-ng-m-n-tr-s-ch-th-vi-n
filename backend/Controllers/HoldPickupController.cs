@@ -10,7 +10,11 @@ namespace Project.Controllers;
 /// Read-only: hiển thị mã vạch bản sao, tên bạn đọc, hạn nhận (sort theo hạn gần nhất).
 /// </summary>
 [StaffOnly(AccountRoles.Librarian, AccountRoles.SystemAdmin, AccountRoles.LibraryManager)]
-public sealed class HoldPickupController(IHoldPickupService holdPickupService) : Controller
+public sealed class HoldPickupController(
+    IHoldPickupService holdPickupService,
+    IHoldPickupConfirmationService confirmationService,
+    IAuditLogService auditLogService,
+    ILogger<HoldPickupController> logger) : Controller
 {
     // ==========================================
     // MVC VIEW ACTION
@@ -24,6 +28,38 @@ public sealed class HoldPickupController(IHoldPickupService holdPickupService) :
         {
             Items = items
         });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Details(long id, CancellationToken ct = default)
+    {
+        var item = await holdPickupService.GetHoldAsync(id, ct);
+        return item == null ? NotFound() : View(item);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Confirm(ConfirmHoldPickupViewModel model, CancellationToken ct = default)
+    {
+        if (!ModelState.IsValid)
+        {
+            TempData["ErrorMessage"] = ModelState.Values.SelectMany(value => value.Errors).FirstOrDefault()?.ErrorMessage
+                ?? "Vui lòng nhập mã thẻ bạn đọc.";
+            return RedirectToAction(nameof(Details), new { id = model.HoldId });
+        }
+
+        try
+        {
+            var staff = await auditLogService.GetSignedInStaffAsync(Request, ct);
+            var result = await confirmationService.ConfirmAsync(model.HoldId, model.LibraryCardCode, staff?.Email ?? "Thủ thư", ct);
+            TempData[result.IsSuccess ? "SuccessMessage" : "ErrorMessage"] = result.Message;
+            return RedirectToAction(result.IsSuccess ? nameof(Index) : nameof(Details), result.IsSuccess ? null : new { id = model.HoldId });
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogError(exception, "Failed to confirm book hold {HoldId}.", model.HoldId);
+            TempData["ErrorMessage"] = "Không thể hoàn tất xác nhận do lỗi hệ thống. Vui lòng tải lại trang để kiểm tra trạng thái đơn.";
+            return RedirectToAction(nameof(Index));
+        }
     }
 
     // ==========================================

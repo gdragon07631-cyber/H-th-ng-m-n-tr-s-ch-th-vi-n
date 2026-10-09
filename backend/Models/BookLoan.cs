@@ -8,6 +8,9 @@ public sealed class BookLoan
     public long Id { get; set; }
     public int BookId { get; set; }
     public Book? Book { get; set; }
+    /// <summary>Specific physical copy issued for this loan, when created from a hold.</summary>
+    public long? BookCopyId { get; set; }
+    public BookCopy? BookCopy { get; set; }
     public int ReaderAccountId { get; set; }
     public ReaderAccount? ReaderAccount { get; set; }
     public DateOnly LoanDate { get; set; }

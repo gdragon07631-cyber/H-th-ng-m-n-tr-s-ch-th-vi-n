@@ -9,5 +9,6 @@ public interface IHoldPickupService
     /// sắp xếp theo hạn nhận gần nhất trước (ascending).
     /// </summary>
     Task<IReadOnlyList<HoldPickupItemViewModel>> GetWaitingPickupHoldsAsync(CancellationToken cancellationToken = default);
+    Task<HoldPickupItemViewModel?> GetHoldAsync(long holdId, CancellationToken cancellationToken = default);
 }
 

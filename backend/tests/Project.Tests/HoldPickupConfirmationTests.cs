@@ -1,0 +1,163 @@
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Project.Data;
+using Project.Models;
+using Project.Services;
+
+namespace Project.Tests;
+
+public sealed class HoldPickupConfirmationTests
+{
+    [Fact]
+    public async Task Confirm_CreatesLoanForReservedCopy_AndUpdatesStatuses()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian@example.test");
+
+        Assert.True(result.IsSuccess);
+        await using var verify = fixture.CreateContext();
+        var hold = await verify.BookHolds.SingleAsync();
+        var copy = await verify.BookCopies.SingleAsync();
+        var loan = await verify.BookLoans.SingleAsync();
+        Assert.Equal(BookHoldStatus.ConvertedToLoan, hold.Status);
+        Assert.Equal(BookCopyStatus.OnLoan, copy.Status);
+        Assert.Equal(copy.Id, loan.BookCopyId);
+        Assert.Equal(fixture.BookId, loan.BookId);
+        Assert.Single(await verify.BookCopyStatusHistories.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Confirm_RejectsMismatchedCard_WithoutChanges()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-WRONG", "librarian");
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("không khớp", result.Message);
+        await fixture.AssertUnchangedAsync();
+    }
+
+    [Fact]
+    public async Task Confirm_RejectsAlreadyConvertedHold()
+    {
+        await using var fixture = await Fixture.CreateAsync(BookHoldStatus.ConvertedToLoan);
+        var result = await fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian");
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("đã được chuyển", result.Message);
+        await fixture.AssertUnchangedAsync(BookHoldStatus.ConvertedToLoan);
+    }
+
+    [Fact]
+    public async Task Confirm_RollsBackLoanAndStatuses_WhenFailureOccursMidTransaction()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await using (var command = fixture.Connection.CreateCommand())
+        {
+            command.CommandText = "CREATE TRIGGER fail_history BEFORE INSERT ON BookCopyStatusHistories BEGIN SELECT RAISE(ABORT, 'forced failure'); END;";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => fixture.Service.ConfirmAsync(fixture.HoldId, "CARD-001", "librarian"));
+        await fixture.AssertUnchangedAsync();
+    }
+
+    private sealed class Fixture : IAsyncDisposable
+    {
+        public SqliteConnection Connection { get; }
+        public ApplicationDbContext Context { get; }
+        public HoldPickupConfirmationService Service { get; }
+        public long HoldId { get; private init; }
+        public int BookId { get; private init; }
+
+        private Fixture(SqliteConnection connection, ApplicationDbContext context, long holdId, int bookId)
+        {
+            Connection = connection;
+            Context = context;
+            HoldId = holdId;
+            BookId = bookId;
+            Service = new HoldPickupConfirmationService(context, new CreatingLoanService(context));
+        }
+
+        public static async Task<Fixture> CreateAsync(string holdStatus = "Đã có sách")
+        {
+            var connection = new SqliteConnection("Data Source=:memory:");
+            await connection.OpenAsync();
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options;
+            var context = new ApplicationDbContext(options);
+            await context.Database.EnsureCreatedAsync();
+            var author = new Author { Name = "Test Author" };
+            context.Authors.Add(author);
+            var reader = new ReaderAccount
+            {
+                FullName = "Test Reader", DateOfBirth = new DateOnly(2000, 1, 1), Email = "reader@example.test",
+                PhoneNumber = "000", StudentOrStaffCode = "ST-001", PasswordHash = "hash", Status = "Đang hoạt động"
+            };
+            var cardType = new LibraryCardType { Name = "Sinh viên" };
+            context.ReaderAccounts.Add(reader);
+            context.LibraryCardTypes.Add(cardType);
+            var warehouse = new Warehouse { Code = "WH", Name = "Warehouse" };
+            context.Warehouses.Add(warehouse);
+            await context.SaveChangesAsync();
+            var card = new LibraryCard
+            {
+                CardCode = "CARD-001", ReaderAccountId = reader.Id, LibraryCardTypeId = cardType.Id,
+                IssuedOn = new DateOnly(2025, 1, 1), ExpiresOn = new DateOnly(2030, 1, 1)
+            };
+            var shelf = new Shelf { WarehouseId = warehouse.Id, Code = "S1", Name = "Shelf" };
+            var book = new Book { Title = "Test Book", AuthorId = author.Id };
+            context.LibraryCards.Add(card);
+            context.Shelves.Add(shelf);
+            context.Books.Add(book);
+            await context.SaveChangesAsync();
+            var copy = new BookCopy { BookId = book.Id, ShelfId = shelf.Id, CopyCode = "COPY-001", Status = BookCopyStatus.OnHold };
+            context.BookCopies.Add(copy);
+            await context.SaveChangesAsync();
+            var hold = new BookHold
+            {
+                ReaderAccountId = reader.Id, BookId = book.Id, BookCopyId = copy.Id,
+                Status = holdStatus, HeldAtUtc = DateTime.UtcNow
+            };
+            context.BookHolds.Add(hold);
+            await context.SaveChangesAsync();
+            return new Fixture(connection, context, hold.Id, book.Id);
+        }
+
+        public ApplicationDbContext CreateContext() => new(new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(Connection).Options);
+
+        public async Task AssertUnchangedAsync(string expectedHoldStatus = "Đã có sách")
+        {
+            await using var verify = CreateContext();
+            Assert.Empty(await verify.BookLoans.ToListAsync());
+            Assert.Equal(expectedHoldStatus, await verify.BookHolds.Select(hold => hold.Status).SingleAsync());
+            Assert.Equal(BookCopyStatus.OnHold, await verify.BookCopies.Select(copy => copy.Status).SingleAsync());
+            Assert.Empty(await verify.BookCopyStatusHistories.ToListAsync());
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await Context.DisposeAsync();
+            await Connection.DisposeAsync();
+        }
+    }
+
+    private sealed class CreatingLoanService(ApplicationDbContext db) : IBookLoanService
+    {
+        public Task<IReadOnlyList<BookLoan>> GetAllAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, CancellationToken cancellationToken = default) => CreateAsync(bookId, readerAccountId, loanDate, null, cancellationToken);
+        public async Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, string? actor, CancellationToken cancellationToken = default)
+        {
+            var loan = new BookLoan { BookId = bookId, ReaderAccountId = readerAccountId, LoanDate = loanDate, OriginalDueDate = loanDate.AddDays(14), DueDate = loanDate.AddDays(14), CreatedAtUtc = DateTime.UtcNow };
+            db.BookLoans.Add(loan);
+            await db.SaveChangesAsync(cancellationToken);
+            return new(true, Loan: loan);
+        }
+        public Task<BatchBookLoanOutcome> CreateManyAsync(IReadOnlyList<int> ids, int readerId, DateOnly date, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<BatchBookLoanOutcome> CreateManyAsync(IReadOnlyList<int> ids, int readerId, DateOnly date, string? actor, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<RenewBookLoanOutcome> RenewAsync(long id, DateOnly today, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<DateOnly> AdjustDueDateAsync(DateOnly date, CancellationToken ct = default) => Task.FromResult(date);
+        public Task<IReadOnlyList<BlockedLoanLogEntry>> GetBlockedLoanLogsAsync(int? readerId = null, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<BookLoanOutcome> OverrideCreateAsync(int bookId, int readerId, DateOnly date, string actor, string reason, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<BatchBookLoanOutcome> OverrideCreateManyAsync(IReadOnlyList<int> ids, int readerId, DateOnly date, string actor, string reason, CancellationToken ct = default) => throw new NotImplementedException();
+    }
+}

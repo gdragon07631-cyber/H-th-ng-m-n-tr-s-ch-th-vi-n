@@ -403,6 +403,9 @@ namespace Project.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
+                    b.Property<long?>("BookCopyId")
+                        .HasColumnType("bigint");
+
                     b.Property<int>("BookId")
                         .HasColumnType("int");
 
@@ -429,6 +432,10 @@ namespace Project.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("BookId");
+
+                    b.HasIndex("BookCopyId")
+                        .IsUnique()
+                        .HasFilter("[BookCopyId] IS NOT NULL");
 
                     b.HasIndex("ReaderAccountId");
 
@@ -1078,6 +1085,7 @@ namespace Project.Migrations
                     b.Navigation("Author");
 
                     b.Navigation("Book");
+
                 });
 
             modelBuilder.Entity("Project.Models.BookCopy", b =>
@@ -1144,6 +1152,11 @@ namespace Project.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Project.Models.BookCopy", "BookCopy")
+                        .WithMany()
+                        .HasForeignKey("BookCopyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Project.Models.ReaderAccount", "ReaderAccount")
                         .WithMany()
                         .HasForeignKey("ReaderAccountId")
@@ -1151,6 +1164,8 @@ namespace Project.Migrations
                         .IsRequired();
 
                     b.Navigation("Book");
+
+                    b.Navigation("BookCopy");
 
                     b.Navigation("ReaderAccount");
                 });
