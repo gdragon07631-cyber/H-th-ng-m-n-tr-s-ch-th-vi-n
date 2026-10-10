@@ -15,6 +15,13 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
                 .ThenInclude(card => card!.LibraryCardType)
             .OrderByDescending(loan => loan.CreatedAtUtc).ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<BookLoan>> GetForReaderAsync(int readerAccountId, CancellationToken cancellationToken = default) =>
+        await db.BookLoans.AsNoTracking().Where(loan => loan.ReaderAccountId == readerAccountId)
+            .Include(loan => loan.Book)
+            .Include(loan => loan.ReaderAccount).ThenInclude(reader => reader!.LibraryCard)
+                .ThenInclude(card => card!.LibraryCardType)
+            .OrderByDescending(loan => loan.CreatedAtUtc).ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<OverdueLoanItem>> GetOverdueAsync(DateOnly today, CancellationToken cancellationToken = default)
         => await GetOverdueAsync(today, OverdueLoanRange.All, cancellationToken);
 
@@ -254,32 +261,59 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
         if (loan.RenewalCount >= cardType.MaxRenewals)
             return new(false, "Bạn đã sử dụng hết số lần gia hạn cho phép của loại thẻ.");
 
+        var nowUtc = DateTime.UtcNow;
+        var hasActiveHold = await db.BookHolds.AnyAsync(hold => hold.BookId == loan.BookId &&
+            (hold.Status == BookHoldStatus.Waiting ||
+             (HoldPickupService.WaitingPickupStatuses.Contains(hold.Status) &&
+              (hold.PickupDeadlineUtc == null || hold.PickupDeadlineUtc > nowUtc))), cancellationToken);
+        if (hasActiveHold)
+            return new(false, "Sách đang có người đặt giữ, không thể gia hạn", ReasonCode: "BOOK_HAS_ACTIVE_HOLD");
+
         var hasOtherOverdueLoan = await db.BookLoans.AnyAsync(other =>
             other.ReaderAccountId == loan.ReaderAccountId && other.Id != loan.Id && other.DueDate < today,
             cancellationToken);
-        var hasOutstandingBalance = loan.ReaderAccount!.OutstandingBalance > 0;
-        if (hasOtherOverdueLoan && hasOutstandingBalance)
-            return new(false,
-                "Không thể gia hạn vì bạn đọc đang có phiếu mượn khác quá hạn và còn phí/phạt chưa thanh toán.",
-                ReasonCode: "OTHER_OVERDUE_LOAN_AND_UNPAID_FEE");
         if (hasOtherOverdueLoan)
             return new(false,
-                "Không thể gia hạn vì bạn đọc đang có phiếu mượn khác quá hạn.",
-                ReasonCode: "OTHER_OVERDUE_LOAN");
+                "Không thể gia hạn do bạn đang có phiếu mượn khác quá hạn", ReasonCode: "OTHER_OVERDUE_LOAN");
+
+        var hasOutstandingBalance = loan.ReaderAccount!.OutstandingBalance > 0;
         if (hasOutstandingBalance)
             return new(false,
-                "Không thể gia hạn vì tài khoản bạn đọc đang còn phí/phạt chưa thanh toán.",
-                ReasonCode: "UNPAID_FEE");
+                "Không thể gia hạn do bạn đang có khoản phí chưa thanh toán", ReasonCode: "UNPAID_FEE");
 
         var oldDueDate = loan.DueDate;
         DateOnly newDueDate;
         try { newDueDate = await AdjustDueDateAsync(oldDueDate.AddDays(DefaultRenewalDays), cancellationToken); }
         catch (InvalidOperationException exception) { return new(false, exception.Message); }
 
+        // Conditional update prevents two simultaneous requests from consuming the same final renewal.
+        if (db.Database.IsRelational())
+        {
+            var updated = await db.BookLoans.Where(item => item.Id == loanId
+                    && item.DueDate == oldDueDate && item.RenewalCount == loan.RenewalCount
+                    && item.RenewalCount < cardType.MaxRenewals)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.DueDate, newDueDate)
+                    .SetProperty(item => item.RenewalCount, item => item.RenewalCount + 1), cancellationToken);
+            if (updated == 0) return new(false, "Phiếu mượn vừa được cập nhật hoặc đã hết lượt gia hạn. Vui lòng tải lại trang.");
+        }
+        else
+        {
+            loan.DueDate = newDueDate;
+            loan.RenewalCount++;
+            await db.SaveChangesAsync(cancellationToken);
+            return new(true, Loan: loan, OldDueDate: oldDueDate);
+        }
         loan.DueDate = newDueDate;
         loan.RenewalCount++;
-        await db.SaveChangesAsync(cancellationToken);
         return new(true, Loan: loan, OldDueDate: oldDueDate);
+    }
+
+    public async Task<RenewBookLoanOutcome> RenewForReaderAsync(long loanId, int readerAccountId, DateOnly today, CancellationToken cancellationToken = default)
+    {
+        if (!await db.BookLoans.AnyAsync(item => item.Id == loanId && item.ReaderAccountId == readerAccountId, cancellationToken))
+            return new(false, "Không tìm thấy phiếu mượn của bạn đọc đang đăng nhập.");
+        return await RenewAsync(loanId, today, cancellationToken);
     }
 
     public async Task<DateOnly> AdjustDueDateAsync(DateOnly proposedDate, CancellationToken cancellationToken = default)

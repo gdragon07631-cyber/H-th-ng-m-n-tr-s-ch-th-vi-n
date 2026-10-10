@@ -11,6 +11,7 @@ public sealed record RenewBookLoanOutcome(
 public interface IBookLoanService
 {
     Task<IReadOnlyList<BookLoan>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<BookLoan>> GetForReaderAsync(int readerAccountId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<OverdueLoanItem>> GetOverdueAsync(DateOnly today, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<OverdueLoanItem>> GetOverdueAsync(DateOnly today, OverdueLoanRange range, CancellationToken cancellationToken = default);
     Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, CancellationToken cancellationToken = default);
@@ -19,6 +20,7 @@ public interface IBookLoanService
     Task<BatchBookLoanOutcome> CreateManyAsync(IReadOnlyList<int> bookIds, int readerAccountId, DateOnly loanDate, CancellationToken cancellationToken = default);
     Task<BatchBookLoanOutcome> CreateManyAsync(IReadOnlyList<int> bookIds, int readerAccountId, DateOnly loanDate, string? actor, CancellationToken cancellationToken = default);
     Task<RenewBookLoanOutcome> RenewAsync(long loanId, DateOnly today, CancellationToken cancellationToken = default);
+    Task<RenewBookLoanOutcome> RenewForReaderAsync(long loanId, int readerAccountId, DateOnly today, CancellationToken cancellationToken = default);
     Task<DateOnly> AdjustDueDateAsync(DateOnly proposedDate, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<BlockedLoanLogEntry>> GetBlockedLoanLogsAsync(int? readerAccountId = null, CancellationToken cancellationToken = default);
     Task<BookLoanOutcome> OverrideCreateAsync(int bookId, int readerAccountId, DateOnly loanDate, string actor, string bypassReason, CancellationToken cancellationToken = default);

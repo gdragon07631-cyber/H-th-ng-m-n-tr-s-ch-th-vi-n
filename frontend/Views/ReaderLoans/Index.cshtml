@@ -1,0 +1,68 @@
+@model IReadOnlyList<Project.Models.BookLoan>
+@{
+    Layout = "_ReaderLayout";
+    ViewData["Title"] = "Phiếu mượn của tôi";
+    var today = DateOnly.FromDateTime(DateTime.Today);
+}
+
+<section class="rd-hero">
+    <div class="rd-profile-head">
+        <div class="flex-grow-1"><div class="rd-eyebrow">Tài khoản bạn đọc</div><h1>Phiếu mượn của tôi</h1></div>
+        <a asp-controller="ReaderRegistration" asp-action="Profile" class="btn btn-outline-light">Tài khoản của tôi</a>
+    </div>
+</section>
+
+<div id="renewMessage" class="alert d-none" role="status"></div>
+<div class="card"><div class="table-responsive"><table class="table align-middle mb-0">
+    <thead><tr><th>Mã phiếu</th><th>Sách</th><th>Ngày mượn</th><th>Hạn trả</th><th>Gia hạn</th><th></th></tr></thead>
+    <tbody>
+    @foreach (var loan in Model)
+    {
+        var limit = loan.ReaderAccount?.LibraryCard?.LibraryCardType?.MaxRenewals ?? 0;
+        var canRenew = loan.DueDate >= today && loan.RenewalCount < limit;
+        <tr data-loan-id="@loan.Id">
+            <td>#@loan.Id</td><td>@loan.Book?.Title</td>
+            <td>@loan.LoanDate.ToString("dd/MM/yyyy")</td>
+            <td class="due-date">@loan.DueDate.ToString("dd/MM/yyyy")</td>
+            <td class="renewal-count">Gia hạn: @loan.RenewalCount/@limit</td>
+            <td>
+                @if (canRenew)
+                {
+                    <form class="renew-form" action="/api/reader/loans/@loan.Id/renew" method="post">
+                        @Html.AntiForgeryToken()
+                        <button class="btn btn-sm btn-outline-primary" type="submit">Gia hạn</button>
+                    </form>
+                }
+            </td>
+        </tr>
+    }
+    </tbody>
+</table></div></div>
+
+@section Scripts {
+<script>
+document.querySelectorAll('.renew-form').forEach(form => form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = form.querySelector('button');
+    const row = form.closest('tr');
+    const message = document.getElementById('renewMessage');
+    button.disabled = true;
+    button.textContent = 'Đang xử lý…';
+    try {
+        const response = await fetch(form.action, { method: 'POST', headers: { 'RequestVerificationToken': form.querySelector('[name="__RequestVerificationToken"]').value } });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'Không thể gia hạn phiếu mượn.');
+        row.querySelector('.due-date').textContent = new Date(result.data.newDueDate).toLocaleDateString('vi-VN');
+        row.querySelector('.renewal-count').textContent = `Gia hạn: ${result.data.renewalCount}/${result.data.renewalLimit}`;
+        message.className = 'alert alert-success';
+        message.textContent = result.message;
+        form.remove();
+    } catch (error) {
+        message.className = 'alert alert-danger';
+        message.textContent = error.message;
+        button.disabled = false;
+        button.textContent = 'Gia hạn';
+    }
+}));
+</script>
+}

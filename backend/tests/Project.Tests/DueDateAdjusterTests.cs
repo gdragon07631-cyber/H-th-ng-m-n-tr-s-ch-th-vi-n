@@ -99,6 +99,21 @@ public class DueDateAdjusterTests
     }
 
     [Fact]
+    public async Task RenewForReader_OtherReaderCannotRenewLoan()
+    {
+        var (db, service) = CreateRenewalService();
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var loan = await CreateRenewableLoan(db, today.AddDays(-1), today.AddDays(20));
+
+        var result = await service.RenewForReaderAsync(loan.Id, loan.ReaderAccountId + 100, today);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("không tìm thấy", result.ErrorMessage);
+        Assert.Equal(today.AddDays(20), (await db.BookLoans.FindAsync(loan.Id))!.DueDate);
+        Assert.Equal(0, loan.RenewalCount);
+    }
+
+    [Fact]
     public async Task Renew_ClosedDayMovesToNextOpenDay()
     {
         var (db, service) = CreateRenewalService();
@@ -116,6 +131,41 @@ public class DueDateAdjusterTests
         Assert.Equal(sunday.AddDays(1), result.Loan!.DueDate);
         Assert.Equal(1, result.Loan.RenewalCount);
         Assert.Equal(sunday.AddDays(1), (await db.BookLoans.FindAsync(loan.Id))!.DueDate);
+    }
+
+    [Fact]
+    public async Task Renew_ConfiguredHolidayMovesToNextOpenDay()
+    {
+        var (db, service) = CreateRenewalService();
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var proposedDate = today.AddDays(BookLoanService.DefaultRenewalDays + 1);
+        await new WorkingScheduleService(db).CreateHolidayClosureAsync(proposedDate, "Ngày lễ kiểm thử", null);
+        var loan = await CreateRenewableLoan(db, today, proposedDate.AddDays(-BookLoanService.DefaultRenewalDays));
+
+        var result = await service.RenewAsync(loan.Id, today);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(proposedDate.AddDays(1), result.Loan!.DueDate);
+        Assert.Equal(proposedDate.AddDays(1), (await db.BookLoans.FindAsync(loan.Id))!.DueDate);
+    }
+
+    [Fact]
+    public async Task Renew_SundayAndFollowingHolidayMovesPastConsecutiveClosures()
+    {
+        var (db, service) = CreateRenewalService();
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var sunday = today.AddDays(BookLoanService.DefaultRenewalDays);
+        while (sunday.DayOfWeek != DayOfWeek.Sunday) sunday = sunday.AddDays(1);
+        var schedule = new WorkingScheduleService(db);
+        await schedule.UpdateWeeklyScheduleAsync(DayOfWeek.Sunday, false, null);
+        await schedule.CreateHolidayClosureAsync(sunday.AddDays(1), "Nghỉ lễ nối tiếp", null);
+        var loan = await CreateRenewableLoan(db, today, sunday.AddDays(-BookLoanService.DefaultRenewalDays));
+
+        var result = await service.RenewAsync(loan.Id, today);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(sunday.AddDays(2), result.Loan!.DueDate);
+        Assert.Equal(sunday.AddDays(2), (await db.BookLoans.FindAsync(loan.Id))!.DueDate);
     }
 
     [Fact]
@@ -183,13 +233,13 @@ public class DueDateAdjusterTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal("UNPAID_FEE", result.ReasonCode);
-        Assert.Contains("đang còn phí/phạt chưa thanh toán", result.ErrorMessage);
+        Assert.Equal("Không thể gia hạn do bạn đang có khoản phí chưa thanh toán", result.ErrorMessage);
         Assert.Equal(today.AddDays(20), loan.DueDate);
         Assert.Equal(1, loan.RenewalCount);
     }
 
     [Fact]
-    public async Task Renew_WithOverdueLoanAndDebt_ReturnsBothReasons()
+    public async Task Renew_WithOverdueLoanAndDebt_PrioritizesOverdueLoan()
     {
         var (db, service) = CreateRenewalService();
         var today = DateOnly.FromDateTime(DateTime.Today);
@@ -206,10 +256,57 @@ public class DueDateAdjusterTests
         var result = await service.RenewAsync(loan.Id, today);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("OTHER_OVERDUE_LOAN_AND_UNPAID_FEE", result.ReasonCode);
-        Assert.Contains("quá hạn và còn phí/phạt", result.ErrorMessage);
+        Assert.Equal("OTHER_OVERDUE_LOAN", result.ReasonCode);
+        Assert.Equal("Không thể gia hạn do bạn đang có phiếu mượn khác quá hạn", result.ErrorMessage);
         Assert.Equal(today.AddDays(20), loan.DueDate);
         Assert.Equal(1, loan.RenewalCount);
+    }
+
+    [Fact]
+    public async Task Renew_WithActiveHoldOnSameBook_IsRejectedBeforeOtherRestrictions()
+    {
+        var (db, service) = CreateRenewalService();
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var loan = await CreateRenewableLoan(db, today.AddDays(-1), today.AddDays(20), renewalCount: 1);
+        db.BookHolds.Add(new BookHold
+        {
+            ReaderAccountId = loan.ReaderAccountId, BookId = loan.BookId,
+            Status = BookHoldStatus.Waiting, HeldAtUtc = DateTime.UtcNow
+        });
+        db.BookLoans.Add(new BookLoan
+        {
+            ReaderAccountId = loan.ReaderAccountId, LoanDate = today.AddDays(-30),
+            OriginalDueDate = today.AddDays(-2), DueDate = today.AddDays(-2)
+        });
+        (await db.ReaderAccounts.FindAsync(loan.ReaderAccountId))!.OutstandingBalance = 100m;
+        await db.SaveChangesAsync();
+
+        var result = await service.RenewAsync(loan.Id, today);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("BOOK_HAS_ACTIVE_HOLD", result.ReasonCode);
+        Assert.Equal("Sách đang có người đặt giữ, không thể gia hạn", result.ErrorMessage);
+        Assert.Equal(today.AddDays(20), (await db.BookLoans.FindAsync(loan.Id))!.DueDate);
+        Assert.Equal(1, loan.RenewalCount);
+    }
+
+    [Fact]
+    public async Task Renew_WithCancelledHold_AllowsRenewal()
+    {
+        var (db, service) = CreateRenewalService();
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var loan = await CreateRenewableLoan(db, today.AddDays(-1), today.AddDays(20));
+        db.BookHolds.Add(new BookHold
+        {
+            ReaderAccountId = loan.ReaderAccountId, BookId = loan.BookId,
+            Status = BookHoldStatus.Cancelled, HeldAtUtc = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var result = await service.RenewAsync(loan.Id, today);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(loan.DueDate.AddDays(BookLoanService.DefaultRenewalDays), result.Loan!.DueDate);
     }
 
     private static (ApplicationDbContext Db, BookLoanService Service) CreateRenewalService()
