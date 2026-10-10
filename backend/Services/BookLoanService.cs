@@ -249,10 +249,19 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
             .FirstOrDefaultAsync(item => item.Id == loanId, cancellationToken);
         if (loan == null) return new(false, "Không tìm thấy phiếu mượn.");
         if (loan.DueDate < today) return new(false, "Phiếu mượn đã quá hạn.");
+        if (loan.IsReturned) return new(false, "Phiếu mượn đã đóng, không thể gia hạn.");
         var cardType = loan.ReaderAccount?.LibraryCard?.LibraryCardType;
         if (cardType == null) return new(false, "Bạn đọc chưa có loại thẻ hợp lệ.");
         if (loan.RenewalCount >= cardType.MaxRenewals)
             return new(false, "Bạn đã sử dụng hết số lần gia hạn cho phép của loại thẻ.");
+
+        var hasOtherReaderHold = await db.BookHolds.AnyAsync(hold =>
+            hold.BookId == loan.BookId && hold.ReaderAccountId != loan.ReaderAccountId &&
+            BookHoldStatus.ActiveStatuses.Contains(hold.Status), cancellationToken);
+        if (hasOtherReaderHold)
+            return new(false,
+                "Không thể gia hạn vì đầu sách đang có bạn đọc khác đặt giữ/xếp hàng.",
+                ReasonCode: "OTHER_READER_HOLD");
 
         var hasOtherOverdueLoan = await db.BookLoans.AnyAsync(other =>
             other.ReaderAccountId == loan.ReaderAccountId && other.Id != loan.Id && other.DueDate < today,
@@ -273,7 +282,8 @@ public sealed class BookLoanService(ApplicationDbContext db, IWorkingScheduleSer
 
         var oldDueDate = loan.DueDate;
         DateOnly newDueDate;
-        try { newDueDate = await AdjustDueDateAsync(oldDueDate.AddDays(DefaultRenewalDays), cancellationToken); }
+        var renewalDays = cardType.LoanDays is > 0 ? cardType.LoanDays.Value : DefaultRenewalDays;
+        try { newDueDate = await AdjustDueDateAsync(oldDueDate.AddDays(renewalDays), cancellationToken); }
         catch (InvalidOperationException exception) { return new(false, exception.Message); }
 
         loan.DueDate = newDueDate;

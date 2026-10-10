@@ -330,6 +330,8 @@ public sealed class HoldPickupConfirmationTests
             await db.BookLoans.Where(item => item.ReaderAccountId == readerAccountId).ToListAsync(ct);
         public Task<RenewBookLoanOutcome> RenewForReaderAsync(long id, int readerAccountId, DateOnly today, CancellationToken ct = default) =>
             throw new NotImplementedException();
+        public Task<IReadOnlyList<OverdueLoanItem>> GetOverdueAsync(DateOnly today, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OverdueLoanItem>>([]);
+        public Task<IReadOnlyList<OverdueLoanItem>> GetOverdueAsync(DateOnly today, OverdueLoanRange range, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OverdueLoanItem>>([]);
         public Task<IReadOnlyList<BookLoan>> GetAllAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, CancellationToken cancellationToken = default) => CreateAsync(bookId, readerAccountId, loanDate, null, cancellationToken);
         public async Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, string? actor, CancellationToken cancellationToken = default)

@@ -438,6 +438,6 @@ public sealed class LoanController(IBookLoanService loans, ApplicationDbContext 
         renewalCount = loan.RenewalCount,
         renewalLimit = loan.ReaderAccount?.LibraryCard?.LibraryCardType?.MaxRenewals ?? 0,
         wasDueDateAdjusted = loan.OriginalDueDate != loan.DueDate,
-        canRenew = loan.DueDate >= DateOnly.FromDateTime(DateTime.Today)
+        canRenew = !loan.IsReturned && loan.DueDate >= DateOnly.FromDateTime(DateTime.Today)
     };
 }

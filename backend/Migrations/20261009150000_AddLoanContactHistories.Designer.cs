@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Project.Data;
 
@@ -11,9 +12,10 @@ using Project.Data;
 namespace Project.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+        partial class AddLoanContactHistories
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -79,7 +81,7 @@ namespace Project.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.ToTable("AdminAccounts", null, t =>
+                    b.ToTable("AdminAccounts", t =>
                         {
                             t.HasCheckConstraint("CK_AdminAccounts_FailedLoginAttempts_NonNegative", "[FailedLoginAttempts] >= 0");
 
@@ -122,7 +124,7 @@ namespace Project.Migrations
 
                     b.HasIndex("OccurredAtUtc");
 
-                    b.ToTable("AuditLogs", null, t =>
+                    b.ToTable("AuditLogs", t =>
                         {
                             t.HasTrigger("TR_AuditLogs_ReadOnly");
                         });
@@ -162,7 +164,7 @@ namespace Project.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Authors", (string)null);
+                    b.ToTable("Authors");
                 });
 
             modelBuilder.Entity("Project.Models.Book", b =>
@@ -223,7 +225,7 @@ namespace Project.Migrations
 
                     b.HasIndex("CategoryId");
 
-                    b.ToTable("Books", (string)null);
+                    b.ToTable("Books");
                 });
 
             modelBuilder.Entity("Project.Models.BookAuthor", b =>
@@ -241,7 +243,7 @@ namespace Project.Migrations
 
                     b.HasIndex("AuthorId");
 
-                    b.ToTable("BookAuthors", (string)null);
+                    b.ToTable("BookAuthors");
                 });
 
             modelBuilder.Entity("Project.Models.BookCopy", b =>
@@ -300,7 +302,7 @@ namespace Project.Migrations
 
                     b.HasIndex("ShelfId");
 
-                    b.ToTable("BookCopies", (string)null);
+                    b.ToTable("BookCopies");
                 });
 
             modelBuilder.Entity("Project.Models.BookCopyStatusHistory", b =>
@@ -341,7 +343,7 @@ namespace Project.Migrations
 
                     b.HasIndex("BookCopyId", "ChangedAtUtc");
 
-                    b.ToTable("BookCopyStatusHistories", (string)null);
+                    b.ToTable("BookCopyStatusHistories");
                 });
 
             modelBuilder.Entity("Project.Models.BookHold", b =>
@@ -392,7 +394,7 @@ namespace Project.Migrations
 
                     b.HasIndex("ReaderAccountId", "Status", "BookId");
 
-                    b.ToTable("BookHolds", (string)null);
+                    b.ToTable("BookHolds");
                 });
 
             modelBuilder.Entity("Project.Models.BookLoan", b =>
@@ -451,7 +453,7 @@ namespace Project.Migrations
                         .IsUnique()
                         .HasFilter("[SourceBookHoldId] IS NOT NULL");
 
-                    b.ToTable("BookLoans", (string)null);
+                    b.ToTable("BookLoans");
                 });
 
             modelBuilder.Entity("Project.Models.Category", b =>
@@ -487,7 +489,7 @@ namespace Project.Migrations
 
                     b.HasIndex("ParentId");
 
-                    b.ToTable("Categories", (string)null);
+                    b.ToTable("Categories");
                 });
 
             modelBuilder.Entity("Project.Models.HolidayClosure", b =>
@@ -515,7 +517,7 @@ namespace Project.Migrations
                     b.HasIndex("HolidayDate")
                         .IsUnique();
 
-                    b.ToTable("HolidayClosures", (string)null);
+                    b.ToTable("HolidayClosures");
                 });
 
             modelBuilder.Entity("Project.Models.LibraryCard", b =>
@@ -560,7 +562,7 @@ namespace Project.Migrations
                     b.HasIndex("ReaderAccountId")
                         .IsUnique();
 
-                    b.ToTable("LibraryCards", (string)null);
+                    b.ToTable("LibraryCards");
                 });
 
             modelBuilder.Entity("Project.Models.LibraryCardType", b =>
@@ -594,7 +596,7 @@ namespace Project.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("LibraryCardTypes", (string)null);
+                    b.ToTable("LibraryCardTypes");
                 });
 
             modelBuilder.Entity("Project.Models.LoanContactHistory", b =>
@@ -630,7 +632,7 @@ namespace Project.Migrations
 
                     b.HasIndex("BookLoanId", "CreatedAtUtc");
 
-                    b.ToTable("LoanContactHistories", (string)null);
+                    b.ToTable("LoanContactHistories");
                 });
 
             modelBuilder.Entity("Project.Models.LoanPolicy", b =>
@@ -646,7 +648,7 @@ namespace Project.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("LoanPolicies", (string)null);
+                    b.ToTable("LoanPolicies");
 
                     b.HasData(
                         new
@@ -693,7 +695,7 @@ namespace Project.Migrations
 
                     b.HasIndex("Email");
 
-                    b.ToTable("LoginLogs", (string)null);
+                    b.ToTable("LoginLogs");
                 });
 
             modelBuilder.Entity("Project.Models.ReaderAccount", b =>
@@ -786,7 +788,7 @@ namespace Project.Migrations
 
                     b.HasIndex("StudentOrStaffCode");
 
-                    b.ToTable("ReaderAccounts", (string)null);
+                    b.ToTable("ReaderAccounts");
                 });
 
             modelBuilder.Entity("Project.Models.ReaderEmailVerificationToken", b =>
@@ -825,7 +827,7 @@ namespace Project.Migrations
 
                     b.HasIndex("ReaderAccountId", "CreatedAtUtc");
 
-                    b.ToTable("ReaderEmailVerificationTokens", (string)null);
+                    b.ToTable("ReaderEmailVerificationTokens");
                 });
 
             modelBuilder.Entity("Project.Models.ReaderPasswordHistory", b =>
@@ -851,7 +853,7 @@ namespace Project.Migrations
 
                     b.HasIndex("ReaderAccountId", "CreatedAtUtc");
 
-                    b.ToTable("ReaderPasswordHistories", (string)null);
+                    b.ToTable("ReaderPasswordHistories");
                 });
 
             modelBuilder.Entity("Project.Models.ReaderPasswordResetRequest", b =>
@@ -874,7 +876,7 @@ namespace Project.Migrations
 
                     b.HasIndex("EmailHash", "RequestedAtUtc");
 
-                    b.ToTable("ReaderPasswordResetRequests", (string)null);
+                    b.ToTable("ReaderPasswordResetRequests");
                 });
 
             modelBuilder.Entity("Project.Models.ReaderPasswordResetToken", b =>
@@ -909,7 +911,7 @@ namespace Project.Migrations
 
                     b.HasIndex("ReaderAccountId", "ExpiresAtUtc");
 
-                    b.ToTable("ReaderPasswordResetTokens", (string)null);
+                    b.ToTable("ReaderPasswordResetTokens");
                 });
 
             modelBuilder.Entity("Project.Models.RefreshToken", b =>
@@ -948,7 +950,7 @@ namespace Project.Migrations
 
                     b.HasIndex("AdminAccountId", "ExpiresAtUtc");
 
-                    b.ToTable("RefreshTokens", (string)null);
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("Project.Models.Shelf", b =>
@@ -991,7 +993,7 @@ namespace Project.Migrations
                     b.HasIndex("WarehouseId", "Code")
                         .IsUnique();
 
-                    b.ToTable("Shelves", (string)null);
+                    b.ToTable("Shelves");
                 });
 
             modelBuilder.Entity("Project.Models.StaffPasswordSetupToken", b =>
@@ -1026,7 +1028,7 @@ namespace Project.Migrations
 
                     b.HasIndex("AdminAccountId", "ExpiresAtUtc");
 
-                    b.ToTable("StaffPasswordSetupTokens", (string)null);
+                    b.ToTable("StaffPasswordSetupTokens");
                 });
 
             modelBuilder.Entity("Project.Models.Warehouse", b =>
@@ -1070,7 +1072,7 @@ namespace Project.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("Warehouses", (string)null);
+                    b.ToTable("Warehouses");
                 });
 
             modelBuilder.Entity("Project.Models.WeeklyWorkingSchedule", b =>
@@ -1098,7 +1100,7 @@ namespace Project.Migrations
                     b.HasIndex("DayOfWeek")
                         .IsUnique();
 
-                    b.ToTable("WeeklyWorkingSchedules", (string)null);
+                    b.ToTable("WeeklyWorkingSchedules");
                 });
 
             modelBuilder.Entity("Project.Models.Book", b =>
@@ -1403,3 +1405,5 @@ namespace Project.Migrations
         }
     }
 }
+
+
