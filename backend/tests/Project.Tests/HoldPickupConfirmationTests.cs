@@ -326,6 +326,10 @@ public sealed class HoldPickupConfirmationTests
 
     private sealed class CreatingLoanService(ApplicationDbContext db) : IBookLoanService
     {
+        public async Task<IReadOnlyList<BookLoan>> GetForReaderAsync(int readerAccountId, CancellationToken ct = default) =>
+            await db.BookLoans.Where(item => item.ReaderAccountId == readerAccountId).ToListAsync(ct);
+        public Task<RenewBookLoanOutcome> RenewForReaderAsync(long id, int readerAccountId, DateOnly today, CancellationToken ct = default) =>
+            throw new NotImplementedException();
         public Task<IReadOnlyList<BookLoan>> GetAllAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, CancellationToken cancellationToken = default) => CreateAsync(bookId, readerAccountId, loanDate, null, cancellationToken);
         public async Task<BookLoanOutcome> CreateAsync(int bookId, int readerAccountId, DateOnly loanDate, string? actor, CancellationToken cancellationToken = default)
